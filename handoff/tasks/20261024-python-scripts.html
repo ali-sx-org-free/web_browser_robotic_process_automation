@@ -15,7 +15,7 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261024-python-scripts；2026-11-05 17:30 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261024-python-scripts；2026-11-05 17:40 America/Los_Angeles（PST，UTC−08:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>2026-10-24 的兩次需求見<a href="#revision">修訂說明</a>。第三版來自使用者在 Claude 專案對話的兩則訊息：2026-10-29 06:19 America/Los_Angeles（PDT，UTC−07:00）提出命題「本機自動化 Python 腳本場景能不能和現有的場景模型相容，已實作的 Python 腳本場景最好也能適配；非瀏覽器的普通自動化節點也能運行在組合場景裡，讓瀏覽器場景和 Python 結合，補足檔案操作、資料處理、模型構建、網路操作」；06:39 回覆四項決定與分期（原文見<a href="#decisions">第 13 節</a>）。驗收條件見<a href="#goal">第 1 節</a>。</dd>
         <dt>範圍／不包含</dt><dd>這次實作 P0～P2（<a href="#phases">第 11 節</a>）：場景模型、入參與出參型別、組合場景的共用工作資料夾、派工、RPA Python 運行環境、<code>rpa_script</code>、file 出參、DSL 的下載步驟、報告與回看。規劃保留但這次不做（P3）：模型套件的選用運行環境層、腳本工作台、組合場景的扇出（foreach）。不包含：Python 節點開瀏覽器、運行環境模式的 Python 節點使用登入角色（D5：這一版不支援，之後視情況再決定）、錄製桌面操作、AI 生成腳本（M5）、使用者權限（M8）、Python 以外的語言。</dd>
         <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude。審閱與合併：使用者。Codex 先前接手的 PR #82（只有第二版設計）不再延續；第三版與實作在新分支，見下。</dd>
@@ -397,7 +397,7 @@ def main(run: Run) -&gt; None:
           </ol>
         </li>
         <li><strong>決定：</strong>見第 13 節；寫進<a href="../decisions.html">決定</a>。D5 在 2026-11-05 17:16 America/Los_Angeles（PST，UTC−08:00） 決定這一版不支援、之後視情況。實作時確定（使用者授權「按建議」的細節）：<code>rpa_script</code> 不裝在運行環境裡，由 Runner 提供（6.2）；file 出參的值用 <code>{"workspace", …}</code>（不用 <code>path</code>，避免和「那台電腦上的路徑」混淆），Python 節點 outputs/ 的檔案複製到共用工作資料夾的 <code>.outputs/</code> 給下游。</li>
-        <li><strong>下一個具體動作：</strong>使用者照<a href="https://claude.ai/artifact/CwgLXT8wHQCV7ifTweyjHi">Claude Docs 的驗收教程</a>人工驗收，結果回填本頁；之後由使用者決定 PR #109 要不要轉成可審閱、合併。<code>abe1d9e</code> 的 CI 已全部通過（第 16 節）。</li>
+        <li><strong>下一個具體動作：</strong>使用者照<a href="https://claude.ai/artifact/CwgLXT8wHQCV7ifTweyjHi">Claude Docs 的驗收教程</a>人工驗收，結果回填本頁；之後由使用者決定 PR #109 要不要轉成可審閱、合併。最新 head <code>70ea978</code>（合入 main 與 D5 之後）的 CI 全部通過（第 16 節）。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -407,7 +407,8 @@ def main(run: Run) -&gt; None:
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
         <tbody>
-          <tr><td><code>0b041a0</code>＋D5 的文件差異（Claude 雲端環境，系統 Python 3.13；離線，<code>uv sync --locked --offline</code> 缺套件，沒有 .venv、沒有 OpenCC）</td><td><code>git diff --check</code>；改到的 handoff 與 ADR 頁的相對連結與錨點；<code>python-runtime.yml</code> 能解析；全部工作流程的 <code>setup-uv</code> 版本；<code>tools/i18n.py stamp</code> 英文 ADR 0020</td><td>通過；連結 0 個問題；10 處都是 v10.3.2</td><td>沒有 .venv，程式測試（含 <code>tests/ci</code>、<code>tests/docs</code>）與簡中產生都要 bootstrap 與 CI；結果之後補在這裡</td></tr>
+          <tr><td><code>0b041a0</code>＋D5 的文件差異（Claude 雲端環境，系統 Python 3.13；離線，<code>uv sync --locked --offline</code> 缺套件，沒有 .venv、沒有 OpenCC）</td><td><code>git diff --check</code>；改到的 handoff 與 ADR 頁的相對連結與錨點；<code>python-runtime.yml</code> 能解析；全部工作流程的 <code>setup-uv</code> 版本；<code>tools/i18n.py stamp</code> 英文 ADR 0020</td><td>通過；連結 0 個問題；10 處都是 v10.3.2</td><td>沒有 .venv，程式測試（含 <code>tests/ci</code>、<code>tests/docs</code>）與簡中產生都要 bootstrap 與 CI，結果見下一列</td></tr>
+          <tr><td><code>b93c3d5</code>、<code>70ea978</code>（bootstrap 產生簡中），GitHub Actions</td><td>CI、RPA Python 運行環境、桌面端建置、伺服器分發包、一鍵安裝腳本</td><td><code>70ea978</code>：CI 的靜態檢查、Linux 3.12（2181 passed、6 skipped）、3.13（2230 passed、6 skipped）通過，<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/42143697990">運行</a>；重的工作依指紋沿用 <code>b93c3d5</code> 的完整建置：運行環境四個平台（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/42143133841">運行</a>，用 setup-uv v10.3.2）、RPA Worker（Windows、macOS）與錄製端（macOS）（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/42143133938">運行</a>）、分發包 x64／arm64（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/42143133892">運行</a>）、Worker 測試（Windows）（<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/actions/runs/42143133908">運行</a>）都通過；一鍵安裝腳本沿用 <code>2d88efa</code> 的結果。<code>b93c3d5</code> 的 Linux 測試只有 <code>tests/i18n/test_generated.py</code> 失敗（簡中 ADR 0020 還沒產生），bootstrap 補上後在 <code>70ea978</code> 通過。<code>70ea978</code> 是 github-actions[bot] 推的，五個工作流程一開始停在 action_required，Claude 以 API 核准（<code>POST /actions/runs/{id}/approve</code>）後才執行。</td><td>人工驗收未做</td></tr>
           <tr><td>a8cde7f＋本頁、任務索引、決定（Claude 雲端環境）</td><td><code>git diff --check</code>；handoff 的相對連結與錨點檢查</td><td>第一版、第二版都通過</td><td>只改 handoff/，不跑程式測試</td></tr>
           <tr><td><code>408f135</code>＋P0 工作區差異，Claude 雲端環境（系統 Python 3.13.18、Ruff 0.16.9、Pyright 1.1.414；沒有 .venv）</td><td><code>ruff check .</code>、<code>ruff format --check .</code>；Pyright strict（packages、apps/worker、tools；伺服器另外確認沒有新的型別錯誤）；<code>pytest -m "not browser"</code>：packages、apps/worker、apps/testsite</td><td>Ruff 通過；Pyright 0 errors；854 passed、2 skipped（Windows 專用）</td><td>伺服器、命令列（serve、update）、tests/docs 的簡中與 test_release_version 要 bootstrap 與 CI；瀏覽器測試未跑</td></tr>
           <tr><td><code>abe1d9e</code>，GitHub Actions</td><td>CI（靜態檢查、測試 3.12／3.13、Worker 測試（Windows））、運行環境四個平台、伺服器分發包 x64／arm64、RPA Worker（Windows）</td><td>全部通過。Linux 3.13：2230 passed、6 skipped，包含 <code>test_browser_python_flow.py</code>、<code>test_composite_replay.py</code> 的頁面測試，以及本機錄不出影片的 <code>test_replay_flow.py</code>、<code>test_composite_replay_flow.py</code>（證實本機的失敗是環境造成的）；Worker 測試（Windows）94 passed，包含 <code>test_download_summarize_upload[firefox]</code></td><td>依變更範圍略過的工作（Rocky 8 的 Linux 伺服器、從零開始、專案內執行）；人工驗收未做</td></tr>
@@ -417,7 +418,7 @@ def main(run: Run) -&gt; None:
           <tr><td>main <code>c9a9d7f</code>，Claude 雲端環境，系統的 Python 3.13.18 直接從原始碼執行（沒有 .venv）</td><td>第 2 節的查證：腳本場景冒煙測試 6 種情況與入參超出範圍；<code>check_workflow</code> 檢查瀏覽器＋Python＋瀏覽器的組合；<code>pytest -k script</code>（rpa_core 與 rpa_runner 不需要瀏覽器的部分）</td><td>全部符合預期；17 passed</td><td>沒有瀏覽器、沒有伺服器的依賴：Portal、Worker、瀏覽器的部分沒有跑</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：見上表，最新是 <code>abe1d9e</code> 全部通過。人工驗收：未執行，照<a href="https://claude.ai/artifact/CwgLXT8wHQCV7ifTweyjHi">Claude Docs 的驗收教程</a>做。審閱：等使用者。</p></div>
+      <div class="panel-body"><p>CI：見上表，最新是 <code>70ea978</code> 全部通過（重的工作沿用同一批改動 <code>b93c3d5</code> 的完整建置）。人工驗收：未執行，照<a href="https://claude.ai/artifact/CwgLXT8wHQCV7ifTweyjHi">Claude Docs 的驗收教程</a>做。審閱：等使用者。</p></div>
     </section>
 
     <section class="panel" id="receipt">
@@ -442,6 +443,7 @@ def main(run: Run) -&gt; None:
         <li>2026-10-30 01:20 America/Los_Angeles（PDT，UTC−07:00），Claude：依使用者 00:35 的要求補完 PR #109 剩下的功能、測試與文件（第 15 節「10-30 補完」）：合併回看裡 Python 節點的步驟時間軸、主控台逐步對應（改了設計 6.2 的寫法，原因見該列）、經過 Portal 的瀏覽器＋Python 組合運行、Firefox 下載、檔案上限與取消的測試、Portal／ADR 0020／場景 DSL／路線圖。本機驗證見第 16 節；推送到 <code>feat/python-nodes</code> 後核對 CI。PR 保持草稿，不合併。</li>
         <li>2026-10-30 02:00 America/Los_Angeles（PDT，UTC−07:00），Claude：<code>abe1d9e</code> 的 CI 全部通過（第 16 節），PR #109 的說明已更新；依使用者 01:31 的要求寫了<a href="https://claude.ai/artifact/CwgLXT8wHQCV7ifTweyjHi">Claude Docs 的驗收教程</a>（Python 節點的人工驗收，附結果勾選表）。PR 的 CI 訂閱沒有成功（工具回應無法訂閱），之後的 CI 要手動查。</li>
         <li>2026-11-05 17:30 America/Los_Angeles（PST，UTC−08:00），Claude：依使用者 17:16 的要求處理 PR #109 的衝突。#110（setup-uv v10.3.0 → v10.3.2）合併後 main 到了 <code>8c89539</code>；合入 main（<code>abb18dc</code>），#110 改到的 bootstrap、desktop、server-package 三個工作流程自動合併、沒有文字衝突；本分支新增的 <code>python-runtime.yml</code> 不在 #110 的範圍，還是 v10.3.0，另外升到 v10.3.2（<code>0b041a0</code>），現在全部工作流程一致。同時記錄使用者的 D5 決定（這一版不支援，之後視情況）：第 13 節、範圍、第 11 節的 P3、<a href="../decisions.html">決定</a>、ADR 0020（繁中、英文；簡中由 bootstrap 產生）。程式不用改：運行環境模式寫 <code>login</code> 本來就被校驗擋下。不重寫既有提交；PR 保持草稿，不合併。</li>
+        <li>2026-11-05 17:40 America/Los_Angeles（PST，UTC−08:00），Claude：bootstrap 推了 <code>70ea978</code>（只有簡中 ADR 0020），快轉接收；最新 head 的 CI 一開始停在 action_required，以 API 核准後全部通過（第 16 節）。PR #109 的說明已補上這次合入 main 與 D5；GitHub 顯示可以合併（clean）。PR 保持草稿；剩下的仍是人工驗收與使用者的合併決定。</li>
       </ul></div>
     </section>
   </div>
