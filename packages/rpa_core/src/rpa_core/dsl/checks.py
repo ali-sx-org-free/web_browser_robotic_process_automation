@@ -4,19 +4,24 @@
   不寫 verify 與 outputs 的 from；運行環境模式不寫 browser、login，assertion 與 verify 二擇一
   （沒有出參時可以都不寫），用 verify 時出參要有 from
 - 出參：DSL 場景的每個出參都要有 from，有出參就要有 verify（獨立斷言通過才發布）
-- 步驟 id、secrets 名稱、extract 與 download 的 as 不能重複
+- 步驟 id（含區塊裡的步驟）、secrets 名稱、extract 與 download 的 as 不能重複；
+  好幾步寫同一個 as 時，每一步都要是 ``extract`` 加 ``append: true``（M7.1）
 - goto 的網址以 / 開頭時，要有 browser.baseUrl
-- 新分頁（M7b）：page 要是「之前」某一步的 popup 開出來的分頁；popup 的名稱不能重複
+- 新分頁（M7b）：page 要是「之前」某一步的 popup（或 M7.1 的 openPage）開出來的分頁；名稱不能
+  重複；最外層 closePage 關掉之後不能再用
+- 區塊步驟（M7.1）：最多巢狀 MAX_NESTING 層；forEach 的迴圈變數不能用保留的名稱、不能和外層的
+  迴圈變數同名
 - 上傳（M7c）：upload 的 files 要引用 type: file 的入參；沒有 runtime 的 Python 節點不能有
   file 入參，也不能有 file 出參（ADR 0020）
-- ``{{ }}``：以 Jinja2 解析，語法要正確；只能用 inputs、secrets、facts、env；
-  inputs、secrets 要宣告，facts 要由「之前」的 extract 或 download 產生；
+- ``{{ }}``：以 Jinja2 解析，語法要正確；只能用 inputs、secrets、facts、env，迴圈裡多了迴圈變數
+  與 ``loop``，``catch`` 裡多了 ``error``（M7.1）；inputs、secrets 要宣告，facts 要由「之前」
+  （場景檔的順序）的 extract 或 download 產生——分支與迴圈裡產生的，之後都算「可能有」；
   寫了入參值的動態值（today、now、random）時，說明要改寫在入參
 
 ``{{ }}`` 的求值在 M2 的執行引擎；這裡只做不需要執行就能發現的檢查。
 """
 
-from collections.abc import Iterator, Set
+from collections.abc import Iterator, Sequence, Set
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Final, cast
 
@@ -26,16 +31,36 @@ from jinja2.sandbox import SandboxedEnvironment
 
 from rpa_core.dsl.dynamic import NAMES as DYNAMIC_NAMES
 from rpa_core.dsl.dynamic import dynamic_expression
-from rpa_core.dsl.steps import fact_name, upload_input_names
+from rpa_core.dsl.steps import (
+    BRANCHES,
+    MAX_NESTING,
+    ClosePageStep,
+    Condition,
+    ExtractStep,
+    ForEachStep,
+    IfStep,
+    OpenPageStep,
+    RepeatStep,
+    Step,
+    TryStep,
+    branches,
+    fact_name,
+    upload_input_names,
+    walk_steps,
+)
 from rpa_core.dsl.yaml_loader import DataPath
 
 if TYPE_CHECKING:
     from rpa_core.dsl.scenario import Scenario
 
-__all__ = ["RENAMED", "VARIABLES", "CrossIssue", "cross_check"]
+__all__ = ["FLOW_VARIABLES", "RENAMED", "VARIABLES", "CrossIssue", "cross_check"]
 
 VARIABLES: Final = ("inputs", "secrets", "facts", "env")
 """``{{ }}`` 可以使用的變數。"""
+
+FLOW_VARIABLES: Final = ("loop", "error")
+"""流程控制（M7.1）多出的變數：迴圈裡的 ``loop``、``catch`` 裡的 ``error``。
+連同 :data:`VARIABLES` 都不能當迴圈變數的名稱。"""
 
 RENAMED: Final = {"params": "inputs"}
 """改過名的欄位與變數：舊名 → 新名，用來提示正確寫法。"""
@@ -60,6 +85,7 @@ def cross_check(scenario: "Scenario") -> list[CrossIssue]:
     issues.extend(_relative_urls(scenario))
     issues.extend(_tabs(scenario))
     issues.extend(_uploads(scenario))
+    issues.extend(_flow(scenario))
     issues.extend(_templates(scenario))
     return issues
 
@@ -126,54 +152,87 @@ def _duplicate_names(scenario: "Scenario") -> Iterator[CrossIssue]:
             yield CrossIssue(("secrets", index), "secret.duplicate", {"name": name})
         else:
             seen_secrets[name] = index
-    seen_steps: dict[str, int] = {}
-    seen_facts: dict[str, int] = {}
-    for index, step in enumerate(scenario.steps or ()):
+    seen_steps: dict[str, DataPath] = {}
+    seen_facts: dict[str, tuple[DataPath, bool]] = {}
+    for path, step, _ in walk_steps(scenario.steps):
         if step.id in seen_steps:
-            first = seen_steps[step.id] + 1
-            yield CrossIssue(
-                ("steps", index, "id"), "step.duplicate_id", {"id": step.id, "first": first}
-            )
+            first = _number(seen_steps[step.id])
+            yield CrossIssue((*path, "id"), "step.duplicate_id", {"id": step.id, "first": first})
         else:
-            seen_steps[step.id] = index
+            seen_steps[step.id] = path
         fact = fact_name(step)
-        if fact is not None:
-            if fact in seen_facts:
-                first = seen_facts[fact] + 1
-                yield CrossIssue(
-                    ("steps", index, "as"),
-                    "extract.duplicate_as",
-                    {"name": fact, "first": first},
-                )
-            else:
-                seen_facts[fact] = index
+        if fact is None:
+            continue
+        append = isinstance(step, ExtractStep) and step.append is True
+        if fact not in seen_facts:
+            seen_facts[fact] = (path, append)
+            continue
+        first_path, first_append = seen_facts[fact]
+        if append and first_append:
+            continue
+        code = "extract.duplicate_as_append" if append or first_append else "extract.duplicate_as"
+        yield CrossIssue((*path, "as"), code, {"name": fact, "first": _number(first_path)})
+
+
+def _number(path: DataPath) -> int:
+    """路徑所在的最外層步驟是第幾步（從 1 開始），給訊息用。"""
+    return int(path[1]) + 1 if len(path) > 1 and isinstance(path[1], int) else 0
 
 
 def _relative_urls(scenario: "Scenario") -> Iterator[CrossIssue]:
     if scenario.browser.base_url is not None:
         return
-    for index, step in enumerate(scenario.steps or ()):
-        if step.action == "goto" and step.url.startswith("/"):
-            yield CrossIssue(
-                ("steps", index, "url"), "url.relative_without_base", {"value": step.url}
-            )
+    for path, step, _ in walk_steps(scenario.steps):
+        url = getattr(step, "url", None) if step.action in ("goto", "openPage") else None
+        if isinstance(url, str) and url.startswith("/"):
+            yield CrossIssue((*path, "url"), "url.relative_without_base", {"value": url})
 
 
 def _tabs(scenario: "Scenario") -> Iterator[CrossIssue]:
-    opened: dict[str, int] = {}
-    for index, step in enumerate(scenario.steps or ()):
-        if step.page is not None and step.page not in opened:
-            yield CrossIssue(("steps", index, "page"), "page.undefined", {"name": step.page})
-        popup = getattr(step, "popup", None)
-        if not isinstance(popup, str):
-            continue
-        if popup in opened:
-            first = opened[popup] + 1
-            yield CrossIssue(
-                ("steps", index, "popup"), "popup.duplicate", {"name": popup, "first": first}
-            )
+    """分頁名稱（M7b 的 popup、M7.1 的 openPage）依場景檔的順序：先開過才能用、不能重複；
+    最外層的 closePage 之後不能再用（區塊裡的關閉要執行才知道，執行時才指出）。"""
+    opened: dict[str, DataPath] = {}
+    closed: set[str] = set()
+
+    def use(path: DataPath, name: str | None) -> Iterator[CrossIssue]:
+        if name is None:
+            return
+        if name not in opened:
+            yield CrossIssue(path, "page.undefined", {"name": name})
+        elif name in closed:
+            yield CrossIssue(path, "page.closed", {"name": name})
+
+    for path, step, depth in walk_steps(scenario.steps):
+        yield from use((*path, "page"), step.page)
+        for key, condition in _conditions(step):
+            yield from use((*path, key, "page"), condition.page)
+        if isinstance(step, OpenPageStep):
+            name, key = step.as_, "as"
         else:
-            opened[popup] = index
+            popup = getattr(step, "popup", None)
+            name, key = (popup, "popup") if isinstance(popup, str) else (None, "")
+        if name is not None:
+            if name in opened:
+                first = _number(opened[name])
+                yield CrossIssue((*path, key), "popup.duplicate", {"name": name, "first": first})
+            else:
+                opened[name] = path
+        if isinstance(step, ClosePageStep) and depth == 0 and step.page is not None:
+            closed.add(step.page)
+
+
+def _conditions(step: Step) -> list[tuple[str, Condition]]:
+    """區塊步驟的條件：(YAML 的鍵, Condition)。"""
+    if isinstance(step, IfStep):
+        return [("condition", step.condition)]
+    if isinstance(step, RepeatStep):
+        found: list[tuple[str, Condition]] = []
+        if step.while_ is not None:
+            found.append(("while", step.while_))
+        if step.until is not None:
+            found.append(("until", step.until))
+        return found
+    return []
 
 
 def _uploads(scenario: "Scenario") -> Iterator[CrossIssue]:
@@ -185,7 +244,7 @@ def _uploads(scenario: "Scenario") -> Iterator[CrossIssue]:
         for name, spec in scenario.outputs.items():
             if spec.type == "file":
                 yield CrossIssue(("outputs", name, "type"), "script.file_output", {"name": name})
-    for index, step in enumerate(scenario.steps or ()):
+    for path, step, _ in walk_steps(scenario.steps):
         if step.action != "upload":
             continue
         for position, name in enumerate(upload_input_names(step.files)):
@@ -193,10 +252,41 @@ def _uploads(scenario: "Scenario") -> Iterator[CrossIssue]:
             # 沒有宣告的入參由 {{ }} 的檢查指出，這裡只看型別
             if spec is not None and spec.type != "file":
                 yield CrossIssue(
-                    ("steps", index, "files", position),
+                    (*path, "files", position),
                     "upload.not_file_input",
                     {"name": name, "type": spec.type},
                 )
+
+
+# ---------------------------------------------------------------- 流程控制（M7.1）
+
+
+def _flow(scenario: "Scenario") -> Iterator[CrossIssue]:
+    """區塊的巢狀層數；forEach 的迴圈變數名稱。"""
+    yield from _flow_steps(scenario.steps or (), ("steps",), 0, ())
+
+
+def _flow_steps(
+    steps: Sequence[Step], path: DataPath, depth: int, loop_names: tuple[str, ...]
+) -> Iterator[CrossIssue]:
+    for index, step in enumerate(steps):
+        here = (*path, index)
+        children = branches(step)
+        if not children:
+            continue
+        if depth + 1 > MAX_NESTING:
+            yield CrossIssue((*here, "action"), "block.too_deep", {"max": MAX_NESTING})
+            continue
+        names = loop_names
+        if isinstance(step, ForEachStep):
+            name = step.as_
+            if name in VARIABLES or name in FLOW_VARIABLES:
+                yield CrossIssue((*here, "as"), "forEach.reserved_name", {"name": name})
+            elif name in loop_names:
+                yield CrossIssue((*here, "as"), "forEach.shadowed_name", {"name": name})
+            names = (*loop_names, name)
+        for key, inner in children:
+            yield from _flow_steps(inner, (*here, key), depth + 1, names)
 
 
 # ---------------------------------------------------------------- {{ }}
@@ -210,6 +300,8 @@ class _Scope:
     """這個位置之前已產生的 facts；None 代表這裡不能用 facts。"""
     all_facts: Set[str] | None
     """整個場景會產生的 facts；None 代表執行才知道（Python 節點），不檢查名稱。"""
+    extra: Set[str] = frozenset()
+    """這個位置多出的變數（M7.1）：外層 forEach 的迴圈變數、迴圈裡的 loop、catch 裡的 error。"""
 
 
 def _templates(scenario: "Scenario") -> Iterator[CrossIssue]:
@@ -219,11 +311,11 @@ def _templates(scenario: "Scenario") -> Iterator[CrossIssue]:
     all_facts: Set[str] | None = (
         None
         if scenario.script is not None
-        else {name for step in scenario.steps or () if (name := fact_name(step)) is not None}
+        else {name for _, step, _ in walk_steps(scenario.steps) if (name := fact_name(step))}
     )
 
-    def scope(facts_before: Set[str] | None) -> _Scope:
-        return _Scope(inputs, secrets, facts_before, all_facts)
+    def scope(facts_before: Set[str] | None, extra: Set[str] = frozenset()) -> _Scope:
+        return _Scope(inputs, secrets, facts_before, all_facts, frozenset(extra))
 
     every_fact = all_facts if all_facts is not None else frozenset[str]()
 
@@ -231,15 +323,33 @@ def _templates(scenario: "Scenario") -> Iterator[CrossIssue]:
     for path, text in _strings(browser, ("browser",)):
         yield from _check_template(path, text, scope(None))
     produced: set[str] = set()
-    for index, (step, raw) in enumerate(
-        zip(scenario.steps or (), _list(data, "steps"), strict=True)
-    ):
-        for path, text in _strings(raw, ("steps", index)):
-            if path[2:] != ("name",):
-                yield from _check_template(path, text, scope(frozenset(produced)))
-        fact = fact_name(step)
-        if fact is not None:
-            produced.add(fact)
+
+    def visit(steps: Sequence[Step], path: DataPath, extra: frozenset[str]) -> Iterator[CrossIssue]:
+        for index, step in enumerate(steps):
+            here = (*path, index)
+            raw = step.model_dump(mode="json", by_alias=True, exclude_unset=True)
+            own = {key: value for key, value in raw.items() if key not in BRANCHES}
+            # forEach 的 items 在迴圈外求值，repeat 的 while／until 看得到 loop
+            own_extra = extra | {"loop"} if isinstance(step, RepeatStep) else extra
+            for field_path, text in _strings(own, here):
+                if field_path[len(here) :] != ("name",):
+                    yield from _check_template(
+                        field_path, text, scope(frozenset(produced), own_extra)
+                    )
+            fact = fact_name(step)
+            if fact is not None:
+                produced.add(fact)
+            for key, inner in branches(step):
+                inner_extra = extra
+                if isinstance(step, ForEachStep):
+                    inner_extra = extra | {step.as_, "loop"}
+                elif isinstance(step, RepeatStep):
+                    inner_extra = extra | {"loop"}
+                elif isinstance(step, TryStep) and key == "catch":
+                    inner_extra = extra | {"error"}
+                yield from visit(inner, (*here, key), inner_extra)
+
+    yield from visit(scenario.steps or (), ("steps",), frozenset())
     for index, raw in enumerate(_list(data, "verify")):
         for path, text in _strings(raw, ("verify", index)):
             if path[2:] != ("name",):
@@ -280,15 +390,16 @@ def _check_template(path: DataPath, text: str, scope: _Scope) -> Iterator[CrossI
             yield _syntax_issue(path, text, error)
         return
     for name in sorted(find_undeclared_variables(tree)):
+        if name in scope.extra:
+            continue
         if name in RENAMED:
             yield CrossIssue(path, "template.renamed", {"old": name, "new": RENAMED[name]})
         elif name.lower() in DYNAMIC_NAMES:
             expression = dynamic_expression(text) or name
             yield CrossIssue(path, "template.dynamic_in_step", {"name": expression})
         elif name not in VARIABLES:
-            yield CrossIssue(
-                path, "template.unknown_variable", {"name": name, "choices": ", ".join(VARIABLES)}
-            )
+            choices = ", ".join((*VARIABLES, *sorted(scope.extra)))
+            yield CrossIssue(path, "template.unknown_variable", {"name": name, "choices": choices})
     for root, key in _references(tree):
         yield from _check_reference(path, root, key, scope)
 

@@ -24,6 +24,7 @@ __all__ = [
     "FEATURES",
     "FILE_INPUTS",
     "FILE_OUTPUTS",
+    "FLOW",
     "JSON_INPUTS",
     "PYTHON_NODES",
     "UPLOAD",
@@ -46,6 +47,11 @@ FILE_OUTPUTS: Final = "fileOutputs"
 """``type: file`` 的出參與共用工作資料夾裡的檔案值 ``{"workspace": …}``（ADR 0020）。"""
 DOWNLOAD: Final = "download"
 """``download`` 步驟（ADR 0020）。"""
+FLOW: Final = "flow"
+"""流程控制（M7.1，ADR 0021）：區塊步驟 ``if``、``forEach``、``repeat``、``try``，``openPage``、
+``closePage``，以及步驟的 ``onError``、``retry`` 與 extract 的 ``append``。"""
+_FLOW_ACTIONS: Final = frozenset({"if", "forEach", "repeat", "try", "openPage", "closePage"})
+_FLOW_KEYS: Final = ("onError", "retry")
 
 FEATURES: Final[frozenset[str]] = frozenset(
     {
@@ -60,13 +66,14 @@ FEATURES: Final[frozenset[str]] = frozenset(
         JSON_INPUTS,
         FILE_OUTPUTS,
         DOWNLOAD,
+        FLOW,
     }
 )
 """這份程式看得懂的擴充：定位器的 ``frame``、``anyFrame``（M7a，iframe）；
 步驟的 ``page``、``popup``（M7b，新分頁）；入參的 ``dynamicValues``（日期、隨機數）；
 ``upload`` 步驟與 ``fileInputs``（M7c，上傳檔案）；
 ``pythonNodes``、``jsonInputs``、``fileOutputs`` 與 ``download`` 步驟（Python 節點與組合場景的
-檔案，ADR 0020）。"""
+檔案，ADR 0020）；``flow``（流程控制，M7.1）。"""
 
 
 def data_features(data: object) -> frozenset[str]:
@@ -74,7 +81,8 @@ def data_features(data: object) -> frozenset[str]:
 
     任何一層的 dict 有 ``frame: {…}`` 就是 ``frame``，有 ``anyFrame: true`` 就是 ``anyFrame``；
     有 ``page: 名稱``、``popup: 名稱``（步驟）就是 ``page``、``popup``；``action: upload`` 就是
-    ``upload``。
+    ``upload``；區塊步驟、``openPage``／``closePage``，或步驟寫了 ``onError``、``retry``、
+    ``append: true`` 就是 ``flow``（M7.1）。
     """
     found: set[str] = set()
     pending: list[object] = [data]
@@ -93,6 +101,10 @@ def data_features(data: object) -> frozenset[str]:
                 found.add(UPLOAD)
             if values.get("action") == DOWNLOAD:
                 found.add(DOWNLOAD)
+            action = values.get("action")
+            flow_keys = isinstance(action, str) and any(key in values for key in _FLOW_KEYS)
+            if action in _FLOW_ACTIONS or values.get("append") is True or flow_keys:
+                found.add(FLOW)
             pending.extend(values.values())
         elif isinstance(item, list | tuple):
             pending.extend(cast("Iterable[object]", item))
