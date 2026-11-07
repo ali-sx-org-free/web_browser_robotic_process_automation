@@ -197,6 +197,11 @@ window.DOCS_NAV = {
           "id": "adr-0020",
           "href": "adr/0020-python-nodes.html",
           "name": {"zh-Hant": "0020 Python 節點", "zh-Hans": "0020 Python 节点", "en": "0020 Python nodes"}
+        },
+        {
+          "id": "adr-0021",
+          "href": "adr/0021-flow-control.html",
+          "name": {"zh-Hant": "0021 場景內的流程控制", "zh-Hans": "0021 场景内的流程控制", "en": "0021 Flow control in scenarios"}
         }
       ]
     },
