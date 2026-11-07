@@ -15,12 +15,12 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261106-m7-flow；2026-11-06 18:13 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261106-m7-flow；2026-11-07 00:58 America/Los_Angeles（PST，UTC−08:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 雲端 session（2026-11-06 18:00 America/Los_Angeles（PST，UTC−08:00））：「M6已經驗證過，忘記更新狀態。請繼續M7的功能研發。」路線圖的 M7 驗收方式是「複雜範例場景通過」；各期的驗收條件見<a href="#phases">第 7 節</a>。</dd>
         <dt>範圍／不包含</dt><dd>M7 剩下的七項：條件、迴圈、錯誤處理、重試（只用於無副作用的步驟）、自己開的新分頁、子場景、資料驅動。不包含：已提前做完的 iframe（M7a）、點擊開出的新分頁（M7b）、上傳（M7c）、下載（ADR 0020）；組合場景層級的平行節點、條件分支、重複次數（M6 原型的項目，另等決定，見<a href="../open-work.html#m6-gaps">未完成工作</a>）；AI 生成流程（M5）。</dd>
         <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude（Opus 5.5）。審閱、決定與合併：使用者。</dd>
         <dt>修改檔案／整合者</dt><dd>設計階段只有本頁與任務索引。實作會改到的檔案見<a href="#files">第 9 節</a>；共用檔案（多語言目錄、<code>schema/scenario.v1.json</code>、<code>docs/assets/nav.js</code>、任務索引、ADR 編號 0021、之後 M7.3 的資料庫遷移編號）由本分支整合，<code>uv.lock</code>、簡中與 JSON Schema 由 bootstrap 產生。並行的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/114">#114</a>（另一個 Claude session 的文檔站對齊 v0.8.0）也在任務索引加了一行、改了第 9 節列的幾份文件：誰後合併誰整合索引（兩行都保留）；M7.1 的文件改動在 #114 合併後從最新 main 接續。</dd>
-        <dt>狀態</dt><dd>實作中（M7.1）：<a href="#decisions">D1～D9</a> 於 2026-11-06 18:21 America/Los_Angeles（PST，UTC−08:00）全照建議。GitHub 從 18:15 起對這個 session 回 403（帳號被停權的訊息），提交先留在本機，存取恢復後推送。</dd>
+        <dt>狀態</dt><dd>M7.1 程式、測試與文件完成，等推送、CI 與人工驗收：<a href="#decisions">D1～D9</a> 於 2026-11-06 18:21 America/Los_Angeles（PST，UTC−08:00）全照建議。GitHub 從 2026-11-06 18:15 起對這個 session 回 403（帳號被停權的訊息），提交都在本機的 <code>m7/flow</code>，存取恢復後推送（見<a href="#progress">進度</a>）。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>m7/flow</code>，從 <code>673dc4c</code>（origin/main，Merge PR #112）開；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/115">PR #115</a>（草稿，base main；目前只有設計）。M6 狀態的文件更新另在 <code>docs/m6-status</code>（PR #113），兩者沒有共用檔案。</dd>
         <dt>交接版本／同步狀態</dt><dd>本頁與索引推送到 <code>m7/flow</code>；以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux x86_64、系統 Python 3.13.18、uv 0.11.32、Ruff 0.16.9、Pyright 1.1.414）。連不到 PyPI，<code>uv sync --locked</code> 失敗；調研用系統已有的 Pydantic 2.13.5、Jinja2 3.1.6、Playwright 與 <code>/opt/pw-browsers</code> 的 Chromium，在 <code>/tmp</code> 的虛擬環境以 .pth 指到工作區的套件原始碼。沒有 Firefox、沒有 OpenCC。</dd>
@@ -342,11 +342,24 @@ outputs:
     <section class="panel" id="progress">
       <div class="panel-header"><h2>進度、決定與下一步</h2></div>
       <div class="panel-body"><ul class="points">
-        <li><strong>已完成：</strong>依 main <code>673dc4c</code> 查證現況（第 2 節）；技術調研（第 3 節）；M7 全部七項的設計（M7.1 詳細，M7.2、M7.3 概要）與待決定事項。</li>
-        <li><strong>未完成／阻礙：</strong>M7.1 實作中。GitHub 對這個 session 回 403「Sorry. Your account was suspended」（API 與 git 都是，2026-11-06 18:15 起），推送與 CI 受阻。M7.2、M7.3 的細部設計在 M7.1 合併後另寫。</li>
-        <li><strong>決定：</strong>D1～D9 全照建議（第 11 節；<a href="../decisions.html#decisions">決定</a>）。</li>
-        <li><strong>下一個具體動作：</strong>使用者回覆 D1～D9 → 依決定改寫本頁的第 4～11 節並記錄原文 → 在本分支開始 M7.1：先寫 <code>rpa_core</code> 的模型與校驗（含測試），再寫 Runner、紀錄與日誌，之後是伺服器、Portal、文件與範例；每一段推送後看 CI。</li>
-        <li><strong>未提交／stash／ignored 產物：</strong>無。調研腳本與虛擬環境在工作區的 <code>/tmp</code>，不進倉庫。</li>
+        <li><strong>已完成（M7.1）：</strong>
+          <ul>
+            <li><code>c97118b</code> rpa_core：區塊步驟（if、forEach、repeat、try）、條件、onError、retry（只有 goto、waitFor、expect、extract、screenshot）、openPage／closePage、extract.append；巢狀的校驗與範圍、上限、問題位置指到最內層的步驟；擴充 <code>flow</code>；錄製稿的 <code>context.new_page()</code>／<code>close()</code>。</li>
+            <li><code>e259921</code>、<code>a4e83b3</code> rpa_runner：遞迴執行、步驟紀錄（path、parent、iteration、attempts、handled、condition、branch、iterations、caught）、自動化日誌、執行報告、逐步調試的區塊與路徑；測試網站 <code>/flow</code>、<code>/flow/list</code>、<code>/flow/report</code>；<code>scenarios/examples/flow/</code> 六個範例與瀏覽器測試。</li>
+            <li><code>0abdb64</code> <code>schema/scenario.v1.json</code>（本機產生；同一個產生器重現 main 的檔案逐位元組相同）。</li>
+            <li><code>dddf16c</code> rpa_server：調試的步驟樹、path 與 choices（Portal API、Agent API）、回看與匯總報告依 path 對應、場景編輯頁的「插入流程範本」。</li>
+            <li><code>3dd6eb7</code> 文件：場景 DSL 的流程控制、管理 Portal、Agent API、ADR 0021、路線圖；英文已 stamp。</li>
+          </ul></li>
+        <li><strong>未完成／阻礙：</strong>
+          <ul>
+            <li>GitHub 對這個 session 回 403「Sorry. Your account was suspended」（API 與 git 都是）：推送、bootstrap（簡中頁面與訊息目錄、<code>uv.lock</code>）與 CI 都還沒跑。本機沒有 OpenCC，簡中只能由 bootstrap 產生。</li>
+            <li>伺服器的測試（<code>apps/server/tests/test_flow_server.py</code> 與既有的頁面測試）本機沒有 SQLAlchemy、FastAPI，沒跑過，要看 CI。Firefox 的瀏覽器測試、錄影相關的測試同樣要看 CI。</li>
+            <li>人工驗收（第 7 節 M7.1 那一列）。</li>
+            <li>M7.2 子場景、M7.3 資料驅動的細部設計在 M7.1 合併後另寫。</li>
+          </ul></li>
+        <li><strong>決定：</strong>D1～D9 全照建議（第 11 節；<a href="../decisions.html#decisions">決定</a>）。實作時另外定下、沒有偏離設計的細節：<code>append</code> 沒寫時是 None（錄製稿不多出 <code>append: false</code>）；visible／hidden 的條件看前 20 個符合的元素；try 裡的失敗在發生時就標成 caught，日誌才寫得對；每一步截圖的檔名最多四位數（第 10,000 筆以後不拍）。</li>
+        <li><strong>下一個具體動作：</strong>GitHub 存取恢復後：<code>git fetch origin main</code> 並整合 → 推送 <code>m7/flow</code>（最新的提交要含 <code>[bootstrap]</code>）→ 看 bootstrap 與 CI（特別是伺服器測試、Firefox）→ 修到全綠 → 把 #115 轉成可審閱，請使用者照第 7 節做人工驗收。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。調研腳本、虛擬環境與本機的 Pyright 設定在 <code>/tmp</code>；倉庫根目錄的 <code>.venv</code> 是指向那個虛擬環境的連結，已加進 <code>.git/info/exclude</code>，不會提交。</li>
       </ul></div>
     </section>
 
@@ -356,6 +369,7 @@ outputs:
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
         <tbody>
           <tr><td>main <code>673dc4c</code>＋本頁，Claude 雲端環境</td><td>第 3 節的調研；<code>git diff --check</code>；本頁與任務索引的相對連結與錨點檢查</td><td>調研結果見第 3 節；<code>git diff --check</code> 通過；連結 0 個問題</td><td>只有設計，沒有程式與測試的變更；CI 只跑文件相關的檢查</td></tr>
+          <tr><td><code>3dd6eb7</code>（M7.1），Claude 雲端環境（系統 Python 3.13.18、Chromium，沒有 Firefox、OpenCC、SQLAlchemy、FastAPI）</td><td><code>ruff check .</code>、<code>ruff format --check .</code>；Pyright strict（rpa_core、rpa_runner）；<code>pytest -m "not browser" packages/rpa_core packages/rpa_runner packages/rpa_script tests/examples</code>；<code>pytest -m browser packages/rpa_runner -k "not firefox and not video"</code>（Chromium）；<code>pytest tests/docs tests/i18n</code>；文件的相對連結</td><td>Ruff 通過；Pyright 只剩沒改過的 <code>yaml_loader.py</code>（本機沒有 PyYAML 的型別）；737 passed、4 skipped；瀏覽器 65 passed（含新的 13 個流程測試與調試的區塊測試）；docs／i18n 367 passed，6 failed 都是還沒產生的簡中；連結 0 個問題（2026-11-07 00:58）</td><td>伺服器測試、Firefox、錄影（本機的 main 也錄不出影片，環境問題）、簡中、CI；人工驗收</td></tr>
         </tbody>
       </table></div>
       <div class="panel-body"><p>CI：見 PR；人工驗收：未執行（還沒有實作）；審閱：等使用者。</p></div>
@@ -371,6 +385,9 @@ outputs:
       <div class="panel-body"><ul class="points">
         <li>2026-11-06 18:13 America/Los_Angeles（PST，UTC−08:00），Claude：依使用者 18:00 的要求建立本頁（<code>69df0a6</code>）。從 main <code>673dc4c</code> 開 <code>m7/flow</code>；確認 GitHub 上沒有其他開著的 PR、沒有人在做 M7。查證現況、做技術調研，寫成 M7 的設計與 D1～D9；只有設計，沒有實作。同一則訊息裡的 M6 狀態更新另開 <code>docs/m6-status</code>（PR #113）。推送後開草稿 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/115">PR #115</a>；更正本頁的更新時間與調研時段（原本誤寫成 18:40、18:15～18:25）。</li>
         <li>2026-11-06 18:14 America/Los_Angeles（PST，UTC−08:00），Claude：開 #115 時發現 18:12 新開的 #114（另一個 Claude session，<code>docs/refresh-v0-8</code>）整份更新文檔站，路線圖的改動和 #113 重複，已把 #113 的路線圖還原（<code>14ac45d</code>）交給 #114；本分支和 #114 只在任務索引都加了一行，在「修改檔案／整合者」寫明處理方式。</li>
+        <li>2026-11-06 18:21 America/Los_Angeles（PST，UTC−08:00），使用者：「按建議實作。」Claude 記下決定（<code>61734b5</code>）並開始 M7.1。</li>
+        <li>2026-11-06 晚上（確切時間沒有記錄），Claude：雲端環境重新啟動一次，工作區與 <code>/tmp</code> 的工具都還在，接著做。2026-11-07 00:45 America/Los_Angeles（PST，UTC−08:00）使用者：「繼續」。</li>
+        <li>2026-11-07 00:58 America/Los_Angeles（PST，UTC−08:00），Claude：M7.1 的程式、測試與文件在本機完成（<code>c97118b</code>～<code>3dd6eb7</code>，見<a href="#progress">進度</a>），本機檢查結果見<a href="#validation">驗證</a>。GitHub 仍回 403，還沒推送。</li>
       </ul></div>
     </section>
   </div>
