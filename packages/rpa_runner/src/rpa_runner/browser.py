@@ -12,6 +12,10 @@
   通過，紀錄多一條提醒（D6）。
 - 下載檔案（ADR 0020）：``download`` 點擊並等待下載完成，存到共用工作資料夾的 ``downloads/``
   （``workspace``），事實是 ``{"workspace", "name", "size", "sha256"}``。
+- 流程控制（M7.1，ADR 0021，見 :class:`_Flow`）：區塊步驟遞迴執行；區塊裡的步驟執行到才新增
+  紀錄，緊接在區塊後面（``path``、``parent``、``iteration``）。條件不成立不算失敗，判斷出錯算失敗。
+  ``retry`` 失敗時再試；``onError: continue`` 記下失敗、繼續下一步；``try`` 接住裡面的失敗改走
+  ``catch``。總期限到了、紀錄超過上限不能被接住或繼續。
 """
 
 import base64
@@ -55,15 +59,28 @@ from rpa_core.dsl.files import (
     format_size,
     guess_media_type,
 )
-from rpa_core.dsl.steps import upload_input_names
+from rpa_core.dsl.steps import (
+    MAX_ITERATIONS,
+    ClosePageStep,
+    Condition,
+    ForEachStep,
+    IfStep,
+    OpenPageStep,
+    RepeatStep,
+    StepPath,
+    TryStep,
+    upload_input_names,
+)
 from rpa_runner.files import DOWNLOADS_DIR
 from rpa_runner.i18n import t
-from rpa_runner.templates import Context, render_tree
+from rpa_runner.templates import Context, render_native, render_tree
 
 __all__ = [
     "DEFAULT_STEP_TIMEOUT_MS",
+    "MAX_RECORDS",
     "Deadline",
     "DeadlineExceeded",
+    "FlowLimitExceeded",
     "StepRecord",
     "Tabs",
     "plan_records",
@@ -73,7 +90,15 @@ __all__ = [
 ]
 
 DEFAULT_STEP_TIMEOUT_MS: Final = 30_000
+MAX_RECORDS: Final = 10_000
+"""一次執行最多幾筆步驟紀錄（M7.1，D4）；超過算失敗。"""
 _STEP: Final = TypeAdapter[Step](Step)
+_POLL_MS: Final = 100
+"""條件等待時多久再看一次。"""
+_VISIBLE_SCAN: Final = 20
+"""條件 visible／hidden 最多看前幾個符合的元素。"""
+_CHECK_TIMEOUT_MS: Final = 1_000
+"""條件讀元素的狀態、文字時，元素已經找到，只給一小段時間。"""
 _MAY_OPEN_CHOOSER: Final = frozenset({"click", "press", "check"})
 _CHOOSER_WAITS_MS: Final = (0, 10, 20)
 """點擊後等選擇檔案視窗事件的幾段時間（合計最多 30 ms）：Playwright 收到視窗後還要向瀏覽器查元素
@@ -99,6 +124,10 @@ _TABLE_JS: Final = """
 
 class DeadlineExceeded(Exception):  # noqa: N818 - 與 TimeoutError 區分，名稱照語意
     """總期限已到。"""
+
+
+class FlowLimitExceeded(Exception):  # noqa: N818 - 名稱照語意
+    """步驟紀錄超過上限（M7.1）：不能被 try 接住，也不能 onError: continue。"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,6 +187,26 @@ class StepRecord:
     """錄影時這一步做完的縮小截圖（執行目錄裡的相對路徑，見 stepshots.py）。"""
     shot_at: float | None = None
     """開始拍那張截圖的實際時間。"""
+    path: StepPath = ()
+    """這一步在場景檔裡的位置（M7.1），例如 ``("steps", 2, "steps", 0)``；回看依此找原文。"""
+    parent: int | None = None
+    """外層區塊是第幾筆紀錄（從 1 起，M7.1）；最外層的步驟是 None。"""
+    iteration: int | None = None
+    """迴圈的第幾項／第幾輪（從 1 起，M7.1）；只有迴圈直接包著的步驟有。"""
+    attempts: int = 0
+    """試了幾次（retry，M7.1）；沒執行是 0。"""
+    handled: Literal["continued", "caught"] | None = None
+    """失敗但沒有讓整次執行停下（M7.1）：onError: continue，或被 try 的 catch 接住。"""
+    condition: bool | None = None
+    """if 的條件結果（M7.1）。"""
+    branch: Literal["then", "else"] | None = None
+    """if 走了哪個分支（M7.1）；條件不成立又沒有 else 時是 None。"""
+    iterations: int | None = None
+    """迴圈跑完幾輪（forEach、repeat，M7.1）。"""
+    caught: dict[str, str] | None = None
+    """try 接住的失敗：``{"step": 失敗的步驟 id, "error": 錯誤}``（M7.1）。"""
+    number: int = 0
+    """第幾筆紀錄（從 1 起）；不寫進 steps.json（順序就是編號）。"""
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -177,6 +226,15 @@ class StepRecord:
             "notes": self.notes,
             "shot": self.shot,
             "shotAt": _utc(self.shot_at),
+            "path": list(self.path),
+            "parent": self.parent,
+            "iteration": self.iteration,
+            "attempts": self.attempts,
+            "handled": self.handled,
+            "condition": self.condition,
+            "branch": self.branch,
+            "iterations": self.iterations,
+            "caught": self.caught,
         }
 
 
@@ -518,6 +576,20 @@ class _Run:
             **meta.to_json(),
         }
 
+    def _open_page(self, page: Page, step: OpenPageStep, timeout: int, record: StepRecord) -> None:
+        """自己開的新分頁（M7.1）：同一個瀏覽器工作階段；迴圈裡關掉再開可以用同一個名稱。"""
+        existing = self.tabs.named.get(step.as_)
+        if existing is not None and not existing.is_closed():
+            raise LookupError(t("browser.tab_already_open", name=step.as_))
+        tab = page.context.new_page()
+        self.tabs.guard(tab)
+        if self.tabs.identify is not None:
+            record.created_page_id = self.tabs.identify(tab)
+        self.tabs.named[step.as_] = tab
+        self.tabs.last = tab
+        if step.url is not None:
+            tab.goto(_url(self.base_url, step.url), wait_until=step.wait_until, timeout=timeout)
+
     def _act(self, page: Page, step: Step, timeout: int, record: StepRecord) -> None:
         match step:
             case GotoStep():
@@ -559,7 +631,18 @@ class _Run:
             case ExpectStep():
                 _expect(page, step, timeout)
             case ExtractStep():
-                self.facts[step.as_] = _extract(page, step, timeout)
+                value = _extract(page, step, timeout)
+                if step.append:
+                    # 迴圈裡累積（M7.1）：清單攤平加入
+                    previous = self.facts.get(step.as_)
+                    kept = cast("list[object]", previous) if isinstance(previous, list) else []
+                    added = cast("list[object]", value) if isinstance(value, list) else [value]
+                    value = [*kept, *added]
+                self.facts[step.as_] = value
+            case OpenPageStep():
+                self._open_page(page, step, timeout, record)
+            case ClosePageStep():
+                page.close()
             case UploadStep():
                 self._upload(page, step, timeout, record)
             case DownloadStep():
@@ -572,6 +655,8 @@ class _Run:
                 else:
                     page.screenshot(path=path, full_page=step.full_page, timeout=timeout)
                 record.artifacts.append(name)
+            case IfStep() | ForEachStep() | RepeatStep() | TryStep():  # pragma: no cover
+                raise TypeError(step.action)  # 區塊由 _Flow 執行，不會走到這裡
 
 
 _DROP_JS: Final = """
@@ -628,8 +713,313 @@ def _upload_error(message: str) -> str | None:
 
 
 def plan_records(scenario: Scenario) -> list[StepRecord]:
-    """每個步驟一筆紀錄，初始狀態是略過。"""
-    return [StepRecord(step.id, step.action, step.name) for step in scenario.steps or []]
+    """最外層的每個步驟一筆紀錄，初始狀態是略過；區塊裡的步驟執行到才新增（M7.1）。"""
+    return [
+        StepRecord(step.id, step.action, step.name, path=("steps", index))
+        for index, step in enumerate(scenario.steps or [])
+    ]
+
+
+def _first_line(error: BaseException) -> str:
+    return f"{type(error).__name__}: {error}".splitlines()[0]
+
+
+def _recoverable(error: BaseException) -> bool:
+    """可以被 try 接住、onError: continue 的失敗：總期限到了、紀錄超過上限不行。"""
+    return isinstance(error, Exception) and not isinstance(
+        error, DeadlineExceeded | FlowLimitExceeded
+    )
+
+
+def _text_matches(actual: str, expected: str, match: str) -> bool:
+    """條件的文字比對：contains（預設）、equals、regex；文字的空白先壓成一個（同 expect）。"""
+    actual = " ".join(actual.split())
+    if match == "equals":
+        return actual == " ".join(expected.split())
+    if match == "regex":
+        return re.search(expected, actual) is not None
+    return " ".join(expected.split()) in actual
+
+
+def _check(page: Page, condition: Condition) -> bool:
+    """條件現在成立嗎（不含 not，不等待）；讀不到時拋出，算這個區塊失敗。"""
+    if condition.target is not None:
+        located = locate(page, condition.target, 0)
+        count = located.count()
+        if condition.count is not None:
+            return count == condition.count
+        state = condition.state
+        if state == "attached":
+            return count > 0
+        if state == "detached":
+            return count == 0
+        if state in ("visible", "hidden"):
+            visible = any(located.nth(i).is_visible() for i in range(min(count, _VISIBLE_SCAN)))
+            return visible if state == "visible" else not visible
+        if count == 0:
+            return False
+        first = located.first
+        match state:
+            case "enabled":
+                return first.is_enabled(timeout=_CHECK_TIMEOUT_MS)
+            case "disabled":
+                return first.is_disabled(timeout=_CHECK_TIMEOUT_MS)
+            case "checked":
+                return first.is_checked(timeout=_CHECK_TIMEOUT_MS)
+            case "unchecked":
+                return not first.is_checked(timeout=_CHECK_TIMEOUT_MS)
+            case "editable":
+                return first.is_editable(timeout=_CHECK_TIMEOUT_MS)
+            case _:
+                pass
+        if condition.text is not None:
+            text = first.inner_text(timeout=_CHECK_TIMEOUT_MS)
+            return _text_matches(text, condition.text, condition.match)
+        if condition.value is not None:
+            value = first.input_value(timeout=_CHECK_TIMEOUT_MS)
+            return _text_matches(value, condition.value, condition.match)
+        return False
+    if condition.url is not None:
+        return _text_matches(page.url, condition.url, condition.match)
+    if condition.title is not None:
+        return _text_matches(page.title(), condition.title, condition.match)
+    return False
+
+
+@dataclass(frozen=True, slots=True)
+class _Scope:
+    """執行到這裡時多出的變數（迴圈變數、loop、error）與所在的區塊。"""
+
+    variables: Mapping[str, object] = field(default_factory=dict[str, object])
+    parent: int | None = None
+    """外層區塊的紀錄編號。"""
+    iteration: int | None = None
+
+    def inside(
+        self, parent: StepRecord, *, iteration: int | None = None, **variables: object
+    ) -> "_Scope":
+        return _Scope({**self.variables, **variables}, parent.number, iteration)
+
+
+@dataclass(slots=True)
+class _Flow:
+    """依場景執行步驟（含區塊，M7.1），維護步驟紀錄。
+
+    ``records`` 一開始是最外層每一步一筆（:func:`plan_records`）；區塊裡的步驟執行到才插在
+    ``cursor``（上一筆執行過的紀錄後面），所以紀錄的順序就是執行的順序，已開始的紀錄編號不會變。
+    """
+
+    run: _Run
+    records: list[StepRecord]
+    context: Mapping[str, object]
+    deadline: Deadline
+    on_progress: Callable[[], None]
+    after_step: Callable[[Page, StepRecord, int], None] | None
+    cursor: int = 0
+
+    # ------------------------------------------------------------ 走訪
+
+    def top(self, steps: Sequence[Step]) -> None:
+        planned = list(self.records)
+        for step, record in zip(steps, planned, strict=True):
+            self.cursor = self._position(record) + 1
+            record.number = self.cursor
+            self.execute(step, record, _Scope())
+
+    def _position(self, record: StepRecord) -> int:
+        for index in range(self.cursor, len(self.records)):
+            if self.records[index] is record:
+                return index
+        return next(i for i, item in enumerate(self.records) if item is record)
+
+    def _new_record(
+        self, step: Step, path: StepPath, scope: _Scope, iteration: int | None
+    ) -> StepRecord:
+        if len(self.records) >= MAX_RECORDS:
+            raise FlowLimitExceeded(t("browser.too_many_records", max=MAX_RECORDS))
+        record = StepRecord(
+            step.id, step.action, step.name, path=path, parent=scope.parent, iteration=iteration
+        )
+        self.records.insert(self.cursor, record)
+        self.cursor += 1
+        record.number = self.cursor
+        return record
+
+    def _list(
+        self,
+        steps: Sequence[Step],
+        block: StepRecord,
+        scope: _Scope,
+        key: str,
+        *,
+        iteration: int | None = None,
+    ) -> None:
+        inner = scope.inside(block, iteration=iteration)
+        for index, step in enumerate(steps):
+            record = self._new_record(step, (*block.path, key, index), inner, iteration)
+            self.execute(step, record, inner)
+
+    # ------------------------------------------------------------ 一步
+
+    def execute(self, step: Step, record: StepRecord, scope: _Scope) -> None:
+        """執行一步（含區塊）並更新紀錄；失敗時拋出，onError: continue 的不拋出。"""
+        started = time.monotonic()
+        record.started_at = time.time()
+        block = isinstance(step, IfStep | ForEachStep | RepeatStep | TryStep)
+        try:
+            if block:
+                self.on_progress()  # 讓進度先看到區塊開始了
+                self._block(step, record, scope)
+            else:
+                self._leaf(step, record, scope)
+            record.status = "passed"
+        except BaseException as error:
+            record.status = "failed"
+            record.error = _first_line(error)
+            if step.on_error != "continue" or not _recoverable(error):
+                raise
+            record.handled = "continued"
+        finally:
+            record.duration_ms = int((time.monotonic() - started) * 1000)
+            record.ended_at = time.time()
+            with contextlib.suppress(Exception):  # 頁面已經關閉時沒有網址
+                record.url = self.run.tabs.active.url
+            if not block and self.after_step is not None:
+                with contextlib.suppress(Exception):
+                    self.after_step(self.run.tabs.active, record, record.number)
+            self.on_progress()
+
+    def _values(self, scope: _Scope) -> Context:
+        return {**self.context, "facts": self.run.facts, **scope.variables}
+
+    def _leaf(self, step: Step, record: StepRecord, scope: _Scope) -> None:
+        default_ms = self.run.scenario.defaults.timeout or DEFAULT_STEP_TIMEOUT_MS
+        attempts = 1 + (step.retry.times if step.retry is not None else 0)
+        for attempt in range(1, attempts + 1):
+            record.attempts = attempt
+            try:
+                timeout = self.deadline.budget(step.timeout or default_ms)
+                raw = step.model_dump(mode="json", by_alias=True, exclude_unset=True)
+                values = self._values(scope)
+                rendered = _STEP.validate_python(render_tree(raw, values, skip=_NOT_RENDERED))
+                self.run.execute(rendered, timeout, record)
+                return
+            except BaseException as error:
+                if attempt >= attempts or not _recoverable(error) or step.retry is None:
+                    raise
+                record.notes.append(
+                    t("browser.retry_failed", attempt=attempt, error=_first_line(error))
+                )
+                if self.deadline.remaining_ms() <= step.retry.delay:
+                    raise
+                self._pause(step.retry.delay)
+
+    def _pause(self, milliseconds: int) -> None:
+        """等一下；用頁面等待，期間照樣處理瀏覽器的事件。"""
+        if milliseconds <= 0:
+            return
+        try:
+            self.run.tabs.active.wait_for_timeout(milliseconds)
+        except PlaywrightError:
+            time.sleep(milliseconds / 1000)
+
+    # ------------------------------------------------------------ 區塊
+
+    def _block(self, step: Step, record: StepRecord, scope: _Scope) -> None:
+        match step:
+            case IfStep():
+                passed = self._condition(step.condition, scope)
+                record.condition = passed
+                if passed:
+                    record.branch = "then"
+                    self._list(step.then, record, scope, "then")
+                elif step.else_ is not None:
+                    record.branch = "else"
+                    self._list(step.else_, record, scope, "else")
+            case ForEachStep():
+                self._for_each(step, record, scope)
+            case RepeatStep():
+                self._repeat(step, record, scope)
+            case TryStep():
+                self._try(step, record, scope)
+            case _:  # pragma: no cover - 只有上面四種區塊
+                raise TypeError(step.action)
+
+    def _condition(self, condition: Condition, scope: _Scope) -> bool:
+        values = self._values(scope)
+        if condition.expression is not None:
+            return bool(render_native(condition.expression, values)) != condition.not_
+        raw = condition.model_dump(mode="json", by_alias=True, exclude_unset=True)
+        rendered = Condition.model_validate(render_tree(raw, values))
+        page = self.run.tabs.get(rendered.page)
+        wait = self.deadline.budget(rendered.wait) if rendered.wait else 0
+        ends = time.monotonic() + wait / 1000
+        while True:
+            result = _check(page, rendered) != rendered.not_
+            if result or time.monotonic() >= ends:
+                return result
+            page.wait_for_timeout(_POLL_MS)
+
+    def _for_each(self, step: ForEachStep, record: StepRecord, scope: _Scope) -> None:
+        if isinstance(step.items, list):
+            items: list[object] = list(step.items)
+        else:
+            value = render_native(step.items, self._values(scope))
+            if not isinstance(value, list | tuple):
+                raise TypeError(t("browser.items_not_list", type=type(value).__name__))
+            items = list(cast("list[object] | tuple[object, ...]", value))
+        if len(items) > MAX_ITERATIONS:
+            raise ValueError(t("browser.too_many_items", count=len(items), max=MAX_ITERATIONS))
+        record.iterations = 0
+        count = len(items)
+        for index, item in enumerate(items):
+            last = index == count - 1
+            loop = {"index": index + 1, "count": count, "first": index == 0, "last": last}
+            inner = _Scope({**scope.variables, step.as_: item, "loop": loop}, scope.parent)
+            self._list(step.steps, record, inner, "steps", iteration=index + 1)
+            record.iterations = index + 1
+
+    def _repeat(self, step: RepeatStep, record: StepRecord, scope: _Scope) -> None:
+        limit = step.times or step.max_ or 1
+        record.iterations = 0
+        inner = scope
+        for round_ in range(1, limit + 1):
+            loop: dict[str, object] = {"index": round_, "first": round_ == 1}
+            if step.times is not None:
+                loop |= {"count": step.times, "last": round_ == step.times}
+            inner = _Scope({**scope.variables, "loop": loop}, scope.parent)
+            if step.while_ is not None and not self._condition(step.while_, inner):
+                return
+            self._list(step.steps, record, inner, "steps", iteration=round_)
+            record.iterations = round_
+            if step.until is not None and self._condition(step.until, inner):
+                return
+        if step.times is not None:
+            return
+        if step.while_ is not None and not self._condition(step.while_, inner):
+            return
+        key = "browser.repeat_while_max" if step.while_ is not None else "browser.repeat_until_max"
+        raise RuntimeError(t(key, max=limit))
+
+    def _try(self, step: TryStep, record: StepRecord, scope: _Scope) -> None:
+        first = self.cursor
+        try:
+            self._list(step.steps, record, scope, "steps")
+        except BaseException as error:
+            if not _recoverable(error):
+                raise
+            failed = "?"
+            for item in self.records[first : self.cursor]:
+                if item.status == "failed" and item.handled is None:
+                    item.handled = "caught"
+                    if item.action not in ("if", "forEach", "repeat", "try"):
+                        failed = item.id
+            message = _first_line(error)
+            record.caught = {"step": failed, "error": message}
+            inner = _Scope(
+                {**scope.variables, "error": {"step": failed, "message": message}}, scope.parent
+            )
+            self._list(step.catch, record, inner, "catch")
 
 
 def run_steps(
@@ -649,49 +1039,18 @@ def run_steps(
 ) -> dict[str, object]:
     """依序執行步驟並更新 records，回傳頁面事實；某一步失敗就拋出，後面的步驟維持略過。
 
+    ``records`` 是 :func:`plan_records` 的結果；區塊裡的步驟執行到才插進去（M7.1）。
     ``tabs`` 給了時用它（呼叫的人之後要知道最後在哪個分頁，例如失敗截圖）；``page`` 是一開始的分頁。
     ``files`` 是檔案入參準備好的檔案（M7c，見 inputfiles.py）；``workspace`` 是共用工作資料夾
     （download 步驟存檔的地方，ADR 0020）。
-    ``after_step`` 在每一步（通過或失敗）之後、寫出進度之前呼叫：(最後用到的分頁, 紀錄, 第幾步)，
-    錄影時拍那一步做完的截圖（見 stepshots.py）；它出錯不影響步驟的結果。
+    ``after_step`` 在每一步（通過或失敗，不含區塊本身）之後、寫出進度之前呼叫：
+    (最後用到的分頁, 紀錄, 第幾筆紀錄)，錄影時拍那一步做完的截圖（見 stepshots.py）；
+    它出錯不影響步驟的結果。
     """
     facts: dict[str, object] = {}
     run = _Run(tabs or Tabs(page), scenario, base_url, artifacts, facts, files or {}, workspace)
-    steps = zip(scenario.steps or [], records, strict=True)
-    for index, (step, record) in enumerate(steps, start=1):
-        try:
-            _execute_step(run, step, record, context, deadline)
-        finally:
-            if after_step is not None:
-                with contextlib.suppress(Exception):
-                    after_step(run.tabs.active, record, index)
-            on_progress()
+    _Flow(run, records, context, deadline, on_progress, after_step).top(scenario.steps or [])
     return facts
-
-
-def _execute_step(
-    run: _Run, step: Step, record: StepRecord, context: Mapping[str, object], deadline: Deadline
-) -> None:
-    """執行一步並更新紀錄；失敗時記下錯誤再拋出。"""
-    started = time.monotonic()
-    record.started_at = time.time()
-    default_ms = run.scenario.defaults.timeout or DEFAULT_STEP_TIMEOUT_MS
-    try:
-        timeout = deadline.budget(step.timeout or default_ms)
-        values: Context = {**context, "facts": run.facts}
-        raw = step.model_dump(mode="json", by_alias=True, exclude_unset=True)
-        rendered = _STEP.validate_python(render_tree(raw, values, skip=_NOT_RENDERED))
-        run.execute(rendered, timeout, record)
-        record.status = "passed"
-    except BaseException as error:
-        record.status = "failed"
-        record.error = f"{type(error).__name__}: {error}".splitlines()[0]
-        raise
-    finally:
-        record.duration_ms = int((time.monotonic() - started) * 1000)
-        record.ended_at = time.time()
-        with contextlib.suppress(Exception):  # 頁面已經關閉時沒有網址
-            record.url = run.tabs.active.url
 
 
 def run_step(
@@ -707,14 +1066,22 @@ def run_step(
     tabs: Tabs | None = None,
     files: Mapping[str, Sequence[Path]] | None = None,
     workspace: Path | None = None,
+    path: StepPath = (),
+    variables: Mapping[str, object] | None = None,
+    collected: list[StepRecord] | None = None,
 ) -> StepRecord:
     """只執行一步（調試工作階段用）：facts 就地更新；失敗不拋出，記在回傳的紀錄裡。
 
     ``tabs`` 是整個工作階段的分頁（M7b），新分頁在步驟之間一直都在；``files``、``workspace``
-    見 run_steps。
+    見 run_steps。區塊整塊執行（M7.1）；``path`` 是這一步在場景檔裡的位置，``variables`` 是
+    外層迴圈的變數（迴圈變數、loop、error），``collected`` 給了時收到這一步與區塊裡全部的紀錄。
     """
-    record = StepRecord(step.id, step.action, step.name)
+    record = StepRecord(step.id, step.action, step.name, path=path, number=1)
+    records = [record]
     run = _Run(tabs or Tabs(page), scenario, base_url, artifacts, facts, files or {}, workspace)
+    flow = _Flow(run, records, context, deadline, lambda: None, None, cursor=1)
     with contextlib.suppress(Exception):
-        _execute_step(run, step, record, context, deadline)
+        flow.execute(step, record, _Scope(dict(variables or {})))
+    if collected is not None:
+        collected.extend(records)
     return record
