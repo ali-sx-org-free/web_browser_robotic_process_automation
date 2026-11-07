@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=../../../schema/scenario.v1.json
+#
+# 自己開的新分頁（M7.1）：openPage 在同一個瀏覽器工作階段（同一個登入狀態）開新分頁並取名，
+# 之後的步驟用 page 指定它；closePage 關掉。和 M7b 的 popup（點擊開出的新分頁）共用名稱。
+
+schemaVersion: 1
+id: flow-report-tab
+name: 在新分頁查月報表
+category: 範例
+description: 開一個新分頁查月報表的總額，關掉後回到原本的分頁繼續。
+
+inputs:
+  month:
+    type: string
+    pattern: '^\d{4}-\d{2}$'
+    default: '2026-10'
+
+outputs:
+  total:
+    type: string
+    from: '{{ facts.total }}'
+
+browser:
+  baseUrl: http://127.0.0.1:8765
+
+defaults:
+  timeout: 10000
+deadline: 45000
+
+steps:
+  - id: open
+    action: goto
+    url: /flow?notice=0
+
+  - id: open-report
+    action: openPage
+    as: report
+    url: /flow/report?month={{ inputs.month }}
+
+  - id: read-total
+    action: extract
+    page: report
+    target: { testId: total }
+    as: total
+
+  - id: close-report
+    action: closePage
+    page: report
+
+  - id: still-here
+    name: 原本的分頁還在
+    action: expect
+    target: { role: heading, name: 流程控制範例 }
+    state: visible
+
+verify:
+  - name: 拿到月報表的總額
+    value: '{{ facts.total }}'
+    matches: '^[1-9][0-9]*$'

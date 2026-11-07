@@ -12,6 +12,9 @@
 - 上傳檔案（M7c）：``/upload`` 有常見的上傳元件（原生上傳框、隱藏的多檔上傳框、點擊時才建立的
   上傳框、只有拖拽區），``/upload/frame`` 是 iframe 裡的上傳框。``POST /api/uploads``
   （multipart）回傳收到的檔名、大小與 sha256，頁面顯示出來；檔案本身不保存
+- 流程控制（M7.1）：``/flow`` 有時跳出的系統公告（``notice=1``／``0`` 固定）、逐筆新增、要等一下才
+  完成的報表（``delay``）、打不開的問卷（``survey=1``）；``/flow/list`` 分頁的清單（``rows``）；
+  ``/flow/report?month=2026-10`` 月報表的總額。只在瀏覽器裡運作，不寫入資料
 - 下載檔案（ADR 0020）：``/download`` 選月份按「匯出 CSV」，``GET /api/export.csv?month=2026-10``
   回傳那個月三個分店每天的銷售明細（UTF-8 CSV，以附件下載）；內容由月份決定，同一個月每次相同
 - ``GET /api/about``：回傳 ``{"name": "rpa-testsite"}``，讓 ``rpa serve`` 認出已經在執行的測試網站
@@ -87,6 +90,12 @@ UPLOAD_PAGES: Final = {
     "/upload/frame": Path(__file__).with_name("upload-frame.html"),
 }
 """上傳檔案範例頁（M7c）。"""
+FLOW_PAGES: Final = {
+    "/flow": Path(__file__).with_name("flow.html"),
+    "/flow/list": Path(__file__).with_name("flow-list.html"),
+    "/flow/report": Path(__file__).with_name("flow-report.html"),
+}
+"""流程控制範例頁（M7.1）。"""
 DOWNLOAD_PAGE: Final = Path(__file__).with_name("download.html")
 """下載檔案範例頁（ADR 0020）。"""
 BRANCHES: Final = ("台北", "高雄", "台中")
@@ -306,6 +315,8 @@ def create_server(port: int = 0, host: str = LOOPBACK) -> ThreadingHTTPServer:
                 self._reply(200, POPUP_PAGES[path].read_bytes(), "text/html; charset=utf-8")
             elif path in UPLOAD_PAGES:
                 self._reply(200, UPLOAD_PAGES[path].read_bytes(), "text/html; charset=utf-8")
+            elif path in FLOW_PAGES:
+                self._reply(200, FLOW_PAGES[path].read_bytes(), "text/html; charset=utf-8")
             elif path == "/download":
                 self._reply(200, DOWNLOAD_PAGE.read_bytes(), "text/html; charset=utf-8")
             elif path == "/api/export.csv":

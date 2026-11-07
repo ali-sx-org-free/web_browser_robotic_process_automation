@@ -24,7 +24,7 @@ import re
 import time
 import weakref
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final, Literal, cast
@@ -794,11 +794,14 @@ class _Scope:
     parent: int | None = None
     """外層區塊的紀錄編號。"""
     iteration: int | None = None
+    catching: bool = False
+    """在 try 的 steps 裡：失敗會被接住（紀錄先標上 caught，日誌才寫得對）。"""
 
-    def inside(
-        self, parent: StepRecord, *, iteration: int | None = None, **variables: object
-    ) -> "_Scope":
-        return _Scope({**self.variables, **variables}, parent.number, iteration)
+    def inside(self, parent: StepRecord, *, iteration: int | None = None) -> "_Scope":
+        return _Scope(self.variables, parent.number, iteration, self.catching)
+
+    def with_variables(self, **variables: object) -> "_Scope":
+        return _Scope({**self.variables, **variables}, self.parent, self.iteration, self.catching)
 
 
 @dataclass(slots=True)
@@ -876,9 +879,14 @@ class _Flow:
         except BaseException as error:
             record.status = "failed"
             record.error = _first_line(error)
-            if step.on_error != "continue" or not _recoverable(error):
+            if not _recoverable(error):
                 raise
-            record.handled = "continued"
+            if step.on_error == "continue":
+                record.handled = "continued"
+            else:
+                if scope.catching:
+                    record.handled = "caught"  # 外層的 try 會接住
+                raise
         finally:
             record.duration_ms = int((time.monotonic() - started) * 1000)
             record.ended_at = time.time()
@@ -975,7 +983,7 @@ class _Flow:
         for index, item in enumerate(items):
             last = index == count - 1
             loop = {"index": index + 1, "count": count, "first": index == 0, "last": last}
-            inner = _Scope({**scope.variables, step.as_: item, "loop": loop}, scope.parent)
+            inner = scope.with_variables(**{step.as_: item, "loop": loop})
             self._list(step.steps, record, inner, "steps", iteration=index + 1)
             record.iterations = index + 1
 
@@ -987,7 +995,7 @@ class _Flow:
             loop: dict[str, object] = {"index": round_, "first": round_ == 1}
             if step.times is not None:
                 loop |= {"count": step.times, "last": round_ == step.times}
-            inner = _Scope({**scope.variables, "loop": loop}, scope.parent)
+            inner = scope.with_variables(loop=loop)
             if step.while_ is not None and not self._condition(step.while_, inner):
                 return
             self._list(step.steps, record, inner, "steps", iteration=round_)
@@ -1004,21 +1012,21 @@ class _Flow:
     def _try(self, step: TryStep, record: StepRecord, scope: _Scope) -> None:
         first = self.cursor
         try:
-            self._list(step.steps, record, scope, "steps")
+            self._list(step.steps, record, replace(scope, catching=True), "steps")
         except BaseException as error:
             if not _recoverable(error):
                 raise
             failed = "?"
             for item in self.records[first : self.cursor]:
-                if item.status == "failed" and item.handled is None:
-                    item.handled = "caught"
-                    if item.action not in ("if", "forEach", "repeat", "try"):
-                        failed = item.id
+                if item.status != "failed" or item.handled == "continued":
+                    continue
+                item.handled = "caught"
+                # 優先記最內層失敗的那一步；只有區塊失敗（例如條件出錯）時記那個區塊
+                if failed == "?" or item.action not in ("if", "forEach", "repeat", "try"):
+                    failed = item.id
             message = _first_line(error)
             record.caught = {"step": failed, "error": message}
-            inner = _Scope(
-                {**scope.variables, "error": {"step": failed, "message": message}}, scope.parent
-            )
+            inner = scope.with_variables(error={"step": failed, "message": message})
             self._list(step.catch, record, inner, "catch")
 
 

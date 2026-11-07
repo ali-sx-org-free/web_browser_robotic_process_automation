@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=../../../schema/scenario.v1.json
+#
+# 逐項處理（M7.1）：forEach 對入參的每一筆訂單做一次；迴圈裡用 {{ order.欄位 }} 與 {{ loop.index }}。
+# extract 寫 append: true，每一輪的編號累積成一個清單，當作出參交出去。
+
+schemaVersion: 1
+id: flow-add-entries
+name: 逐筆新增紀錄
+category: 範例
+description: 對入參 orders 的每一筆，在流程控制範例頁填標題、數量並新增，收集全部的編號。
+
+inputs:
+  orders:
+    type: array
+    description: 要新增的紀錄，每一筆有 title 與 qty
+    default:
+      - { title: 文具, qty: 3 }
+      - { title: 紙張, qty: 10 }
+      - { title: 碳粉, qty: 1 }
+
+outputs:
+  recordIds:
+    type: array
+    from: '{{ facts.recordIds }}'
+
+browser:
+  baseUrl: http://127.0.0.1:8765
+
+defaults:
+  timeout: 10000
+deadline: 60000
+
+steps:
+  - id: open
+    action: goto
+    url: /flow?notice=0
+
+  - id: each-order
+    name: 每一筆訂單
+    action: forEach
+    items: '{{ inputs.orders }}'
+    as: order
+    steps:
+      - id: fill-title
+        action: fill
+        target: { label: 標題 }
+        value: '{{ order.title }}'
+      - id: fill-qty
+        action: fill
+        target: { label: 數量 }
+        value: '{{ order.qty }}'
+      - id: add
+        action: click
+        target: { role: button, name: 新增 }
+      - id: wait-count
+        name: 等這一筆出現在清單
+        action: expect
+        target: { testId: entry-count }
+        text: '{{ loop.index }}'
+        match: equals
+      - id: read-id
+        action: extract
+        target: { testId: last-id }
+        as: recordIds
+        append: true
+
+verify:
+  - name: 每一筆都有編號
+    value: '{{ facts.recordIds | length }}'
+    equals: '{{ inputs.orders | length }}'

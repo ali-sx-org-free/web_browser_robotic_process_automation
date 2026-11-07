@@ -165,5 +165,17 @@
   "steplog.branch_none": "Condition not met, skipped",
   "steplog.iterations": "Ran {n} rounds",
   "steplog.caught": "Caught the failure of {step}: {error}",
-  "steplog.attempts": "Succeeded on attempt {n} (retry)"
+  "steplog.attempts": "Succeeded on attempt {n} (retry)",
+  "debug.loop_empty": "The list of loop {id} is empty, so the steps inside have no current item",
+  "debug.sample_error": "(sample error while debugging)",
+  "debug.bad_path": "A step path looks like [\"steps\", 2, \"steps\", 0]",
+  "report.handled.continued": "Failed, continued",
+  "report.handled.caught": "Handled by catch",
+  "report.handled_summary": "{count} steps failed and the run continued (onError or catch); the result is still decided by the independent checks",
+  "report.round": " (round {n})",
+  "report.branch.then": "Condition met, took then",
+  "report.branch.else": "Condition not met, took else",
+  "report.branch.none": "Condition not met, skipped",
+  "report.iterations": "{n} rounds",
+  "report.attempts": "Succeeded on attempt {n} (retry)"
 }

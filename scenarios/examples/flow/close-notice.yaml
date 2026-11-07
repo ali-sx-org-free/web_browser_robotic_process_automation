@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=../../../schema/scenario.v1.json
+#
+# 條件（M7.1）：測試網站的 /flow 有時會跳出「系統公告」。有就關掉，沒有就略過，兩種都要通過。
+# condition 的寫法和 expect 一樣；wait 是最多等多久讓條件成立（沒寫是 0，只看當下）。
+
+schemaVersion: 1
+id: flow-close-notice
+name: 有系統公告就關掉
+category: 範例
+description: 打開流程控制範例頁，系統公告有跳出來就關掉，然後新增一筆紀錄。
+
+inputs:
+  title:
+    type: string
+    minLength: 1
+    default: 公告之後的紀錄
+
+outputs:
+  recordId:
+    type: string
+    from: '{{ facts.recordId }}'
+
+browser:
+  baseUrl: http://127.0.0.1:8765
+
+defaults:
+  timeout: 10000
+deadline: 45000
+
+steps:
+  - id: open
+    action: goto
+    url: /flow
+
+  - id: notice
+    name: 有系統公告就關掉
+    action: if
+    condition:
+      target: { role: dialog, name: 系統公告 }
+      state: visible
+      wait: 2000
+    then:
+      - id: close-notice
+        action: click
+        target: { role: button, name: 關閉 }
+      - id: notice-gone
+        action: waitFor
+        target: { role: dialog, name: 系統公告 }
+        state: hidden
+
+  - id: fill-title
+    action: fill
+    target: { label: 標題 }
+    value: '{{ inputs.title }}'
+
+  - id: add
+    action: click
+    target: { role: button, name: 新增 }
+
+  - id: read-id
+    action: extract
+    target: { testId: last-id }
+    as: recordId
+
+verify:
+  - name: 新增成功，拿到編號
+    value: '{{ facts.recordId }}'
+    matches: '^F-\d{3}$'

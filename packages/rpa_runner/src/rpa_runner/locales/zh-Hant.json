@@ -165,5 +165,17 @@
   "steplog.branch_none": "條件不成立，略過",
   "steplog.iterations": "共執行 {n} 輪",
   "steplog.caught": "接住 {step} 的失敗：{error}",
-  "steplog.attempts": "第 {n} 次才成功（retry）"
+  "steplog.attempts": "第 {n} 次才成功（retry）",
+  "debug.loop_empty": "迴圈 {id} 的清單是空的，裡面的步驟沒有「目前這一項」可以用",
+  "debug.sample_error": "（調試時的示範錯誤）",
+  "debug.bad_path": "步驟路徑要寫成 [\"steps\", 2, \"steps\", 0] 這樣",
+  "report.handled.continued": "失敗後繼續",
+  "report.handled.caught": "由 catch 處理",
+  "report.handled_summary": "有 {count} 步失敗後繼續（onError 或 catch）；結果仍由獨立斷言決定",
+  "report.round": "（第 {n} 輪）",
+  "report.branch.then": "條件成立，走 then",
+  "report.branch.else": "條件不成立，走 else",
+  "report.branch.none": "條件不成立，略過",
+  "report.iterations": "共 {n} 輪",
+  "report.attempts": "第 {n} 次才成功（retry）"
 }

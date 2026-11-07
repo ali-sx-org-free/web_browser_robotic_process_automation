@@ -1,0 +1,43 @@
+<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>流程控制 · 本機範例頁</title><style>body{font:14px/1.6 system-ui;color:#24334a;background:#f5f7fb;margin:0}header{background:white;border-bottom:1px solid #e9edf3;padding:12px 24px;color:#0b69c4;font-weight:700}main{max-width:720px;margin:24px auto;padding:0 16px}h1{font-size:21px}h2{font-size:16px;margin:0 0 8px}.notice{padding:10px;background:#eaf3ff}.panel{padding:20px;background:white;border:1px solid #e9edf3;border-radius:9px;margin:12px 0}table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #e9edf3;padding:4px 8px;text-align:left}[role=dialog]{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:white;border:1px solid #c9d3e3;border-radius:9px;padding:16px 24px;box-shadow:0 8px 24px #0002}label{margin-right:12px}</style><header>瀏覽器自動化 · 本機測試頁</header><main><h1>流程控制範例</h1>
+<p class="notice">M7.1 的範例：系統公告有時跳出來；逐筆新增紀錄；報表要等一下才完成；問卷有時打不開。網址參數 <code>notice=1</code>／<code>notice=0</code> 固定公告出現或不出現（沒寫是隨機）、<code>delay</code> 報表完成前要等幾毫秒（預設 1500）、<code>survey=1</code> 顯示問卷的連結（點了打不開）。只在瀏覽器裡運作，不寫入資料。</p>
+<div role="dialog" aria-label="系統公告" id="notice" hidden><p>系統將於今晚 22:00 維護，請提早存檔。</p><button type="button" id="close-notice">關閉</button></div>
+<section class="panel"><h2>逐筆新增</h2>
+<p><label>標題 <input id="title" autocomplete="off"></label><label>數量 <input id="qty" type="number" min="1"></label><button type="button" id="add">新增</button></p>
+<p>最新編號 <strong data-testid="last-id">（還沒有）</strong> · 共 <span data-testid="entry-count">0</span> 筆</p>
+<table id="entries"><thead><tr><th>編號</th><th>標題</th><th>數量</th></tr></thead><tbody></tbody></table></section>
+<section class="panel"><h2>報表</h2><p><button type="button" id="make">產生報表</button> 狀態：<span data-testid="report-status">尚未產生</span></p></section>
+<section class="panel"><h2>問卷</h2><p><a href="#" id="survey" hidden>填寫滿意度問卷</a><span id="no-survey">目前沒有問卷</span></p></section>
+<p><a href="/flow/list">分頁的清單</a> · <a href="/flow/report?month=2026-10">月報表</a> · <a href="/">回到範例紀錄</a></p></main>
+<script>
+const query = new URLSearchParams(location.search);
+const notice = document.getElementById('notice');
+const showNotice = query.has('notice') ? query.get('notice') === '1' : Math.random() < 0.5;
+if (showNotice) setTimeout(() => { notice.hidden = false; }, Number(query.get('noticeDelay') || 300));
+document.getElementById('close-notice').onclick = () => { notice.hidden = true; };
+let count = 0;
+document.getElementById('add').onclick = () => {
+  const title = document.getElementById('title');
+  const qty = document.getElementById('qty');
+  if (!title.value.trim()) { title.focus(); return; }
+  count += 1;
+  const id = 'F-' + String(count).padStart(3, '0');
+  const row = document.createElement('tr');
+  for (const text of [id, title.value.trim(), qty.value || '1']) {
+    const cell = document.createElement('td'); cell.textContent = text; row.append(cell);
+  }
+  document.querySelector('#entries tbody').append(row);
+  document.querySelector('[data-testid=last-id]').textContent = id;
+  document.querySelector('[data-testid=entry-count]').textContent = String(count);
+  title.value = ''; qty.value = '';
+};
+document.getElementById('make').onclick = () => {
+  const status = document.querySelector('[data-testid=report-status]');
+  status.textContent = '處理中';
+  setTimeout(() => { status.textContent = '已完成'; }, Number(query.get('delay') || 1500));
+};
+if (query.get('survey') === '1') {
+  document.getElementById('survey').hidden = false;
+  document.getElementById('no-survey').hidden = true;
+}
+document.getElementById('survey').onclick = (event) => event.preventDefault();
+</script></html>

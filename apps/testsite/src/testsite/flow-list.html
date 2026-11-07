@@ -1,0 +1,28 @@
+<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>分頁的清單 · 本機範例頁</title><style>body{font:14px/1.6 system-ui;color:#24334a;background:#f5f7fb;margin:0}header{background:white;border-bottom:1px solid #e9edf3;padding:12px 24px;color:#0b69c4;font-weight:700}main{max-width:720px;margin:24px auto;padding:0 16px}h1{font-size:21px}h2{font-size:16px;margin:0 0 8px}.notice{padding:10px;background:#eaf3ff}.panel{padding:20px;background:white;border:1px solid #e9edf3;border-radius:9px;margin:12px 0}table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #e9edf3;padding:4px 8px;text-align:left}[role=dialog]{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:white;border:1px solid #c9d3e3;border-radius:9px;padding:16px 24px;box-shadow:0 8px 24px #0002}label{margin-right:12px}</style><header>瀏覽器自動化 · 本機測試頁</header><main><h1>分頁的清單</h1>
+<p class="notice">每頁 5 列；「下一頁」在最後一頁會停用。網址參數 <code>rows</code> 是總共幾列（預設 13）。</p>
+<section class="panel"><table id="list"><thead><tr><th>單號</th><th>品名</th><th>金額</th></tr></thead><tbody></tbody></table>
+<p><button type="button" id="prev">上一頁</button> 第 <span data-testid="page">1</span> 頁 <button type="button" id="next">下一頁</button></p></section>
+<p><a href="/flow">回到流程控制範例</a></p></main>
+<script>
+const total = Number(new URLSearchParams(location.search).get('rows') || 13);
+const size = 5;
+let page = 1;
+const pages = Math.max(1, Math.ceil(total / size));
+function render() {
+  const body = document.querySelector('#list tbody');
+  body.textContent = '';
+  for (let i = (page - 1) * size + 1; i <= Math.min(total, page * size); i++) {
+    const row = document.createElement('tr');
+    for (const text of ['L-' + String(i).padStart(3, '0'), '品項 ' + i, String(i * 100)]) {
+      const cell = document.createElement('td'); cell.textContent = text; row.append(cell);
+    }
+    body.append(row);
+  }
+  document.querySelector('[data-testid=page]').textContent = String(page);
+  document.getElementById('prev').disabled = page === 1;
+  document.getElementById('next').disabled = page === pages;
+}
+document.getElementById('prev').onclick = () => { page -= 1; render(); };
+document.getElementById('next').onclick = () => { page += 1; render(); };
+render();
+</script></html>

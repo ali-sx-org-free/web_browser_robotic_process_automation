@@ -35,7 +35,7 @@ border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--muted);fon
 pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);padding:10px;border-radius:6px;margin:0}
 .badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600;
 background:var(--line);color:var(--muted)}.passed{background:var(--green-bg);color:var(--green)}
-.failed,.timed_out{background:var(--red-bg);color:var(--red)}.cancelled{background:var(--amber-bg);color:var(--amber)}
+.failed,.timed_out{background:var(--red-bg);color:var(--red)}.cancelled,.amber{background:var(--amber-bg);color:var(--amber)}
 .pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:640px){.pair{grid-template-columns:1fr}}
 img{max-width:100%;border:1px solid var(--line);border-radius:6px}a{color:var(--blue)}
 td img.shot{display:block;width:112px;max-width:none;aspect-ratio:16/9;object-fit:cover;object-position:left top}
@@ -52,6 +52,49 @@ def _e(value: object) -> str:
 
 def _badge(status: str) -> str:
     return f'<span class="badge {_e(status)}">{_e(t(f"status.{status}"))}</span>'
+
+
+def _step_badge(step: dict[str, object]) -> str:
+    """步驟的結果；失敗但沒有讓執行停下的（M7.1：onError: continue、被 catch 接住）標黃色。"""
+    handled = step.get("handled")
+    if step.get("status") == "failed" and handled in ("continued", "caught"):
+        return f'<span class="badge amber">{_e(t(f"report.handled.{handled}"))}</span>'
+    return _badge(str(step.get("status")))
+
+
+def _depths(steps: list[dict[str, object]]) -> list[int]:
+    """每一步在第幾層（M7.1 的區塊、Python 節點的 run.step 巢狀）：parent 是紀錄編號（DSL）
+    或外層步驟的 id（Python 節點）。"""
+    ids = {str(step.get("id")): index for index, step in enumerate(steps)}
+    depths: list[int] = []
+    for index, step in enumerate(steps):
+        parent = step.get("parent")
+        outer: int | None = None
+        if isinstance(parent, int) and not isinstance(parent, bool) and 1 <= parent <= index:
+            outer = parent - 1
+        elif isinstance(parent, str) and ids.get(parent, index) < index:
+            outer = ids[parent]
+        depths.append(depths[outer] + 1 if outer is not None else 0)
+    return depths
+
+
+def _step_name(step: dict[str, object]) -> str:
+    """名稱，加上迴圈的第幾輪與區塊的結果（M7.1）。"""
+    parts = [_e(step.get("name") or "")]
+    iteration = step.get("iteration")
+    if isinstance(iteration, int) and not isinstance(iteration, bool):
+        parts.append(f"<span class='muted'>{_e(t('report.round', n=iteration))}</span>")
+    branch = step.get("branch")
+    if step.get("action") == "if" and step.get("condition") is not None:
+        key = f"report.branch.{branch}" if branch in ("then", "else") else "report.branch.none"
+        parts.append(f"<div class='muted'>{_e(t(key))}</div>")
+    iterations = step.get("iterations")
+    if isinstance(iterations, int) and not isinstance(iterations, bool):
+        parts.append(f"<div class='muted'>{_e(t('report.iterations', n=iterations))}</div>")
+    attempts = step.get("attempts")
+    if isinstance(attempts, int) and attempts > 1:
+        parts.append(f"<div class='muted'>{_e(t('report.attempts', n=attempts))}</div>")
+    return "".join(parts)
 
 
 def _json(value: object) -> str:
@@ -210,13 +253,15 @@ def render_report(result: "RunResult") -> str:
         for s in result.stages
     )
     shots = any(step.get("shot") for step in result.steps)
+    # 區塊裡的步驟（M7.1）依層數縮排
     steps = "".join(
-        f"<tr><td class='mono'>{_e(step.get('id'))}</td><td class='mono'>{_e(step.get('action'))}</td>"
-        f"<td>{_e(step.get('name') or '')}</td><td>{_badge(str(step.get('status')))}</td>"
+        f"<tr><td class='mono' style='padding-left:{8 + 16 * depth}px'>{_e(step.get('id'))}</td>"
+        f"<td class='mono'>{_e(step.get('action'))}</td>"
+        f"<td>{_step_name(step)}</td><td>{_step_badge(step)}</td>"
         f"<td class='mono'>{_e(step.get('durationMs'))} ms</td><td>{_step_detail(step)}</td>"
         + (f"<td>{_shot(step)}</td>" if shots else "")
         + "</tr>"
-        for step in result.steps
+        for step, depth in zip(result.steps, _depths(result.steps), strict=True)
     )
     shot_head = f"<th>{_e(t('report.shot'))}</th>" if shots else ""
     checks = "".join(
@@ -241,6 +286,10 @@ def render_report(result: "RunResult") -> str:
         + ([_e(t("report.step_shots", count=len(shot_files)))] if shot_files else [])
     )
     problems = "".join(f"<li>{_e(problem)}</li>" for problem in result.problems)
+    # 失敗後繼續、被 catch 接住的步驟（M7.1，D6）：結果仍由獨立斷言決定，這裡提醒
+    handled = sum(1 for step in result.steps if step.get("handled") in ("continued", "caught"))
+    if handled:
+        problems += f"<li><span class='badge amber'>{_e(t('report.handled_summary', count=handled))}</span></li>"
     error = result.error or t("report.no_error")
     no_rows = f"<p class='muted'>{_e(t('report.none'))}</p>"
     title = f"{result.scenario_id} {result.scenario_name}"
