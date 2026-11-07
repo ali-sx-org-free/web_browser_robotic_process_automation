@@ -20,7 +20,7 @@
         <dt>範圍／不包含</dt><dd>M7 剩下的七項：條件、迴圈、錯誤處理、重試（只用於無副作用的步驟）、自己開的新分頁、子場景、資料驅動。不包含：已提前做完的 iframe（M7a）、點擊開出的新分頁（M7b）、上傳（M7c）、下載（ADR 0020）；組合場景層級的平行節點、條件分支、重複次數（M6 原型的項目，另等決定，見<a href="../open-work.html#m6-gaps">未完成工作</a>）；AI 生成流程（M5）。</dd>
         <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude（Opus 5.5）。審閱、決定與合併：使用者。</dd>
         <dt>修改檔案／整合者</dt><dd>設計階段只有本頁與任務索引。實作會改到的檔案見<a href="#files">第 9 節</a>；共用檔案（多語言目錄、<code>schema/scenario.v1.json</code>、<code>docs/assets/nav.js</code>、任務索引、ADR 編號 0021、之後 M7.3 的資料庫遷移編號）由本分支整合，<code>uv.lock</code>、簡中與 JSON Schema 由 bootstrap 產生。並行的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/114">#114</a>（另一個 Claude session 的文檔站對齊 v0.8.0）也在任務索引加了一行、改了第 9 節列的幾份文件：誰後合併誰整合索引（兩行都保留）；M7.1 的文件改動在 #114 合併後從最新 main 接續。</dd>
-        <dt>狀態</dt><dd>設計待確認：<a href="#decisions">D1～D9</a> 等使用者決定；尚未開始實作。</dd>
+        <dt>狀態</dt><dd>實作中（M7.1）：<a href="#decisions">D1～D9</a> 於 2026-11-06 18:21 America/Los_Angeles（PST，UTC−08:00）全照建議。GitHub 從 18:15 起對這個 session 回 403（帳號被停權的訊息），提交先留在本機，存取恢復後推送。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>m7/flow</code>，從 <code>673dc4c</code>（origin/main，Merge PR #112）開；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/115">PR #115</a>（草稿，base main；目前只有設計）。M6 狀態的文件更新另在 <code>docs/m6-status</code>（PR #113），兩者沒有共用檔案。</dd>
         <dt>交接版本／同步狀態</dt><dd>本頁與索引推送到 <code>m7/flow</code>；以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux x86_64、系統 Python 3.13.18、uv 0.11.32、Ruff 0.16.9、Pyright 1.1.414）。連不到 PyPI，<code>uv sync --locked</code> 失敗；調研用系統已有的 Pydantic 2.13.5、Jinja2 3.1.6、Playwright 與 <code>/opt/pw-browsers</code> 的 Chromium，在 <code>/tmp</code> 的虛擬環境以 .pth 指到工作區的套件原始碼。沒有 Firefox、沒有 OpenCC。</dd>
@@ -306,19 +306,19 @@ outputs:
     </section>
 
     <section class="panel" id="decisions">
-      <div class="panel-header"><h2>11. 待決定事項</h2><span class="muted">都附建議；可以回覆「照建議」或指出要改的項目</span></div>
+      <div class="panel-header"><h2>11. 決定（2026-11-06 全照建議）</h2><span class="muted">使用者 2026-11-06 18:21 America/Los_Angeles（PST，UTC−08:00）在 Claude 雲端 session 回覆（原文）：「按建議實作。」</span></div>
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>#</th><th>問題</th><th>建議</th><th>其他選擇</th><th>狀態</th></tr></thead>
         <tbody>
-          <tr><td>D1</td><td>分期與順序</td><td>M7.1 流程控制 → M7.2 子場景 → M7.3 資料驅動，各一個 PR、各自發布；先做 M7.1</td><td>三期一起做（PR 很大、審閱與驗收拖長）；先做資料驅動（業務上若最急）</td><td>待定</td></tr>
-          <tr><td>D2</td><td>條件的寫法</td><td>沿用 <code>expect</code> 的欄位（元素、頁面）加 <code>expression</code>、<code>wait</code>（預設 0）、<code>not</code>；判斷出錯算失敗</td><td>只有 <code>expression</code>（元素狀態要先 extract，寫起來長）；條件預設也等（每次判斷都慢）</td><td>待定</td></tr>
-          <tr><td>D3</td><td>迴圈變數與迴圈裡的事實</td><td><code>as</code> 命名的變數加最內層的 <code>loop</code>；事實每輪覆蓋，<code>append: true</code> 累積成清單</td><td>事實在迴圈裡自動變成清單（不寫 append，但單值也變清單，容易誤用）</td><td>待定</td></tr>
-          <tr><td>D4</td><td>上限</td><td>每個迴圈 1,000 項／輪、條件迴圈必填 <code>max</code>、巢狀 5 層、每次執行 10,000 筆步驟紀錄</td><td>不設上限只靠總期限（紀錄與報告可能大到打不開）；上限更小</td><td>待定</td></tr>
-          <tr><td>D5</td><td>哪些步驟可以 <code>retry</code></td><td>只有 <code>goto</code>、<code>waitFor</code>、<code>expect</code>、<code>extract</code>、<code>screenshot</code>（沿用「填寫、勾選也算有副作用」的現有分類）；<code>times</code> 1～5、<code>delay</code> 預設 1000 ms</td><td>加上 <code>fill</code>、<code>select</code>、<code>check</code>（重複設定同一個值通常無害，但和現有分類不一致）；點擊也可以，但要另寫 <code>unsafe: true</code> 表示知道風險</td><td>待定</td></tr>
-          <tr><td>D6</td><td>有「失敗後繼續」或被接住的失敗時，結果怎麼算</td><td>照樣由 <code>verify</code> 決定；報告、運行頁與驗證結果顯示黃色提醒，不擋發布</td><td>驗證時有這種步驟就不能發布；或結果另標「通過（有警告）」</td><td>待定</td></tr>
-          <tr><td>D7</td><td>逐步調試怎麼處理區塊</td><td>樹狀清單；區塊可整塊執行、也可單獨執行裡面的一步；迴圈的目前項預設第 1 項、可以切換</td><td>只能整塊執行（簡單，但迴圈裡的一步壞了很難調）</td><td>待定</td></tr>
-          <tr><td>D8</td><td>子場景（M7.2）的基本規則</td><td>同一個瀏覽器與分頁；固定已發布的版本；子場景自己的 <code>verify</code> 通過才交回出參；登入角色相同或不需登入；最多 3 層</td><td>子場景另開瀏覽器（那就是組合場景）；跟著子場景最新發布版本（改了會影響已發布的呼叫場景，違反「驗證的版本就是發布的版本」）</td><td>待定（M7.2 開工前可以再確認細節）</td></tr>
-          <tr><td>D9</td><td>「資料驅動」指的是什麼</td><td>M7.3 做批次執行：一列一次執行、各有報告，匯總頁可以匯出、可以只重跑失敗的列；「一次執行裡逐項做」由 M7.1 的 <code>forEach</code> 負責</td><td>只做 <code>forEach</code>（讀 Excel 成清單後逐列做），不做批次執行</td><td>待定</td></tr>
+          <tr><td>D1</td><td>分期與順序</td><td>M7.1 流程控制 → M7.2 子場景 → M7.3 資料驅動，各一個 PR、各自發布；先做 M7.1</td><td>三期一起做（PR 很大、審閱與驗收拖長）；先做資料驅動（業務上若最急）</td><td>照建議</td></tr>
+          <tr><td>D2</td><td>條件的寫法</td><td>沿用 <code>expect</code> 的欄位（元素、頁面）加 <code>expression</code>、<code>wait</code>（預設 0）、<code>not</code>；判斷出錯算失敗</td><td>只有 <code>expression</code>（元素狀態要先 extract，寫起來長）；條件預設也等（每次判斷都慢）</td><td>照建議</td></tr>
+          <tr><td>D3</td><td>迴圈變數與迴圈裡的事實</td><td><code>as</code> 命名的變數加最內層的 <code>loop</code>；事實每輪覆蓋，<code>append: true</code> 累積成清單</td><td>事實在迴圈裡自動變成清單（不寫 append，但單值也變清單，容易誤用）</td><td>照建議</td></tr>
+          <tr><td>D4</td><td>上限</td><td>每個迴圈 1,000 項／輪、條件迴圈必填 <code>max</code>、巢狀 5 層、每次執行 10,000 筆步驟紀錄</td><td>不設上限只靠總期限（紀錄與報告可能大到打不開）；上限更小</td><td>照建議</td></tr>
+          <tr><td>D5</td><td>哪些步驟可以 <code>retry</code></td><td>只有 <code>goto</code>、<code>waitFor</code>、<code>expect</code>、<code>extract</code>、<code>screenshot</code>（沿用「填寫、勾選也算有副作用」的現有分類）；<code>times</code> 1～5、<code>delay</code> 預設 1000 ms</td><td>加上 <code>fill</code>、<code>select</code>、<code>check</code>（重複設定同一個值通常無害，但和現有分類不一致）；點擊也可以，但要另寫 <code>unsafe: true</code> 表示知道風險</td><td>照建議</td></tr>
+          <tr><td>D6</td><td>有「失敗後繼續」或被接住的失敗時，結果怎麼算</td><td>照樣由 <code>verify</code> 決定；報告、運行頁與驗證結果顯示黃色提醒，不擋發布</td><td>驗證時有這種步驟就不能發布；或結果另標「通過（有警告）」</td><td>照建議</td></tr>
+          <tr><td>D7</td><td>逐步調試怎麼處理區塊</td><td>樹狀清單；區塊可整塊執行、也可單獨執行裡面的一步；迴圈的目前項預設第 1 項、可以切換</td><td>只能整塊執行（簡單，但迴圈裡的一步壞了很難調）</td><td>照建議</td></tr>
+          <tr><td>D8</td><td>子場景（M7.2）的基本規則</td><td>同一個瀏覽器與分頁；固定已發布的版本；子場景自己的 <code>verify</code> 通過才交回出參；登入角色相同或不需登入；最多 3 層</td><td>子場景另開瀏覽器（那就是組合場景）；跟著子場景最新發布版本（改了會影響已發布的呼叫場景，違反「驗證的版本就是發布的版本」）</td><td>照建議（細節在 M7.2 設計時寫明）</td></tr>
+          <tr><td>D9</td><td>「資料驅動」指的是什麼</td><td>M7.3 做批次執行：一列一次執行、各有報告，匯總頁可以匯出、可以只重跑失敗的列；「一次執行裡逐項做」由 M7.1 的 <code>forEach</code> 負責</td><td>只做 <code>forEach</code>（讀 Excel 成清單後逐列做），不做批次執行</td><td>照建議</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -343,8 +343,8 @@ outputs:
       <div class="panel-header"><h2>進度、決定與下一步</h2></div>
       <div class="panel-body"><ul class="points">
         <li><strong>已完成：</strong>依 main <code>673dc4c</code> 查證現況（第 2 節）；技術調研（第 3 節）；M7 全部七項的設計（M7.1 詳細，M7.2、M7.3 概要）與待決定事項。</li>
-        <li><strong>未完成／阻礙：</strong>D1～D9 等使用者決定；決定前不寫實作程式。M7.2、M7.3 的細部設計在 M7.1 合併後另寫。</li>
-        <li><strong>決定：</strong>尚無；第 11 節的「建議」都只是建議。</li>
+        <li><strong>未完成／阻礙：</strong>M7.1 實作中。GitHub 對這個 session 回 403「Sorry. Your account was suspended」（API 與 git 都是，2026-11-06 18:15 起），推送與 CI 受阻。M7.2、M7.3 的細部設計在 M7.1 合併後另寫。</li>
+        <li><strong>決定：</strong>D1～D9 全照建議（第 11 節；<a href="../decisions.html#decisions">決定</a>）。</li>
         <li><strong>下一個具體動作：</strong>使用者回覆 D1～D9 → 依決定改寫本頁的第 4～11 節並記錄原文 → 在本分支開始 M7.1：先寫 <code>rpa_core</code> 的模型與校驗（含測試），再寫 Runner、紀錄與日誌，之後是伺服器、Portal、文件與範例；每一段推送後看 CI。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。調研腳本與虛擬環境在工作區的 <code>/tmp</code>，不進倉庫。</li>
       </ul></div>
