@@ -71,21 +71,26 @@
       <div class="table-scroll"><table class="wrap debug-steps">
         <thead><tr><th class="numeric">#</th><th>{{ t("debug.col_step") }}</th><th>{{ t("runs.col_status") }}</th><th>{{ t("runs.col_actions") }}</th></tr></thead>
         <tbody>
-        {% for step in session.steps %}
-        <tr data-step="{{ step.index }}"{% if step.index == session.next_index %} class="is-next"{% endif %}>
-          <td class="numeric">{{ step.index + 1 }}</td>
-          <td><span class="tag mono">{{ step.id }}</span> <code>{{ step.action }}</code>{% if step.side_effect %} <span class="chip" title="{{ t('debug.side_effect_title') }}">{{ t("debug.side_effect") }}</span>{% endif %}
+        {% for step in session.steps recursive %}
+        {% set nested = step.depth > 0 %}
+        <tr data-step="{{ step.index }}"{% if nested %} data-path="{{ step.path | tojson | forceescape }}" class="debug-nested"{% elif step.index == session.next_index %} class="is-next"{% endif %}>
+          <td class="numeric">{% if not nested %}{{ step.index + 1 }}{% endif %}</td>
+          <td{% if nested %} style="padding-left: {{ 8 + 20 * step.depth }}px"{% endif %}>{% if nested %}<span class="muted mono">{{ step.key }} ›</span> {% endif %}<span class="tag mono">{{ step.id }}</span> <code>{{ step.action }}</code>{% if step.side_effect %} <span class="chip" title="{{ t('debug.side_effect_title') }}">{{ t("debug.side_effect") }}</span>{% endif %}
             {% if step.name %}<span class="cell-sub">{{ step.name }}</span>{% endif %}
             {% if step.target %}<span class="cell-sub mono">{{ step.target }}</span>{% endif %}
             {% if step.error %}<span class="cell-sub text-danger">{{ step.error }}</span>{% endif %}
             {% if step.files is defined and step.files %}<span class="cell-sub">{{ t("debug.files", names=step.files | join(t("js.list_separator"))) }}</span>{% endif %}
-            {% if step.notes is defined %}{% for note in step.notes %}<span class="cell-sub step-note">{{ note }}</span>{% endfor %}{% endif %}</td>
-          <td>{% if step.status == "pending" %}{{ m.badge("none", t("debug.pending")) }}{% else %}{{ m.run_badge(step.status) }}{% endif %}{% if step.runs > 1 %}<span class="cell-sub">{{ t("debug.runs", count=step.runs) }}</span>{% endif %}</td>
+            {% if step.notes is defined %}{% for note in step.notes %}<span class="cell-sub step-note">{{ note }}</span>{% endfor %}{% endif %}
+            {% if step.branch %}<span class="cell-sub">{{ t("debug.branch_" ~ step.branch) }}</span>{% elif step.action == "if" and step.runs %}<span class="cell-sub">{{ t("debug.branch_none") }}</span>{% endif %}
+            {% if step.iterations is not none %}<span class="cell-sub">{{ t("debug.iterations", count=step.iterations) }}</span>{% endif %}
+            {% if step.loop %}<label class="cell-sub debug-choice">{{ t("debug.current_item") }} <input type="number" min="1" step="1" class="mono" data-choice="{{ step.path_key }}" value="{{ (session.choices.get(step.path_key, 0)) + 1 }}"></label>{% endif %}</td>
+          <td>{% if step.status == "pending" %}{{ m.badge("none", t("debug.pending")) }}{% elif step.handled %}{{ m.badge("handled", t("debug.handled_" ~ step.handled)) }}{% else %}{{ m.run_badge(step.status) }}{% endif %}{% if step.runs > 1 %}<span class="cell-sub">{{ t("debug.runs", count=step.runs) }}</span>{% endif %}</td>
           <td class="nowrap">
-            <button class="text-btn" data-action="debug-step" data-index="{{ step.index }}" data-ran="{{ 'true' if step.runs and step.side_effect else 'false' }}"{% if session.status != "ready" %} disabled{% endif %}>{{ t("debug.run_step") }}</button>
-            {% if step.index >= session.next_index %}<button class="text-btn" data-action="debug-run-to" data-index="{{ step.index }}"{% if session.status != "ready" %} disabled{% endif %}>{{ t("debug.run_to") }}</button>{% endif %}
+            <button class="text-btn" data-action="debug-step" data-index="{{ step.index }}"{% if nested %} data-path="{{ step.path | tojson | forceescape }}"{% endif %} data-ran="{{ 'true' if step.runs and step.side_effect else 'false' }}"{% if session.status != "ready" %} disabled{% endif %}>{{ t("debug.run_block") if step.children else t("debug.run_step") }}</button>
+            {% if not nested and step.index >= session.next_index %}<button class="text-btn" data-action="debug-run-to" data-index="{{ step.index }}"{% if session.status != "ready" %} disabled{% endif %}>{{ t("debug.run_to") }}</button>{% endif %}
           </td>
         </tr>
+        {% if step.children %}{{ loop(step.children) }}{% endif %}
         {% endfor %}
         </tbody>
       </table></div>

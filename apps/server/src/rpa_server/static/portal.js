@@ -677,6 +677,21 @@
       const tab = event.target.closest('[data-file-tab]');
       if (tab) select(tab.dataset.fileTab);
     });
+    // 插入流程範本（M7.1）：插在游標所在的那一行之前，選單回到「選擇」
+    qsa('[data-action="insert-snippet"]', form).forEach(menu => {
+      menu.addEventListener('change', () => {
+        const option = menu.selectedOptions[0];
+        const area = qs('textarea', menu.closest('[data-file]'));
+        if (!option || !option.dataset.snippet || !area) return;
+        const text = option.dataset.snippet;
+        const start = area.value.lastIndexOf('\n', Math.max(0, area.selectionStart - 1)) + 1;
+        const at = area.selectionStart === 0 ? 0 : start;
+        area.setRangeText(text, at, at, 'end');
+        area.focus();
+        area.dispatchEvent(new Event('input', {bubbles: true}));
+        menu.value = '';
+      });
+    });
     // Python 節點（ADR 0020）：新增 script.files 列的檔案、移除不用的檔案；存檔時一起校驗
     const newName = form.elements.namedItem('new-file');
     qs('[data-action="add-file"]', form)?.addEventListener('click', () => {
@@ -1603,8 +1618,14 @@
       }
       location.reload();
     };
+    // 迴圈的目前項（M7.1）：畫面上從 1 起，送出時從 0 起
+    const choices = () => Object.fromEntries(qsa('[data-choice]').map(input => [input.dataset.choice, Math.max(0, (parseInt(input.value, 10) || 1) - 1)]));
     qsa('[data-action="debug-step"]').forEach(button => {
-      button.addEventListener('click', () => command(button, 'POST', base + '/steps/' + button.dataset.index, {force: false}));
+      button.addEventListener('click', () => {
+        const body = {force: false, choices: choices()};
+        if (button.dataset.path) body.path = JSON.parse(button.dataset.path);
+        command(button, 'POST', base + '/steps/' + button.dataset.index, body);
+      });
     });
     qsa('[data-action="debug-run-to"]').forEach(button => {
       button.addEventListener('click', () => command(button, 'POST', base + '/run-to/' + button.dataset.index));

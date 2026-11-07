@@ -27,7 +27,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from rpa_core.dsl import validate_file
-from rpa_core.dsl.yaml_loader import YamlLoadError, load_yaml
+from rpa_core.dsl.steps import BRANCHES, walk_steps
+from rpa_core.dsl.yaml_loader import Position, YamlLoadError, load_yaml
 from rpa_core.dsl.yaml_writer import flow
 from rpa_runner.files import (
     AUTOMATION_LOG,
@@ -78,30 +79,41 @@ def _offset(moment: datetime | None, start: datetime | None) -> int | None:
 
 
 def step_sources(text: str) -> list[tuple[int, str]]:
-    """場景檔裡每一步的原文：(第一行的行號, 那一段文字)，依步驟的順序。讀不懂時回傳空清單。"""
+    """場景檔裡最外層每一步的原文：(第一行的行號, 那一段文字)，依步驟的順序。讀不懂時回傳空清單。"""
     try:
         _, positions = load_yaml(text)
     except YamlLoadError:
         return []
     lines = text.splitlines()
-    starts: list[tuple[int, int]] = []
-    # 用 values 直接查：locate 找不到時會往上找祖先，永遠不是 None
-    while (position := positions.values.get(("steps", len(starts)))) is not None:
-        starts.append((position.line, max(0, position.column - 3)))
     found: list[tuple[int, str]] = []
-    for index, (line, dash) in enumerate(starts):
-        end = starts[index + 1][0] - 1 if index + 1 < len(starts) else len(lines)
-        block = [lines[line - 1]]
-        for text_line in lines[line:end]:
-            stripped = text_line.strip()
-            indent = len(text_line) - len(text_line.lstrip())
-            if stripped and indent <= dash:
-                break
-            block.append(text_line)
-        while len(block) > 1 and not block[-1].strip():
-            block.pop()
-        found.append((line, "\n".join(block)))
+    # 用 values 直接查：locate 找不到時會往上找祖先，永遠不是 None
+    while (source := _source_at(lines, positions.values, ("steps", len(found)))) is not None:
+        found.append(source)
     return found
+
+
+type _Path = tuple[str | int, ...]
+
+
+def _source_at(
+    lines: Sequence[str], values: Mapping[_Path, Position], path: _Path
+) -> tuple[int, str] | None:
+    """路徑那一步的原文：從那一步的「-」開始，到縮排回到同一層或更外層為止（區塊的原文包含
+    裡面的步驟，M7.1）。"""
+    position = values.get(path)
+    if position is None:
+        return None
+    line, dash = position.line, max(0, position.column - 3)
+    block = [lines[line - 1]] if 0 < line <= len(lines) else []
+    for text_line in lines[line:]:
+        stripped = text_line.strip()
+        indent = len(text_line) - len(text_line.lstrip())
+        if stripped and indent <= dash:
+            break
+        block.append(text_line)
+    while len(block) > 1 and not block[-1].strip():
+        block.pop()
+    return line, "\n".join(block)
 
 
 def _snapshot(folder: Path) -> Path | None:
@@ -114,19 +126,37 @@ def _snapshot(folder: Path) -> Path | None:
     return candidates[0] if candidates else None
 
 
-def _definitions(snapshot: Path | None) -> tuple[list[dict[str, object]], list[tuple[int, str]]]:
-    """快照裡各步驟的定義（JSON）與原文。"""
+def _definitions(
+    snapshot: Path | None,
+) -> tuple[dict[_Path, dict[str, object]], dict[_Path, tuple[int, str]]]:
+    """快照裡各步驟（含區塊裡的，M7.1）的定義（JSON，不含裡面的步驟）與原文，以路徑為鍵。"""
     if snapshot is None:
-        return [], []
+        return {}, {}
     scenario = validate_file(snapshot).scenario
-    steps: list[dict[str, object]] = []
-    for step in scenario.steps or [] if scenario is not None else []:
-        dumped = step.model_dump(mode="json", by_alias=True, exclude_unset=True)
-        steps.append(cast("dict[str, object]", dumped))
     text = ""
     with contextlib.suppress(OSError, UnicodeDecodeError):
         text = snapshot.read_text(encoding="utf-8")
-    return steps, step_sources(text)
+    values: Mapping[_Path, Position] = {}
+    with contextlib.suppress(YamlLoadError):
+        values = load_yaml(text)[1].values
+    lines = text.splitlines()
+    steps: dict[_Path, dict[str, object]] = {}
+    sources: dict[_Path, tuple[int, str]] = {}
+    for path, step, _ in walk_steps(scenario.steps if scenario is not None else None):
+        dumped = step.model_dump(mode="json", by_alias=True, exclude_unset=True)
+        steps[path] = {key: value for key, value in dumped.items() if key not in BRANCHES}
+        source = _source_at(lines, values, path)
+        if source is not None:
+            sources[path] = source
+    return steps, sources
+
+
+def _record_path(record: Mapping[str, object], index: int) -> _Path:
+    """紀錄對應的定義路徑：M7.1 起的紀錄有 path；之前的紀錄一步一筆，依順序對應。"""
+    raw = record.get("path")
+    if isinstance(raw, list) and raw:
+        return tuple(cast("list[str | int]", raw))
+    return ("steps", index)
 
 
 def _describe(definition: Mapping[str, object]) -> tuple[str | None, str | None]:
@@ -146,10 +176,13 @@ def _describe(definition: Mapping[str, object]) -> tuple[str | None, str | None]
     return where, "  ".join(details) or None
 
 
-def step_targets(folder: Path) -> list[str | None]:
-    """執行目錄裡場景快照每一步的定位器或網址（場景檔的寫法），依步驟的順序；組合運行的報告用。"""
+def step_targets(folder: Path, records: Sequence[Mapping[str, object]]) -> list[str | None]:
+    """每一筆步驟紀錄在場景快照裡的定位器或網址（場景檔的寫法），依紀錄的順序；組合運行的報告用。"""
     definitions, _ = _definitions(_snapshot(folder))
-    return [_describe(definition)[0] for definition in definitions]
+    return [
+        _describe(definitions.get(_record_path(record, index), {}))[0]
+        for index, record in enumerate(records)
+    ]
 
 
 _PYTHON_SOURCE: Final = re.compile(
@@ -383,8 +416,9 @@ def _steps(
                 }
             )
             continue
-        definition = definitions[index] if index < len(definitions) else {}
-        line, text = sources[index] if index < len(sources) else (None, None)
+        path = _record_path(record, index)
+        definition = definitions.get(path, {})
+        line, text = sources.get(path, (None, None))
         where, detail = _describe(definition)
         name = definition.get("as")
         steps.append(
@@ -416,9 +450,34 @@ def _steps(
                 # 上傳的檔案（網頁看到的檔名）與提醒，例如攔下的選擇檔案視窗（M7c）
                 "files": record.get("files") or [],
                 "notes": record.get("notes") or [],
+                # 流程控制（M7.1）：巢狀、第幾輪、分支、重試與失敗後繼續
+                "path": list(path),
+                "parent": record.get("parent"),
+                "iteration": record.get("iteration"),
+                "attempts": record.get("attempts"),
+                "handled": record.get("handled"),
+                "condition": record.get("condition"),
+                "branch": record.get("branch"),
+                "iterations": record.get("iterations"),
+                "caught": record.get("caught"),
             }
         )
+    _add_depths(steps)
     return steps
+
+
+def _add_depths(steps: list[dict[str, object]]) -> None:
+    """每一步在第幾層（depth）：DSL 的 parent 是紀錄編號，Python 節點的是外層步驟的 id。"""
+    ids: dict[str, int] = {}
+    for index, step in enumerate(steps):
+        parent = step.get("parent")
+        outer: int | None = None
+        if isinstance(parent, int) and not isinstance(parent, bool) and 1 <= parent <= index:
+            outer = parent - 1
+        elif isinstance(parent, str) and parent in ids:
+            outer = ids[parent]
+        step["depth"] = cast("int", steps[outer]["depth"]) + 1 if outer is not None else 0
+        ids.setdefault(str(step.get("id")), index)
 
 
 def _neighbors(session: Session, run: Run) -> dict[str, str | None]:
@@ -543,7 +602,18 @@ def build_replay(
         video["missingPages"] = any(
             s.get("pageId") not in page_ids for s in steps if s.get("startedAt")
         )
-    failed = next((step["index"] for step in steps if step["status"] == "failed"), None)
+    # 讓執行停下的那一步：沒有被接住、不是區塊本身（M7.1）；都沒有時退回第一個失敗的
+    unhandled = [step for step in steps if step["status"] == "failed" and not step.get("handled")]
+    leaf = next(
+        (
+            step
+            for step in unhandled
+            if step.get("action") not in ("if", "forEach", "repeat", "try")
+        ),
+        None,
+    )
+    chosen = leaf or next(iter(unhandled), None)
+    failed = chosen["index"] if chosen is not None else None
     python = any(step.get("action") == "python" for step in steps)
     if python:
         base = f"/scenes/{run.scene_id}/edit?revision={run.revision_number}&file="

@@ -292,6 +292,10 @@ class DebugStart(_Body):
 
 class DebugStep(_Body):
     force: bool = False
+    path: list[str | int] | None = Field(default=None, min_length=2, max_length=24)
+    """單獨執行區塊裡的一步（M7.1）：``["steps", 2, "steps", 0]``；沒寫是第 index 步。"""
+    choices: dict[str, int] | None = Field(default=None, max_length=50)
+    """迴圈的目前項：迴圈步驟的路徑（``steps/2``）→ 第幾項（從 0 起）。"""
 
 
 class DebugLocate(_Body):
@@ -1069,8 +1073,11 @@ def api_router(services: Services) -> APIRouter:
 
     @router.post("/debug/{session_id}/steps/{index}")
     def debug_step(session_id: str, index: int, body: DebugStep | None = None) -> dict[str, object]:
-        force = body.force if body is not None else False
-        return debug.run_step(session_id, index, force=force).to_json()
+        body = body or DebugStep()
+        session = debug.run_step(
+            session_id, index, force=body.force, path=body.path, choices=body.choices
+        )
+        return session.to_json()
 
     @router.post("/debug/{session_id}/run-to/{index}")
     def debug_run_to(session_id: str, index: int) -> dict[str, object]:

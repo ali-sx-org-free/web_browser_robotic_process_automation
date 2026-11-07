@@ -20,7 +20,7 @@ import shutil
 import threading
 import time
 import uuid
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -29,11 +29,13 @@ from typing import TYPE_CHECKING, Final, cast
 from rpa_core.dsl import Scenario, Step
 from rpa_core.dsl.dynamic import escape
 from rpa_core.dsl.features import input_features, scenario_features
+from rpa_core.dsl.steps import branches
 from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import Locale, use_locale
 from rpa_runner.browser import DEFAULT_STEP_TIMEOUT_MS
 from rpa_runner.commands import module_command
 from rpa_runner.contract import prepare_inputs
+from rpa_runner.debug import COMMAND_SECONDS
 from rpa_runner.run import ENV_STORAGE_STATE
 from rpa_server.context import Via, use_recorder
 from rpa_server.domain import now
@@ -75,6 +77,7 @@ _SNAPSHOT_KEYS: Final = ("url", "title", "tabs", "frames", "fields", "aria", "tr
 @dataclass(slots=True)
 class StepState:
     index: int
+    """最外層的第幾步（從 0 起）；區塊裡的步驟（M7.1）是它所在的最外層步驟。"""
     id: str
     action: str
     name: str | None
@@ -88,10 +91,35 @@ class StepState:
     """upload 交給網頁的檔名（M7c）。"""
     notes: list[str] = field(default_factory=list[str])
     """提醒，例如攔下的選擇檔案視窗（M7c）。"""
+    path: tuple[str | int, ...] = ()
+    """在場景檔裡的位置（M7.1），例如 ``("steps", 2, "steps", 0)``。"""
+    key: str | None = None
+    """區塊裡的步驟在哪個分支（then、else、steps、catch）；最外層的是 None。"""
+    depth: int = 0
+    children: list["StepState"] = field(default_factory=list["StepState"])
+    """區塊裡的步驟（M7.1），依場景檔的順序。"""
+    iterations: int | None = None
+    branch: str | None = None
+    handled: str | None = None
 
     @property
     def side_effect(self) -> bool:
-        return self.action in SIDE_EFFECTS
+        """有副作用：再執行一次要確認。區塊裡有任何有副作用的步驟，整塊就算有（M7.1）。"""
+        return self.action in SIDE_EFFECTS or any(child.side_effect for child in self.children)
+
+    @property
+    def loop(self) -> bool:
+        return self.action in ("forEach", "repeat")
+
+    @property
+    def path_key(self) -> str:
+        """迴圈的目前項用的鍵：``steps/2``、``steps/2/then/0``。"""
+        return "/".join(str(part) for part in self.path)
+
+    def walk(self) -> Iterator["StepState"]:
+        yield self
+        for child in self.children:
+            yield from child.walk()
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -107,33 +135,79 @@ class StepState:
             "sideEffect": self.side_effect,
             "files": self.files,
             "notes": self.notes,
+            "path": list(self.path),
+            "key": self.key,
+            "depth": self.depth,
+            "loop": self.loop,
+            "iterations": self.iterations,
+            "branch": self.branch,
+            "handled": self.handled,
+            "children": [child.to_json() for child in self.children],
         }
 
 
+def _state(
+    step: Step, index: int, path: tuple[str | int, ...], key: str | None, depth: int
+) -> StepState:
+    # upload 可以用 trigger（點了才開視窗的元素）或 dropzone（拖放區）定位（M7c）
+    target = next(
+        (
+            found
+            for name in ("target", "trigger", "dropzone")
+            if (found := getattr(step, name, None)) is not None
+        ),
+        None,
+    )
+    text = (
+        flow(target.model_dump(mode="json", by_alias=True, exclude_none=True)) if target else None
+    )
+    if text is None and step.action in ("goto", "openPage"):
+        text = cast("str | None", getattr(step, "url", None))
+    state = StepState(index, step.id, step.action, step.name, text, path=path, key=key, depth=depth)
+    for branch, inner in branches(step):
+        for position, child in enumerate(inner):
+            state.children.append(
+                _state(child, index, (*path, branch, position), branch, depth + 1)
+            )
+    return state
+
+
 def _steps(scenario: Scenario) -> list[StepState]:
-    states: list[StepState] = []
-    for index, step in enumerate(scenario.steps or []):
-        # upload 可以用 trigger（點了才開視窗的元素）或 dropzone（拖放區）定位（M7c）
-        target = next(
-            (
-                found
-                for key in ("target", "trigger", "dropzone")
-                if (found := getattr(step, key, None)) is not None
-            ),
-            None,
-        )
-        text = (
-            flow(target.model_dump(mode="json", by_alias=True, exclude_none=True))
-            if target
-            else None
-        )
-        if text is None and step.action == "goto":
-            text = cast("str", getattr(step, "url", None))
-        states.append(StepState(index, step.id, step.action, step.name, text))
-    return states
+    return [
+        _state(step, index, ("steps", index), None, 0)
+        for index, step in enumerate(scenario.steps or [])
+    ]
+
+
+def _find(states: list[StepState], path: tuple[str | int, ...]) -> StepState | None:
+    for state in states:
+        for found in state.walk():
+            if found.path == path:
+                return found
+    return None
+
+
+def _apply(state: StepState, record: Mapping[str, object]) -> None:
+    """把一筆步驟紀錄寫進狀態；迴圈裡同一步的好幾筆依序寫入，最後一筆為準、執行次數累加。"""
+    state.runs += 1
+    status = record.get("status")
+    state.status = "passed" if status == "passed" else "failed"
+    state.error = cast("str | None", record.get("error"))
+    state.duration_ms = int(cast("int", record.get("durationMs") or 0))
+    state.files += [str(item) for item in cast("list[object]", record.get("files") or [])]
+    state.notes += [str(item) for item in cast("list[object]", record.get("notes") or [])]
+    iterations = record.get("iterations")
+    state.iterations = iterations if isinstance(iterations, int) else None
+    branch = record.get("branch")
+    state.branch = branch if isinstance(branch, str) else None
+    handled = record.get("handled")
+    state.handled = handled if isinstance(handled, str) else None
 
 
 def _timeout(scenario: Scenario, step: Step) -> float:
+    """等子程序回覆多久：這一步的逾時加上餘裕；區塊（M7.1）裡面可能有很多步，用整個命令的上限。"""
+    if branches(step):
+        return COMMAND_SECONDS + 30
     milliseconds = step.timeout or scenario.defaults.timeout or DEFAULT_STEP_TIMEOUT_MS
     return milliseconds / 1000 + 30
 
@@ -173,6 +247,9 @@ class DebugSession:
     counter: int = 0
     files: list[tuple[str, Path]] = field(default_factory=list[tuple[str, Path]])
     """檔案入參（M7c）：在工作階段資料夾以原始檔名準備好的檔案，給子程序的 --file。"""
+    choices: dict[str, int] = field(default_factory=dict[str, int])
+    """迴圈的目前項（M7.1）：迴圈步驟的路徑（``steps/2``）→ 第幾項（從 0 起）；單獨執行迴圈裡的
+    一步時，迴圈變數用這一項。"""
     file_inputs: dict[str, object] = field(default_factory=dict[str, object])
     """檔案入參原本的值（上傳檔、附件或路徑）；inputs 裡的是名稱、大小、sha256，
     重新開始時用這個。"""
@@ -204,6 +281,7 @@ class DebugSession:
             "deviceId": self.device,
             "clientId": self.client_id,
             "steps": [step.to_json() for step in self.steps],
+            "choices": self.choices,
             "createdAt": self.created_at.isoformat(timespec="seconds"),
             "idleSeconds": int(time.monotonic() - self.last_used),
         }
@@ -474,39 +552,78 @@ class DebugManager:
         session.status = "failed"
         session.message = t("debug.crashed", detail=detail or _tail(session.folder / "debug.log"))
 
-    def run_step(self, session_id: str, index: int, *, force: bool = False) -> DebugSession:
-        """執行一步；有副作用而且執行過的步驟要 force（使用者確認）才再執行。"""
+    def run_step(
+        self,
+        session_id: str,
+        index: int,
+        *,
+        force: bool = False,
+        path: Sequence[str | int] | None = None,
+        choices: Mapping[str, int] | None = None,
+    ) -> DebugSession:
+        """執行一步；有副作用而且執行過的步驟要 force（使用者確認）才再執行。
+
+        區塊整塊執行（M7.1）；``path`` 單獨執行區塊裡的一步，``choices`` 是迴圈的目前項
+        （記在工作階段，之後沿用）。
+        """
         session = self.get(session_id)
         if not 0 <= index < len(session.steps):
             raise invalid("step_not_found", t("error.step_not_found", number=index + 1))
         state = session.steps[index]
+        target = tuple(path) if path is not None else state.path
+        if path is not None:
+            found = _find(session.steps, target)
+            if found is None or found.index != index:
+                raise invalid("step_not_found", t("error.step_not_found", number=index + 1))
+            state = found
+        if choices:
+            session.choices.update({key: max(0, value) for key, value in choices.items()})
         if state.runs and state.side_effect and not force:
             raise conflict(
                 "confirm_required",
                 t("error.debug_confirm", number=index + 1, id=state.id),
                 step=index,
             )
-        self._execute(session, index)
+        self._execute(session, index, None if path is None else target)
         return session
 
-    def _execute(self, session: DebugSession, index: int) -> bool:
+    def _execute(
+        self, session: DebugSession, index: int, path: tuple[str | int, ...] | None = None
+    ) -> bool:
         steps = session.scenario.steps or []
-        reply = self._command(
-            session, _timeout(session.scenario, steps[index]), cmd="step", index=index
-        )
+        command: dict[str, object] = {"cmd": "step", "index": index}
         state = session.steps[index]
+        if path is not None:
+            command = {"cmd": "step", "path": list(path), "choices": session.choices}
+            state = _find(session.steps, path) or state
+        reply = self._command(session, _timeout(session.scenario, steps[index]), **command)
         if not reply.get("ok"):
             state.status = "failed"
             state.error = str(reply.get("error") or "")
             return False
         record = cast("dict[str, object]", reply.get("record") or {})
-        state.runs += 1
-        state.status = "passed" if record.get("status") == "passed" else "failed"
-        state.error = cast("str | None", record.get("error"))
-        state.duration_ms = int(cast("int", record.get("durationMs") or 0))
-        state.files = [str(item) for item in cast("list[object]", record.get("files") or [])]
-        state.notes = [str(item) for item in cast("list[object]", record.get("notes") or [])]
-        session.next_index = index + 1
+        records = [
+            cast("dict[str, object]", item)
+            for item in cast("list[object]", reply.get("records") or [record])
+            if isinstance(item, dict)
+        ]
+        # 區塊裡的步驟（M7.1）：每一筆紀錄依 path 找到它的狀態；迴圈裡同一步會有好幾筆
+        touched: set[int] = set()
+        for item in records or [record]:
+            raw_path = item.get("path")
+            found = (
+                _find(session.steps, tuple(cast("list[str | int]", raw_path)))
+                if isinstance(raw_path, list) and raw_path
+                else state
+            )
+            if found is None:
+                continue
+            if id(found) not in touched:
+                found.files, found.notes = [], []
+                touched.add(id(found))
+            _apply(found, item)
+        if path is None:
+            session.next_index = index + 1
         return state.status == "passed"
 
     def run_to(self, session_id: str, index: int) -> DebugSession:
@@ -622,15 +739,16 @@ class DebugManager:
         if isinstance(actual, dict):
             resolved = cast("dict[str, object]", actual)
         inputs.write_text(json.dumps(resolved, ensure_ascii=False), encoding="utf-8")
-        previous = {state.id: state for state in session.steps}
+        previous = {found.id: found for state in session.steps for found in state.walk()}
         session.scenario = scenario
         session.revision = revision
         session.inputs = resolved
         session.steps = _steps(scenario)
         for state in session.steps:
-            old = previous.get(state.id)
-            if old is not None:
-                state.status, state.runs, state.error = old.status, old.runs, old.error
+            for found in state.walk():
+                old = previous.get(found.id)
+                if old is not None:
+                    found.status, found.runs, found.error = old.status, old.runs, old.error
         executed = [state.index for state in session.steps if state.runs]
         session.next_index = max(executed) + 1 if executed else 0
         return session
