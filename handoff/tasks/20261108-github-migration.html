@@ -64,7 +64,7 @@
       <div class="panel-header"><h2>驗證與審閱</h2></div>
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
-        <tbody><tr><td>本分支（兩個提交）；雲端 Linux、系統 Python 3.13.18、pytest 9.1.1</td><td><code>python3 -m pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code>；本頁與 <code>handoff/</code> 改到的頁面的相對連結</td><td>見追加紀錄</td><td>沒有 OpenCC，簡中產生檢查交給 CI；Actions 停用期間不會有 CI 結果</td></tr></tbody>
+        <tbody><tr><td>本分支 <code>78f7e7d</code>；雲端 Linux、系統 Python 3.13.18、pytest 9.1.1</td><td><code>python3 -m pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code>；本頁與 <code>handoff/</code> 改到的頁面的相對連結；換網址後 <code>git grep</code> 舊路徑</td><td>367 passed；1 failed 是 <code>test_simplified_chinese_is_generated</code>（沒有 OpenCC，main <code>673dc4c</code> 同樣如此）；diff 檢查通過；連結 0 個問題；<code>handoff/</code> 以外沒有舊路徑，剩下的 <code>devopsleadevops</code> 只有 App 識別碼與 <code>AppPublisher</code>；<code>rpa_worker.iss</code> 的網址和 <code>release.py</code> 一致（<code>tests/ci/test_installer.py</code> 檢查的條件）</td><td>沒有 OpenCC，簡中產生檢查交給 CI；Actions 停用期間不會有 CI 結果</td></tr></tbody>
       </table></div>
       <div class="panel-body"><p>CI：Actions 停用，未執行。人工驗收：不適用。審閱：未審閱。</p></div>
     </section>
@@ -80,6 +80,7 @@
         <li>2026-11-07 22:20 PST，Claude：做好搬家包（兩個倉庫的完整歷史與 bundle、匯出資料、推送與換網址的腳本、導入教程），並在本機以空的 bare 倉庫演練推送、bundle 還原、換網址後跑文檔測試。</li>
         <li>2026-11-08 16:30 PST，Claude：只讀查看新倉庫（見進度）；確認這個對話不能推送；列出計劃與差異給使用者。16:33 PST 使用者回覆「按計劃」。</li>
         <li>2026-11-08 16:40 PST，Claude：在搬家包的倉庫裡從 <code>673dc4c</code> 開本分支，加上本頁、決定、匯出資料與換網址。</li>
+        <li>2026-11-08 16:45 PST，Claude：本分支兩個提交（紀錄與匯出資料、換網址）加本條；本機驗證見上表。分支與完整歷史放進 <code>rpa-github-migration-2026-11-09.zip</code>，推送步驟在包裡的 <code>MIGRATION-PLAN.md</code>。</li>
       </ul></div>
     </section>
   </div>
