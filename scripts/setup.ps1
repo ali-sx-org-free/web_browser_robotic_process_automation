@@ -10,7 +10,7 @@
   powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 
 從零開始（還沒下載程式碼，預設下載到 %USERPROFILE%\code\web_browser_robotic_process_automation），在 PowerShell 執行：
-  irm https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.ps1 -OutFile $env:TEMP\rpa-setup.ps1
+  irm https://raw.githubusercontent.com/ali-sx-org-free/web_browser_robotic_process_automation/main/scripts/setup.ps1 -OutFile $env:TEMP\rpa-setup.ps1
   powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1
 
 不要用 irm ... | iex：檔案開頭的 BOM 會留在下載的字串裡，PowerShell 7 會因此解析失敗。
@@ -81,7 +81,7 @@ $RpaSetupArgs = @{
     Set-StrictMode -Version 2.0
     $ErrorActionPreference = 'Stop'
 
-    $RepoUrl = 'https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation.git'
+    $RepoUrl = 'https://github.com/ali-sx-org-free/web_browser_robotic_process_automation.git'
     $RepoName = 'web_browser_robotic_process_automation'
     $UvInstaller = 'https://astral.sh/uv/install.ps1'
     $DocPage = 'docs/develop/quickstart.html'

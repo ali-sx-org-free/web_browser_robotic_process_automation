@@ -2,7 +2,7 @@
 # RHEL／CentOS 衍生版的無桌面伺服器安裝；macOS／本機開發請用 setup.sh。
 set -Eeuo pipefail
 
-REPO_URL="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation.git"
+REPO_URL="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation.git"
 TARGET_DIR="${RPA_DIR:-$HOME/code/web_browser_robotic_process_automation}"
 SKIP_SYSTEM_PACKAGES=0
 INSTALL_SERVICE=0

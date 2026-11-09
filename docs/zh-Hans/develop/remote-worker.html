@@ -50,7 +50,7 @@
         <div class="panel-header"><h2>3. worker 机器：安装</h2><span class="muted">和平常的安装一样</span></div>
         <div class="panel-body prose">
           <p>用<a href="quickstart.html#windows">本机从零运行</a>的一键脚本安装（在 PowerShell 运行）：</p>
-<pre class="source">irm https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.ps1 -OutFile $env:TEMP\rpa-setup.ps1
+<pre class="source">irm https://raw.githubusercontent.com/ali-sx-org-free/web_browser_robotic_process_automation/main/scripts/setup.ps1 -OutFile $env:TEMP\rpa-setup.ps1
 powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1</pre>
           <p>代码会下载到 <code>%USERPROFILE%\code\web_browser_robotic_process_automation</code>，也会下载 Chromium 与 Firefox。<strong>两台电脑要是同一个版本</strong>：之后你的电脑 <code>git pull</code>，worker 机器也要 <code>git pull</code> 并重跑脚本。版本不同时设备页会标出来。</p>
         </div>
@@ -78,7 +78,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
       <div class="panel-header"><h2>Windows：RPA Worker App</h2><span class="muted">M10.1：不需要 uv、git、Python</span></div>
       <div class="panel-body prose">
         <ol>
-          <li>从 GitHub 仓库的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a> 下载和管理 Portal 同一个版本的 <code>RPA-Worker-Setup-版本-windows-x64.exe</code>（安装档）。测试还没发布的版本时，改从 PR 或 <code>main</code> 的「桌面端建置」运行记录的 <strong>Artifacts</strong> 下载 <code>worker-windows-latest</code>（里面有安装档与免安装的 zip）。</li>
+          <li>从 GitHub 仓库的 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/releases">Releases</a> 下载和管理 Portal 同一个版本的 <code>RPA-Worker-Setup-版本-windows-x64.exe</code>（安装档）。测试还没发布的版本时，改从 PR 或 <code>main</code> 的「桌面端建置」运行记录的 <strong>Artifacts</strong> 下载 <code>worker-windows-latest</code>（里面有安装档与免安装的 zip）。</li>
           <li>运行安装档。没有代码签章：SmartScreen 出现「Windows 已保护您的电脑」时按「其他信息 › 仍要运行」。选语言（默认繁体中文）后一路「下一步」：只装给目前的用户，<strong>不需要管理员</strong>，装在 <code>%LOCALAPPDATA%\Programs\RPA Worker</code>，开始功能表有捷径（桌面捷径可以勾选）；装完直接打开 RPA Worker。没有 WebView2 Runtime 时安装档会顺便安装（需要连上网络）。</li>
           <li>窗口打开后，把第 2 步产生的邀请贴在「邀请」栏（只贴代码时另外填管理 Portal 的网址）；需要 Firefox 就勾选，按「配对」。</li>
           <li>第一次会下载 Chromium（解压后约 600 MB），窗口显示进度。状态变成「在线」就好了；设备页显示「在线」与 App 版本。</li>
@@ -104,7 +104,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
       <div class="panel-header"><h2>macOS：RPA Worker App</h2><span class="muted">Apple 芯片；功能和 Windows 版相同</span></div>
       <div class="panel-body prose">
         <ol>
-          <li>从 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a> 下载和管理 Portal 同一个版本的 <code>RPA-Worker-版本-macos-arm64.dmg</code>（加入 macOS 版之后的第一个发布才有）。测试还没发布的版本时，改从「桌面端建置」运行记录的 <strong>Artifacts</strong> 下载 <code>worker-macos-15</code>。</li>
+          <li>从 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/releases">Releases</a> 下载和管理 Portal 同一个版本的 <code>RPA-Worker-版本-macos-arm64.dmg</code>（加入 macOS 版之后的第一个发布才有）。测试还没发布的版本时，改从「桌面端建置」运行记录的 <strong>Artifacts</strong> 下载 <code>worker-macos-15</code>。</li>
           <li>打开 DMG，把「RPA Worker」拖进「应用程序」。没有签章与公证，第一次打开会被挡下：到「系统设置 › 隐私权与安全性」，在下方找到 RPA Worker，选择允许打开并输入密码（和<a href="../design/desktop.html#signing">录制端</a>相同）。熟悉终端的人也可以运行 <code>xattr -dr com.apple.quarantine "/Applications/RPA Worker.app"</code>。</li>
           <li>和 Windows 相同：粘贴 Worker 邀请、按「配对」，第一次下载 Chromium，状态变成「在线」就好了。macOS 15 起第一次连到区网时会问是否允许 RPA Worker 连到区网上的设备，请选「允许」。</li>
         </ol>
@@ -149,7 +149,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
       <div class="panel-header"><h2>macOS：RPA 录制端 App</h2><span class="muted">M10.2：不需要 uv、git、Python；Apple 芯片</span></div>
       <div class="panel-body prose">
         <ol>
-          <li>从 GitHub 仓库的 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a> 下载和管理 Portal 同一个版本的 <code>RPA-Recorder-版本-macos-arm64.dmg</code>（v0.3.0 起）。测试还没发布的版本时，改从 PR 或 <code>main</code> 的「桌面端建置」运行记录的 <strong>Artifacts</strong> 下载 <code>recorder-macos-15</code>（里面是 DMG）。打开 DMG，把「RPA 录制端」拖进「应用程序」。</li>
+          <li>从 GitHub 仓库的 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/releases">Releases</a> 下载和管理 Portal 同一个版本的 <code>RPA-Recorder-版本-macos-arm64.dmg</code>（v0.3.0 起）。测试还没发布的版本时，改从 PR 或 <code>main</code> 的「桌面端建置」运行记录的 <strong>Artifacts</strong> 下载 <code>recorder-macos-15</code>（里面是 DMG）。打开 DMG，把「RPA 录制端」拖进「应用程序」。</li>
           <li>没有签章：第一次打开会被挡下。到「系统设置 › 隐私权与安全性」，在下方找到 RPA 录制端，选择允许打开并输入密码（熟悉终端的人也可以运行 <code>xattr -dr com.apple.quarantine "/Applications/RPA Recorder.app"</code>）。macOS 15 起会询问是否允许连到区网上的设备，请按「允许」。</li>
           <li>窗口打开后，把设备页产生的<strong>录制端</strong>邀请贴在「邀请」栏（只贴代码时另外填管理 Portal 的网址），需要 Firefox 就勾选，按「配对」。第一次会下载 Chromium，窗口显示进度；连上后自动打开管理 Portal，页眉显示「通过录制端「名称」」。</li>
         </ol>
