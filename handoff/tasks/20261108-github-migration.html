@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GitHub 倉庫搬到 ali-sx-org-free · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>GitHub 倉庫搬到 ali-sx-org-free</h1><p>舊帳號 <code>DevopsLeaDevops</code> 自 2026-11-06 起被 GitHub 停權，倉庫改放在組織 <code>ali-sx-org-free</code> 的同名倉庫 <code>web_browser_robotic_process_automation</code>。目標是資訊盡量保全：提交、分支與標籤和舊倉庫完全相同（SHA 不變），只存在舊 GitHub 上的資料盡量匯出進倉庫；推送前停用 Actions，不跑流水線。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261108-github-migration；2026-11-09 00:25 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源</dt><dd>使用者在 Claude 對話：2026-11-07 22:07 America/Los_Angeles（PST，UTC−08:00）因為 GitHub 帳號打不開，要求把已有的資料都匯出並附導入教程；2026-11-08 16:26 PST 要求「基於當前的工程把原來老的 web_browser_robotic_process_automation 初始化到這個新的 ali-sx-org-free 組織的 web_browser_robotic_process_automation 工程」，注意「1. 先不要跑流水線 2. 信息盡可能保全」，列出和舊工程不一樣的地方，先給計劃再實作；16:33 PST 回覆「按計劃」。</dd>
+        <dt>驗收條件</dt><dd>資料倉庫 <code>ali-sx-org-free/web_browser_robotic_process_automation_site</code> 的 <code>main</code> 是舊資料倉庫的 <code>5c98ad6</code>；主倉庫的 <code>main</code> 是舊倉庫的 <code>673dc4c</code>、<code>docs/refresh-v0-8</code> 是 <code>c48f095</code>、11 個標籤和舊倉庫的物件相同；新倉庫原有的測試提交保留在 <code>archive/pre-migration-2026-11-09</code>；推送期間 Actions 停用、沒有任何工作流程執行；本分支與文檔分支各開一個 PR，都不合併；和舊工程的差異列在<a href="#differences">下方</a>。</dd>
+        <dt>範圍／不包含</dt><dd>主倉庫的歷史、分支、標籤；本分支（遷移紀錄、匯出資料、新網址）；資料倉庫 <code>web_browser_robotic_process_automation_site</code>（使用者 2026-11-08 16:35 PST 補充「_site 也包含」）：推送舊資料倉庫在 GitHub 上的全部歷史（只有根提交 <code>5c98ad6</code>，2026-10-21）。不包含：打開 Actions、設定 Secrets、建立 Release、合併任何 PR；RPA 伺服器上可能比 GitHub 新的領域歷史（<code>&lt;資料目錄&gt;/git/repos/testsite.git</code>）與 Portal 同步對象的切換，Claude 碰不到伺服器，由使用者照<a href="../materials/github-migration/import-guide.md">導入教程</a>第 7 節做。</dd>
+        <dt>主責／審閱／接收方</dt><dd>準備與推送：Claude；審閱與合併：使用者。準備在一個 Claude 對話完成，推送在另一個以新倉庫為來源的 Claude 對話（原因見環境）。</dd>
+        <dt>修改檔案／整合者</dt><dd>本頁、<code>handoff/tasks/index.html</code>、<code>handoff/decisions.html</code>、<code>handoff/materials.html</code>、<code>handoff/materials/github-migration/</code>；換網址的提交改 17 個檔案（<code>apps/desktop/src/rpa_desktop/release.py</code>、<code>apps/desktop/packaging/rpa_worker.iss</code>、<code>scripts/setup.sh</code>、<code>scripts/setup.ps1</code>、<code>scripts/setup-linux.sh</code>，以及 <code>docs/</code> 的開發環境、本機從零運行、macOS、遠端 Worker 三種語言）。<code>handoff/tasks/index.html</code> 也被 <code>docs/refresh-v0-8</code> 改過，兩個 PR 先合併的一方之後，另一方要整合任務索引。</dd>
+        <dt>狀態</dt><dd>已推送、待審閱：主倉庫的 <code>main</code>、<code>docs/refresh-v0-8</code>、本分支、<code>archive/pre-migration-2026-11-09</code>、11 個標籤，以及資料倉庫 <code>_site</code> 的 <code>main</code> 都已在新倉庫（核對見<a href="#validation">驗證</a>）；待審閱的是 PR #4、#5，都未合併（先開的 #2、#3 被隱藏，見下一項）。帳號：2026-11-08 16:54 PST 起，GitHub 對當時推送用的帳號回 403「Sorry. Your account was suspended」；23:50 PST 起改用使用者新連接的 <code>boyuanfeework</code>，使用者決定不等 GitHub Support 回覆（見<a href="#log">追加紀錄</a>）。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>chore/github-migration-2</code>，從 <code>673dc4c</code> 開；<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/4">PR #4</a>（新倉庫，對 <code>main</code>，未合併）。文檔分支 <code>docs/refresh-v0-8-2</code> 是 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/5">PR #5</a>。原本的 <code>chore/github-migration</code>（<code>cc26203</code>）與 <code>docs/refresh-v0-8</code>（<code>c48f095</code>）被停權帳號開的 PR #2、#3 佔著：這兩個 PR 被隱藏（API 回 404），但仍是開啟狀態，同一分支不能再開 PR，所以以同一提交推了 <code>-2</code> 的分支名重開。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送到 <code>ali-sx-org-free/web_browser_robotic_process_automation</code> 的 <code>chore/github-migration-2</code>（PR #4）：本提交，接在 <code>cc26203</code> 之後。原本的 <code>chore/github-migration</code> 停在 <code>cc26203</code>，不再更新，合併 #4 後刪除。先前交給使用者的 <code>chore-github-migration-2026-11-08.bundle</code> 已經不需要。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端工作區 Linux x86_64、系統 Python 3.13.18、pytest 9.1.1；連不到 PyPI，沒有 OpenCC。舊倉庫從 2026-11-06 約 18:15 PST 起對 API 與 git 都回 403「Sorry. Your account was suspended」，資料來自停權前的 clone（main 完整歷史）。準備的對話已經掛著舊的同名倉庫，同名的新倉庫掛不上；以 <code>git push --dry-run</code> 試新倉庫，代理回 403「not in this session's authorized repository set」，所以推送改在新對話。代理也不允許 Actions 的設定 API：停用 Actions 只能由使用者在網頁上做，Claude 無法確認。推送的對話（2026-11-08 16:48 PST 起）：同樣的雲端環境；以 <code>add_repo</code>（push）掛上兩個新倉庫，主倉庫可推送分支，但推送標籤被環境的代理回 HTTP 403 拒絕；<code>_site</code> 掛上時回報 Claude 的 GitHub App 沒有這個倉庫的權限、推送會被拒。Actions 的執行列表 API 可讀（設定 API 仍不行）。23:50 PST 起改用 <code>boyuanfeework</code>：主倉庫可讀寫，<code>_site</code> 以普通推送一次成功。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>新倉庫原本的內容（2026-11-08 16:30 PST 只讀查看）：</strong><code>main</code> 是 <code>7d2a7c4</code>（4 個提交：使用者建立 <code>set.log</code>、Claude 的連線測試檔 <code>CLAUDE_CONNECTIVITY_CHECK.md</code> 與 <code>set.log</code> 的一行、合併 PR #1），分支 <code>claude/project-thread-4bh2ih</code> 是 <code>47f0ab5</code>；和舊工程的歷史無關。</li>
+        <li><strong>使用者的決定（按計劃）：</strong>(1) 新倉庫的測試提交封存成分支 <code>archive/pre-migration-2026-11-09</code>，再用 <code>--force-with-lease=main:7d2a7c4…</code> 以舊的 <code>main</code> 覆蓋；(2) 換網址放在 PR 由使用者合併；(3) 由另一個 Claude 對話推送；(4) 推送前使用者在網頁停用 Actions；(5) <code>_site</code> 也包含（16:35 PST）：使用者在組織建立空的同名倉庫後推送。資料倉庫沒有工作流程（沒有 <code>.github/</code>），推送不會觸發流水線。</li>
+        <li><strong>實作選擇：</strong><code>main</code> 與標籤保持和舊倉庫相同，不加提交；所有新增內容都在本分支。只換 <code>DevopsLeaDevops/web_browser_robotic_process_automation</code> 這串路徑；不改 macOS App 識別碼 <code>io.github.devopsleadevops.rpa.*</code>、Windows 安裝檔的 <code>AppId</code> 與 <code>AppPublisher</code>，也不改 <code>handoff/</code> 的舊連結（歷史紀錄）。匯出資料原樣放進 <code>handoff/materials/github-migration/</code>：PR 對照表（從 git 歷史整理的 98 個已合併 PR）、舊倉庫的資料（分支、標籤與 Release、Secrets、工作流程、寫死的網址、帶不走的東西）、舊 PR #114 的說明、導入教程。</li>
+        <li><strong>已完成：</strong>匯出資料與導入教程（2026-11-07 22:20 PST 的搬家包）；本分支的兩個提交；文檔與多語言測試（見驗證）。2026-11-08 16:49～16:52 PST：封存測試提交、以 <code>673dc4c</code> 覆蓋 <code>main</code>、推送 <code>docs/refresh-v0-8</code> 與本分支，遠端核對一致；開 PR #2（本分支）、PR #3（文檔），都未合併。23:50 PST（改用 <code>boyuanfeework</code>）：確認 11 個標籤已在遠端（不是 Claude 推的，應是使用者在自己的電腦推送），和計劃的表全部相同；推 <code>_site</code> 的 <code>main</code>；推本分支；23:53 PST 兩個倉庫逐項核對一致。23:56 PST：以同一提交推 <code>chore/github-migration-2</code>、<code>docs/refresh-v0-8-2</code>，開 PR #4、#5（取代被隱藏的 #2、#3），都未合併。</li>
+        <li><strong>帳號：</strong>16:54 PST 推送用的帳號被 GitHub 停權。使用者在 claude.ai 改連 <code>boyuanfeework</code>（2026-11-09 06:18 UTC 建立，使用者說是付費帳號），並起草了 GitHub Support 工單（問停權原因、新帳號能否維護這兩個倉庫）。使用者先選擇等客服回覆，23:50 PST 改為不等，請 Claude 以最少的操作繼續。Claude 曾說明：上次停權前只有約 20 次操作，「操作太頻繁」不太像是原因，放慢速度不能保證不再被停權。</li>
+        <li><strong>未完成：</strong>(1) Secrets（<code>RPA_UPDATE_SIGNING_KEY</code> 要使用者找回 2026-10-25 產生的私鑰，或換新金鑰，見導入教程第 5 節）；(2) 打開 Actions 與第一次 CI；(3) 審閱與合併 PR #4、#5；(4) Release；(5) RPA 伺服器 <code>testsite</code> 較新的歷史與 Portal 的同步對象（導入教程第 7 節）；(6) 合併後刪除多餘的分支：<code>chore/github-migration</code>、<code>chore/github-migration-2</code>、<code>docs/refresh-v0-8</code>、<code>docs/refresh-v0-8-2</code>，以及已合併的 <code>claude/project-thread-4bh2ih</code>（它的提交 <code>47f0ab5</code> 包含在 <code>archive/pre-migration-2026-11-09</code> 裡）；(7) GitHub Support 工單的答覆。</li>
+        <li><strong>下一個具體動作（使用者，依序）：</strong>設 Secrets（導入教程第 5 節）→ 在組織與倉庫兩層打開 Actions，勾選「Allow GitHub Actions to create and approve pull requests」，Issues 開著 → PR #5 補跑 bootstrap（手動觸發 bootstrap 流程，或推一個提交訊息帶 <code>[bootstrap]</code> 的提交）→ 兩個 PR 的 CI 通過後合併，後合併的一個整合 <code>handoff/tasks/index.html</code> → 刪除多餘分支 → 重建 Release（導入教程第 8 節；標籤要在使用者的電腦推）→ RPA 伺服器與 Portal（導入教程第 7、9 節）。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="differences">
+      <div class="panel-header"><h2>和舊工程不一樣的地方</h2></div>
+      <div class="panel-body"><p>相同：<code>main</code> 的全部提交與內容（SHA 相同）、11 個標籤（附註或輕量都一樣）、<code>docs/refresh-v0-8</code>（比舊 GitHub 多一個只在本機的提交 <code>c48f095</code>）、倉庫名稱、公開、預設分支 <code>main</code>。2026-11-08 23:50 PST 起，標籤與 <code>_site</code> 的提交也都在新倉庫上（見<a href="#validation">驗證</a>）。</p></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>項目</th><th>舊工程</th><th>新工程</th></tr></thead>
+        <tbody>
+          <tr><td>擁有者與網址</td><td><code>DevopsLeaDevops/…</code></td><td><code>ali-sx-org-free/…</code>；程式與文件裡的網址在本分支合併後才換</td></tr>
+          <tr><td>PR 與 issue 編號</td><td>#1～#114</td><td>#1 是設定測試的 PR；#2、#3 被隱藏；遷移與文檔的 PR 是 #4、#5；<code>handoff/</code> 裡 2026-11-08 以前的編號都指舊倉庫，對照見 <a href="../materials/github-migration/pull-requests-merged.md">PR 對照表</a></td></tr>
+          <tr><td>PR 的說明、討論、審閱留言；Issues</td><td>有</td><td>沒有；只有 PR 對照表與 <a href="../materials/github-migration/open-pr-114.md">#114 的說明</a></td></tr>
+          <tr><td>Release 頁面與安裝檔</td><td>v0.2.0～v0.8.0</td><td>只有標籤；重建方式見導入教程第 8 節</td></tr>
+          <tr><td>Actions</td><td>開著；執行紀錄、產物、<code>ci-metrics</code> 分支</td><td>停用；沒有紀錄；<code>ci-metrics</code> 會在第一次 CI 後重新建立</td></tr>
+          <tr><td>Secrets</td><td><code>RPA_UPDATE_SIGNING_KEY</code>（<code>RPA_UPDATE_CI_KEY</code> 是否設過不確定）</td><td>沒有</td></tr>
+          <tr><td>多出來的內容</td><td>—</td><td><code>archive/pre-migration-2026-11-09</code>、<code>claude/project-thread-4bh2ih</code>、已合併的 PR #1；被隱藏、仍開啟的 PR #2、#3 和重開用的 <code>chore/github-migration-2</code>、<code>docs/refresh-v0-8-2</code>（合併後刪）</td></tr>
+          <tr><td>提交作者的連結</td><td>連到舊帳號</td><td>舊帳號停權，舊提交只顯示名字</td></tr>
+          <tr><td><code>docs/refresh-v0-8</code> 的簡中</td><td>舊 GitHub 上可能已由 bootstrap 產生（停權後無法確認）</td><td>沒有；Actions 打開後補跑 bootstrap</td></tr>
+          <tr><td>資料倉庫 <code>_site</code></td><td>有（1 個提交 <code>5c98ad6</code>）；RPA 伺服器以 SSH 部署金鑰同步</td><td>同一個提交；伺服器上較新的歷史與部署金鑰由使用者處理（導入教程第 7 節），在那之前伺服器照舊往舊倉庫同步、會失敗</td></tr>
+          <tr><td>Dependabot</td><td>開 GitHub Actions 版本更新的 PR</td><td>推送 <code>main</code> 後 Dependabot 自己的更新工作照樣執行（2026-11-08 16:50 PST 兩次，事件 <code>dynamic</code>，成功）；16:52 PST 時還沒開 PR。倉庫自己的工作流程沒有執行</td></tr>
+          <tr><td>分支保護、Webhook、部署金鑰、Star</td><td>不確定或有</td><td>沒有</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody><tr><td>本分支 <code>78f7e7d</code>；雲端 Linux、系統 Python 3.13.18、pytest 9.1.1</td><td><code>python3 -m pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code>；本頁與 <code>handoff/</code> 改到的頁面的相對連結；換網址後 <code>git grep</code> 舊路徑</td><td>367 passed；1 failed 是 <code>test_simplified_chinese_is_generated</code>（沒有 OpenCC，main <code>673dc4c</code> 同樣如此）；diff 檢查通過；連結 0 個問題；<code>handoff/</code> 以外沒有舊路徑，剩下的 <code>devopsleadevops</code> 只有 App 識別碼與 <code>AppPublisher</code>；<code>rpa_worker.iss</code> 的網址和 <code>release.py</code> 一致（<code>tests/ci/test_installer.py</code> 檢查的條件）</td><td>沒有 OpenCC，簡中產生檢查交給 CI；Actions 停用期間不會有 CI 結果</td></tr></tbody>
+      </table></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>時間／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>2026-11-08 16:48 PST；推送的 Claude 對話（雲端 Linux）</td><td>搬家包 <code>sha256sum -c --quiet SHA256SUMS.txt</code>；兩個倉庫 <code>git fsck --full</code></td><td>校驗碼全部相符；fsck 沒有錯誤</td><td>—</td></tr>
+          <tr><td>2026-11-08 16:49 PST</td><td>推送前 <code>git fetch origin</code>；<code>git rev-parse origin/main</code></td><td><code>7d2a7c44700e8bcaebc1c9ccf434b661b3f93366</code>，和計劃相同，沒有觸發停止條件</td><td>—</td></tr>
+          <tr><td>2026-11-08 16:51 PST</td><td>主倉庫 <code>git ls-remote origin</code>，逐項對照 <code>MIGRATION-PLAN.md</code> 第 4 步</td><td>相同：<code>main</code> <code>673dc4c</code>、<code>docs/refresh-v0-8</code> <code>c48f095</code>、<code>chore/github-migration</code> <code>69aad05</code>（推送時）、<code>archive/pre-migration-2026-11-09</code> <code>7d2a7c4</code>、<code>claude/project-thread-4bh2ih</code> <code>47f0ab5</code>（原有，未動）；沒有其他分支；預設分支是 <code>main</code>。<strong>遠端沒有任何標籤</strong>。本機 11 個標籤的物件與指向的提交和計劃的表全部相同（待推送）</td><td>標籤推上後要再核對一次</td></tr>
+          <tr><td>2026-11-08 16:51 PST</td><td><code>_site</code> <code>git ls-remote</code></td><td>空的（沒有任何 ref）；本機 <code>main</code> 是 <code>5c98ad6</code>，待推送</td><td>推上後核對 <code>refs/heads/main</code> 是 <code>5c98ad605745fe380819113bce3dcb12d1b56e20</code></td></tr>
+          <tr><td>2026-11-08 16:51 PST</td><td>Actions 執行列表 API</td><td>只有 Dependabot 自己的兩次更新工作（事件 <code>dynamic</code>，16:50 PST 建立，成功）；CI、桌面端建置、伺服器分發包、RPA Python 運行環境、一鍵安裝腳本、bootstrap 都沒有執行</td><td>Actions 的設定 API 被代理拒絕，「已停用」以使用者回覆為準</td></tr>
+          <tr><td>2026-11-08 23:50 PST；<code>boyuanfeework</code></td><td>主倉庫 <code>git ls-remote origin</code></td><td>11 個標籤都在，物件與 <code>^{}</code> 指向的提交和計劃第 4 步的表全部相同（<code>v0.4.0</code>、<code>v0.7.0</code> 是輕量標籤）；分支和 16:51 PST 相同，<code>chore/github-migration</code> 仍是 <code>69aad05</code>；另有 <code>refs/pull/1～3</code></td><td>—</td></tr>
+          <tr><td>2026-11-08 23:50 PST</td><td><code>_site</code>：<code>origin</code> 改名 <code>old-github</code>，<code>git push -u origin main</code>（普通推送）</td><td><code>* [new branch] main -&gt; main</code>，本機 <code>main</code> 是 <code>5c98ad605745fe380819113bce3dcb12d1b56e20</code></td><td>見下一列</td></tr>
+          <tr><td>2026-11-08 23:53 PST；<code>boyuanfeework</code></td><td>推送本分支後，兩個倉庫 <code>git ls-remote</code>，以腳本逐項對照 <code>MIGRATION-PLAN.md</code> 第 4 步</td><td>主倉庫全部相同：<code>main</code> <code>673dc4c</code>、<code>docs/refresh-v0-8</code> <code>c48f095</code>、<code>chore/github-migration</code> <code>cc26203</code>、<code>archive/pre-migration-2026-11-09</code> <code>7d2a7c4</code>、<code>claude/project-thread-4bh2ih</code> <code>47f0ab5</code>，沒有其他分支；11 個標籤的物件與指向全部相同。<code>_site</code> 的 <code>main</code> 是 <code>5c98ad605745fe380819113bce3dcb12d1b56e20</code></td><td>—</td></tr>
+          <tr><td>2026-11-08 23:56 PST</td><td>開 PR 的 API 回應</td><td>#4：<code>chore/github-migration-2</code>，head <code>cc26203</code>；#5：<code>docs/refresh-v0-8-2</code>，head <code>c48f095</code>；作者都是 <code>boyuanfeework</code></td><td>本提交推送後 #4 的 head 會變成本提交</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：Actions 停用（使用者 2026-11-08 16:48 PST 回覆），未執行。人工驗收：不適用。審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>2026-11-08 16:48 America/Los_Angeles（PST，UTC−08:00），推送的 Claude 對話收到使用者上傳的 <code>rpa-github-migration-2026-11-09.zip</code>：本分支 <code>69aad05</code>、<code>main</code> <code>673dc4c</code>、<code>docs/refresh-v0-8</code> <code>c48f095</code>、<code>_site</code> <code>5c98ad6</code>；校驗碼與 fsck 通過。接受的範圍：<code>MIGRATION-PLAN.md</code> 第 1～6 步。使用者同時確認三個前提：主倉庫的 Actions 已停用、<code>_site</code> 空倉庫已建好、<code>main</code> 沒有分支保護。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-11-06 約 18:15 America/Los_Angeles（PST，UTC−08:00），Claude（任務 20261106-docs-refresh-v0-8，紀錄在 <code>docs/refresh-v0-8</code> 分支）：推送 PR #114 後，GitHub 對 API 與 git 開始回 403「Sorry. Your account was suspended」。</li>
+        <li>2026-11-07 00:46 PST，Claude：使用者要最新代碼，打包 main <code>673dc4c</code>（含完整 git 歷史）。</li>
+        <li>2026-11-07 22:20 PST，Claude：做好搬家包（兩個倉庫的完整歷史與 bundle、匯出資料、推送與換網址的腳本、導入教程），並在本機以空的 bare 倉庫演練推送、bundle 還原、換網址後跑文檔測試。</li>
+        <li>2026-11-08 16:30 PST，Claude：只讀查看新倉庫（見進度）；確認這個對話不能推送；列出計劃與差異給使用者。16:33 PST 使用者回覆「按計劃」。</li>
+        <li>2026-11-08 16:40 PST，Claude：在搬家包的倉庫裡從 <code>673dc4c</code> 開本分支，加上本頁、決定、匯出資料與換網址。</li>
+        <li>2026-11-08 16:45 PST，Claude：本分支兩個提交（紀錄與匯出資料、換網址）加本條；本機驗證見上表。分支與完整歷史放進 <code>rpa-github-migration-2026-11-09.zip</code>，推送步驟在包裡的 <code>MIGRATION-PLAN.md</code>。</li>
+        <li>2026-11-08 16:35 PST，使用者補充「_site 也包含」；本頁的範圍、決定與差異跟著更新。</li>
+        <li>2026-11-08 16:48 PST，使用者（推送的 Claude 對話）：上傳搬家包，回覆「主倉庫的 Actions 已經停用，<code>_site</code> 空倉庫已經建好，<code>main</code> 沒有分支保護」，要求照 <code>MIGRATION-PLAN.md</code> 執行。</li>
+        <li>2026-11-08 16:48 PST，Claude（推送的對話）：校驗碼與 fsck 通過；兩個新倉庫都不在這個對話的授權範圍，以 <code>add_repo</code>（push）掛上。<code>_site</code> 掛上時系統回報 Claude 的 GitHub App 沒有這個倉庫的權限、推送會被拒，所以沒有嘗試推送；<code>git ls-remote</code> 確認新倉庫是空的。要組織管理員把 App 加到這個倉庫（<a href="https://github.com/apps/claude/installations/select_target">GitHub App 安裝頁</a>），或由使用者自己推送。</li>
+        <li>2026-11-08 16:49～16:50 PST，Claude（推送的對話）：在搬家包的主倉庫把 <code>origin</code> 改名 <code>old-github</code>、<code>origin</code> 指向新倉庫；<code>origin/main</code> 是 <code>7d2a7c4</code>。16:49 推 <code>archive/pre-migration-2026-11-09</code>（<code>7d2a7c4</code>）；16:50 以 <code>--force-with-lease=main:7d2a7c4…</code> 推 <code>673dc4c</code> 到 <code>main</code>（forced update，沒有被保護規則拒絕）；16:50 推 <code>docs/refresh-v0-8</code>、<code>chore/github-migration</code>。</li>
+        <li>2026-11-08 16:50 PST，Claude：<code>git push origin --tags</code> 被環境的代理拒絕（<code>RPC failed; HTTP 403</code>），遠端沒有任何標籤。依環境規則，代理的拒絕不重試、不繞道（例如不用 API 另建標籤，那樣附註標籤的物件會不同）。標籤要由使用者在自己的電腦推送，見進度的下一個動作。</li>
+        <li>2026-11-08 16:51 PST，Claude：核對遠端（見驗證）；Actions 執行列表只有 Dependabot 自己的兩次更新工作，倉庫的工作流程都沒有執行。</li>
+        <li>2026-11-08 16:52 PST，Claude：開 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/2">PR #2</a>（本分支）與 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/3">PR #3</a>（<code>docs/refresh-v0-8</code>，舊倉庫 PR #114），都未合併。PR #2 的說明照搬家包 <code>04-pr-bodies/</code>，但把「<code>main</code> 與 11 個標籤和舊倉庫是同一批提交」改成標籤還沒推上，並在「還沒做的部分」加上標籤與 <code>_site</code>。</li>
+        <li>2026-11-08 16:54 PST，Claude：更新本頁（狀態、PR、接收確認、驗證、差異）與任務索引並提交；<code>python3 -m pytest -q tests/docs tests/i18n</code> 367 passed、1 failed（OpenCC，和基準相同），<code>git diff --check</code> 通過，兩頁的相對連結與錨點 0 個問題。推送本分支時 GitHub 回 403；<code>gh api user</code>、兩個新倉庫的 API 與 <code>git ls-remote</code> 都回「Sorry. Your account was suspended」（16:54 PST，16:52 開 PR 時還正常）。沒有重試，也沒有改用其他帳號。本頁這次的更新只在本機，以 bundle 交給使用者。</li>
+        <li>2026-11-08 23:27～23:30 PST，使用者與 Claude：使用者在 claude.ai 改連 <code>boyuanfeework</code>；Claude 以一次 <code>gh api user</code> 確認帳號（2026-11-09 06:18 UTC 建立）。Claude 說明「操作太頻繁」不太像停權原因，建議等 GitHub Support 回覆；使用者選擇等，並由 Claude 起草中英文工單。</li>
+        <li>2026-11-08 23:50 PST，使用者：「太久了，你試著操作吧」，決定不等客服回覆。</li>
+        <li>2026-11-08 23:50 PST，Claude：主倉庫 <code>git ls-remote</code> 一次，11 個標籤已在遠端並和計劃相同（見驗證）。<code>_site</code> 以普通推送推 <code>main</code>（<code>5c98ad6</code>），成功。</li>
+        <li>2026-11-08 23:53 PST，Claude：更新本頁（狀態、帳號、未完成、驗證、差異）與任務索引，提交並推送本分支（<code>3dbb957</code> 與 <code>cc26203</code>）；23:53 PST 兩個倉庫逐項核對一致（見驗證）。</li>
+        <li>2026-11-08 23:53 PST，Claude：以 API 列 PR，只看得到 #1；#2、#3 是被停權的帳號開的，被隱藏。使用者要 Claude 重開。</li>
+        <li>2026-11-08 23:55 PST，Claude：從 <code>chore/github-migration</code> 開 PR 被拒（422「A pull request already exists」）；<code>GET /pulls/2</code> 回 404，新帳號看不到也關不掉 #2。使用者選擇用新分支名重開。</li>
+        <li>2026-11-08 23:56 PST，Claude：以同一提交推 <code>chore/github-migration-2</code>（<code>cc26203</code>）與 <code>docs/refresh-v0-8-2</code>（<code>c48f095</code>）；開 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/4">PR #4</a>、<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/5">PR #5</a>，說明照搬家包 <code>04-pr-bodies/</code>，註明取代 #2、#3 的原因，並把標籤與 <code>_site</code> 改回已完成。都未合併。</li>
+        <li>2026-11-09 00:25 PST，Claude：更新本頁（PR、分支、驗證、下一步）與任務索引，提交並推送到 <code>chore/github-migration-2</code>。<code>boyuanfeework</code> 到此共 13 次 git／API 操作，帳號都正常。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

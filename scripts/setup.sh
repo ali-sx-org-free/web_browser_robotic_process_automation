@@ -5,7 +5,7 @@
 #   ./scripts/setup.sh
 #
 # 從零開始（還沒下載程式碼，預設下載到 ~/code/web_browser_robotic_process_automation）：
-#   curl -LsSf https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.sh | bash
+#   curl -LsSf https://raw.githubusercontent.com/ali-sx-org-free/web_browser_robotic_process_automation/main/scripts/setup.sh | bash
 #
 # 重複執行是安全的，已經完成的步驟很快就會跳過。選項見 --help。
 # 說明文件：docs/develop/quickstart.html
@@ -16,7 +16,7 @@
 
 set -Eeuo pipefail
 
-REPO_URL="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation.git"
+REPO_URL="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation.git"
 REPO_NAME="web_browser_robotic_process_automation"
 UV_INSTALLER="https://astral.sh/uv/install.sh"
 DOC_PAGE="docs/develop/quickstart.html"

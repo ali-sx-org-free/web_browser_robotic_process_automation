@@ -1,0 +1,99 @@
+﻿PR,合併方式,來源分支,標題,main 上的提交,合併時間（America/Los_Angeles）,合併時間（新加坡）
+#1,merge commit,DevopsLeaDevops/m0/scaffold,feat: M0 工程骨架、設計文件與 HTML 文檔站,44fc4c9ac261a8231ab38e0bdde0ec90dc23ac1c,2026-10-09 01:12 PDT,2026-10-09 16:12
+#4,squash,,docs(develop): 新增 macOS 本機運行指南,7ffc31bdfa6917ba50be0b5c195ff588055e573d,2026-10-09 02:09 PDT,2026-10-09 17:09
+#5,squash,,docs(develop): 新增本機從零運行文檔與一鍵安裝腳本,b0503aac0205cc8278e9711e026deb4764aaa598,2026-10-09 04:54 PDT,2026-10-09 19:54
+#6,squash,,feat(i18n): 產品與文檔支援英文、繁體中文、簡體中文,bcb9dcab5fe1ae2582e40c98c29c84f86e36f7e3,2026-10-10 01:13 PDT,2026-10-10 16:13
+#7,squash,,docs: M0 收尾；ADR 0008 資料庫同時支援 SQLite 與 PostgreSQL,3752b42d2cbe80fb60cd9e46ec626997393a5577,2026-10-10 02:18 PDT,2026-10-10 17:18
+#8,squash,,feat(core): M1 場景 DSL v0：模型、YAML 載入與校驗、rpa validate,0f80bad5c01013383ae1a5906dcd7c5c010c9516,2026-10-10 04:23 PDT,2026-10-10 19:23
+#9,squash,,feat: M1.1 場景契約與方案 v2（結合 MVP 原型）,66c4cd37c408a4771bb7f479c3ba3d60a514b633,2026-10-10 05:16 PDT,2026-10-10 20:16
+#10,squash,,feat: M2 Runner 與執行契約（rpa run）,9600d6ac2e4647fbfa5824e10e7fd80c569f1076,2026-10-10 08:57 PDT,2026-10-10 23:57
+#11,squash,,feat: M3 管理 Portal（rpa serve）,b8ddf974bec853271ea35c48cb5b85fed47133ba,2026-10-10 22:09 PDT,2026-10-11 13:09
+#12,squash,,feat: 場景管理依領域劃分；測試網站自動化與真實案例；rpa serve 埠號自動換與一起啟動測試網站,7be956afe46b7b7995187ec8a7cb941c04e9f329,2026-10-11 23:34 PDT,2026-10-12 14:34
+#13,squash,,fix(i18n): 補上新功能的多語言：範例領域名稱跟著介面語言、對話框訊息、執行日誌,ed98e0777d73fdba94691e479f2f354c5a7d3eb3,2026-10-12 00:10 PDT,2026-10-12 15:10
+#14,squash,,fix: 瀏覽器還沒下載時說明怎麼修；rpa serve 啟動時先檢查,e04a08e2b66a43703bc5bcfc5a3ef293ca49a500,2026-10-12 00:17 PDT,2026-10-12 15:17
+#15,squash,,feat(portal): 執行報告的篩選改成可複選的下拉選單；執行時可選有頭或無頭模式，預設有頭,8a9506094938b8c3fb74176ebb437ebb5baa7e86,2026-10-12 01:09 PDT,2026-10-12 16:09
+#16,squash,,feat: M4 場景生產與登入（錄製、逐步調試、登入角色與 needs_login、入參出參表單）,a814baa2b41a220ddd38be309a3a499f93deb1a8,2026-10-12 07:40 PDT,2026-10-12 22:40
+#17,squash,,fix(portal): 資料目錄用相對路徑時錄製一開始就失敗；說明資料夾,6bf2eee3fdb16e20988f6e1838f0f01983f3780c,2026-10-12 22:52 PDT,2026-10-13 13:52
+#18,squash,,fix(m4): 接著既有場景錄製、斷言轉成出參、腳本分段編輯、入參出參表格與 YAML、介面整理與設計系統 v1.1,71987816d3ad55161689316ed4a0fd32418b08c3,2026-10-12 23:51 PDT,2026-10-13 14:51
+#19,squash,,chore(deps): Bump astral-sh/setup-uv,30fe7b8ed148b3df2d8850667f4755c6397d6bbd,2026-10-13 23:13 PDT,2026-10-14 14:13
+#20,squash,,docs: M4 完成；路線圖改為先做 M6 自由試驗場，再做 M5 AI 助手,06e57b76ac4d1914494a5c7ddcefcc3362ada3f4,2026-10-13 01:43 PDT,2026-10-13 16:43
+#22,squash,,feat(m6): 自由試驗場：已發布場景的固定版本排成序列、出參綁定、失敗即停、從停下的節點繼續 (#21),683acb076b2b4d1a5c86c19297e95e9bcc0558a7,2026-10-13 05:17 PDT,2026-10-13 20:17
+#23,squash,,M9a：遠端 worker——執行交給另一台電腦（Worker API、rpa worker、執行位置）,151a93547f396b56594976341a8d76388a08e9c8,2026-10-13 20:54 PDT,2026-10-14 11:54
+#24,squash,,docs: 交接材料與專案脈絡備忘（handoff/，HTML）,8f9194477e0e22e2203b943dd66ae4c15b86397e,2026-10-13 20:58 PDT,2026-10-14 11:58
+#25,squash,,fix(setup): 受限語言模式下沒有 uv 與 winget 時，改用官方 uv 壓縮包並校驗 SHA-256,e3daa6efe748f9186c2dcb2e7d8807ae22acef88,2026-10-13 20:58 PDT,2026-10-14 11:58
+#26,squash,,docs(handoff): 補齊交接——驗收紀錄、未完成工作、決定分類、運作環境、研發方法、專案文件原文,32f240b52b981a88dd75a721fdb81169b94f7224,2026-10-14 00:54 PDT,2026-10-14 15:54
+#27,squash,,docs: 建立 Claude 與 ChatGPT 共用協作流程,bbea5a4df2040532308a2f4fd7ce126c8b8f2be4,2026-10-14 02:47 PDT,2026-10-14 17:47
+#28,squash,,feat(playground): 新增 DAG 畫布與組合場景自動化管理,878e4e0ef9ce847902d954d400dc0aa1b2957d63,2026-10-14 08:18 PDT,2026-10-14 23:18
+#29,squash,,docs(handoff): M6 收尾——回填 PR #28 合併、CI 與人工驗收,8a170c4f9fca06d734e63bff5db2dcc3daac5a3f,2026-10-15 00:19 PDT,2026-10-15 15:19
+#30,squash,,M10 桌面端分發：設計與 M10.0 打包地基,ce88275126b16a2c409917ff5e2879a5323db2f0,2026-10-16 20:48 PDT,2026-10-17 11:48
+#31,squash,,M10.1（1/3）：裝置邀請與配對、裝置頁、M9a 收尾三項,a9b14ca1442253e291d6f553f6823927f8e9eb2d,2026-10-18 05:59 PDT,2026-10-18 20:59
+#34,squash,,M10.1：把 #32、#33 帶進 main（Worker App 與安裝檔）,6b3562edb75997162348241ea201e1889102feef,2026-10-18 06:50 PDT,2026-10-18 21:50
+#35,squash,,M10.1 收尾：版本改成 0.2.0、路線圖與交接,d71f51332cdf93ba8bb95465e44280bcddf1450e,2026-10-18 08:53 PDT,2026-10-18 23:53
+#36,squash,,M10.2（1/3）：錄製端——伺服器端、Client API 互動子程序、rpa recorder,7990b7cf1f07e32e5a94ca5acbba183df5eafec1,2026-10-19 04:17 PDT,2026-10-19 19:17
+#38,squash,,M10.2（2/3）：RPA 錄製端 App（macOS，WKWebView 視窗連本機閘道） (#37),4f0b53e0d592d4e1af42081eb5ce3dab945a4fd9,2026-10-19 06:10 PDT,2026-10-19 21:10
+#39,squash,,M10.2：Linux 伺服器透過錄製端也能錄製、人工登入、有頭調試,0bc01276127e664e1089f2e2a3d48093f7f40444,2026-10-19 06:12 PDT,2026-10-19 21:12
+#40,squash,,M11 資料存放升級：設計與決定（領域資料夾、驗證與發布紀錄、git 同步）,a779e2af5d7b886e5b1671303edc67dc08961940,2026-10-19 17:57 PDT,2026-10-20 08:57
+#41,squash,,docs: 新增「部署與操作」，回填 M10.2 的驗收與合併情況,3c29f91c8a88781bf9abbd7833478036493c2d68,2026-10-19 08:32 PDT,2026-10-19 23:32
+#42,squash,,chore(deps): 更新 Python 依賴（Playwright 1.64 等），修正 record.py 的型別檢查,e8c1e898b5c5266229c55ec89cf25a8fbccce2f5,2026-10-19 17:41 PDT,2026-10-20 08:41
+#43,squash,,M10.2（3/3）：錄製端 DMG 進 Release、macOS 端到端、不開 App 視窗的模式、v0.3.0,2cf3c9f17b068c52600789b4f2edafa8181d2671,2026-10-19 09:27 PDT,2026-10-20 00:27
+#44,squash,,feat(setup): 新增 RHEL 衍生版 Linux 伺服器安裝,060b67db2ab97c912583e8545c25529840d2f873,2026-10-19 18:05 PDT,2026-10-20 09:05
+#45,squash,,ci: 縮短 CI 與一鍵安裝腳本的執行時間（平行化、每晚完整測試）,1613148b499e9d2a24178f23360497587fcc3332,2026-10-19 17:38 PDT,2026-10-20 08:38
+#46,squash,,ci: 依生產角色分配測試、只改文件沿用結果、手動觸發選項與運行耗時紀錄,9dc68bede7878ac08f1f034aabefa431c6ae4642,2026-10-19 23:43 PDT,2026-10-20 14:43
+#47,squash,,fix(portal): 沒有畫面時調試與錄製變灰、提示用錄製端；起始網址不能是 Portal 自己；測試網站可對外開放,a6164f7e771001c746633501cf31b2e68d1315ab,2026-10-20 01:39 PDT,2026-10-20 16:39
+#48,squash,,M11 PR 1：領域資料夾（場景與角色）、驗證與發布紀錄、rpa pack check、遷移,cfef585b95be34818150591356c0518a2984f526,2026-10-20 07:17 PDT,2026-10-20 22:17
+#49,squash,,M11 PR 2：組合場景放進領域資料夾（版本、驗證紀錄、發布、依賴檢查）,e54025cc36014ce4747a995ec82ac823417ba429,2026-10-20 07:34 PDT,2026-10-20 22:34
+#50,squash,,fix(portal): 人工登入在開視窗的那台確認、「檢查」交給有瀏覽器的電腦、看得懂的登入錯誤,53a057811bc84c4afb8aa5673d7f118af179e4c5,2026-10-20 05:40 PDT,2026-10-20 20:40
+#51,squash,,fix(runner): 人工登入的 Firefox 在背景不再停住,acf3f93c77a26957e5d7097fb64d705d647fa039,2026-10-20 07:38 PDT,2026-10-20 22:38
+#52,squash,,feat(setup): Linux 伺服器安裝測速後選最快的套件來源,0fef3cd0751a7c14e9e10e600e6840bb5d807e8f,2026-10-20 08:18 PDT,2026-10-20 23:18
+#53,squash,,fix(server): 舊資料庫升級時，SQLite 的遷移不被外鍵檢查擋下,1be5a90624ac871d7782f3202f8757cc9f825094,2026-10-20 17:39 PDT,2026-10-21 08:39
+#54,squash,,M11 PR 3：領域資料夾的 git 同步（資料來源、拉取、推送、衝突三選一）,677853c5dbdb763b4cb5e09bc1a22f7179d5ded8,2026-10-20 19:16 PDT,2026-10-21 10:16
+#55,squash,,test(desktop): 等背景的監看處理完結束的請求，不再偶發失敗,a77c60383a7cbd7da2db15917cfd359a75ae6f91,2026-10-20 20:10 PDT,2026-10-21 11:10
+#56,squash,,M11 收尾：依賴補全、組合場景改代號／搬領域／封存、執行用版本快照,b9a3387a46bdb858656d98eef323b308c0edf632,2026-10-20 20:10 PDT,2026-10-21 11:10
+#60,merge commit,DevopsLeaDevops/docs/m11-wrap-up-main,docs: 把 #57（M11 PR 4）補進 main,097464c0baf515818fb2f0b8d9f2c6ee9bfb5283,2026-10-20 23:20 PDT,2026-10-21 14:20
+#61,merge commit,DevopsLeaDevops/m12/replay,M12 PR 1：運行錄影與資料（runner、worker、伺服器的設定與保留規則）,b306dbe9421888fa9f5043d0264795ab7ea4d20f,2026-10-21 04:39 PDT,2026-10-21 19:39
+#62,merge commit,DevopsLeaDevops/m7a/iframe,feat(m7a): 支援 iframe 裡的元素（定位器的 frame）,54a2df507a18071b9bc73622e96f8eec12ea2a27,2026-10-21 04:12 PDT,2026-10-21 19:12
+#63,merge commit,DevopsLeaDevops/fix/browser-download-speed,feat(setup): 瀏覽器安裝測速後選用最快來源,848b0bf5a09de619f9083440b3cd2d996a4d7b4e,2026-10-21 02:52 PDT,2026-10-21 17:52
+#64,merge commit,DevopsLeaDevops/m12/replay-player,M12 PR 2：回看頁（播放器、縮圖時間軸、步驟關聯）與「運行回看」入口,9798db4613835a039adf309b78c22bfb8b0f1748,2026-10-21 05:03 PDT,2026-10-21 20:03
+#65,merge commit,DevopsLeaDevops/chore/release-0.4.0,chore(release): 升級 0.4.0 並重新打包 Worker 與 Recorder,fcb8e8ff36ea0fbd37903d5d01162efc450eaf43,2026-10-21 05:54 PDT,2026-10-21 20:54
+#66,merge commit,DevopsLeaDevops/m7b/popup,feat(m7b): 支援點擊開出的新分頁（步驟的 popup 與 page）,588e6a44e409ef1eb71ead60bb6e0999c90ee9c1,2026-10-22 00:30 PDT,2026-10-22 15:30
+#67,merge commit,DevopsLeaDevops/feat/dynamic-values,feat(dsl): 入參的動態值（{{today}}、{{today+1}}、{{random:10:30}}）,df47b14be725548249866b3427f36e2bf64c1d70,2026-10-22 05:24 PDT,2026-10-22 20:24
+#68,merge commit,DevopsLeaDevops/docs/design-refresh,docs(design): 設計文件對齊 v0.4.0（系統架構、桌面端分發的圖、其他頁）,e63559a75040e3f3611b2a10bdd8437d17a8c5d5,2026-10-22 03:36 PDT,2026-10-22 18:36
+#69,merge commit,DevopsLeaDevops/fix/replay-multipage,fix(replay): 保留多分頁錄影並修正 Chromium 回看對時,62598a69405432cec14009a89c3bbeecbfc1e7da,2026-10-22 03:30 PDT,2026-10-22 18:30
+#70,merge commit,DevopsLeaDevops/feat/linux-server-package,feat(server): Linux 伺服器分發包（自帶 Python 的 tar.gz、install.sh 安裝與升級）,ba1886f1a27a953bb8cb8556234206caefca9907,2026-10-22 07:18 PDT,2026-10-22 22:18
+#71,merge commit,DevopsLeaDevops/feat/macos-worker,feat(desktop): macOS 版 RPA Worker（選單列、登入時自動啟動、鑰匙圈、DMG）,ca0bc93e496dd91a06fa1afb06228551a495f556,2026-10-22 07:28 PDT,2026-10-22 22:28
+#72,merge commit,DevopsLeaDevops/claude/project-thread-ab62tv,feat(portal): 選單改成五個第一級並依三段分工顯示（領域排序、錄製端預設不顯示叢集管理與管理後台）,748cba8c5850f3301dccb524ab29e02234eb5c4a,2026-10-22 07:32 PDT,2026-10-22 22:32
+#73,merge commit,DevopsLeaDevops/claude/project-thread-ab62tv,chore(release): 統一 0.5.0 版本並準備安裝包,6522d74bac49b7e4855d0c8aad8fc524ec04628d,2026-10-22 21:00 PDT,2026-10-23 12:00
+#75,merge commit,DevopsLeaDevops/claude/project-thread-ab62tv,ci(release): 縮短產物保存期、發布後刪除產物，新增手動清理產物,986dbf74d620146c1165ed05afc5f611cebe14f6,2026-10-22 23:04 PDT,2026-10-23 14:04
+#76,merge commit,DevopsLeaDevops/claude/project-thread-ab62tv,docs(handoff): 記錄清理產物、重跑發布與 v0.5.0 草稿的結果,3d995047673d24d3edd37fef4489c815cdf248fc,2026-10-23 03:29 PDT,2026-10-23 18:29
+#77,merge commit,DevopsLeaDevops/claude/project-thread-ab62tv,docs(design): 設計文件改成目前 v0.5.0，倉庫改為私有,29176b156482cbda313044515c33e67f62785e9b,2026-10-25 01:57 PDT,2026-10-25 16:57
+#78,merge commit,DevopsLeaDevops/claude/project-thread-u3rhl1,feat(server): 新增專案空間與專案管理，取代組合場景自動化,a8cde7fd09644bc339a4b140f96169194a3058af,2026-10-23 18:11 PDT,2026-10-24 09:11
+#79,merge commit,DevopsLeaDevops/claude/project-thread-fr1onb,feat(server): 對外 Agent API 第一期（M14）：API 用戶端、/agent-api/v1、專案與組合場景,d66b4a6318cc6ba078b1d9ff608b12c5276cc704,2026-10-25 06:21 PDT,2026-10-25 21:21
+#81,merge commit,DevopsLeaDevops/fix/scheduled-test-failures,fix(ci): 修復排程測試環境、Portal 探測與回看錯誤提示,c587cda1dd96235d9dcf2b2708ecaf84276b3a6a,2026-10-25 16:54 PDT,2026-10-26 07:54
+#82,merge commit,DevopsLeaDevops/claude/project-thread-vql00s,docs(handoff): Python 腳本場景的設計第二版（本機自動化、專用運行環境；待確認，只有設計）,4b64adb9d7d3e2c53f7d75e98f29c64a3df9e19b,2026-10-25 16:57 PDT,2026-10-26 07:57
+#83,merge commit,DevopsLeaDevops/claude/project-thread-reisy3,feat: 分層熱更新：伺服器用更新檔升級，Worker 與錄製端跟著伺服器更新（ADR 0018）,06afe180eb604add26ca7b5050f35a1ab35742b2,2026-10-25 17:08 PDT,2026-10-26 08:08
+#84,merge commit,DevopsLeaDevops/claude/project-thread-iqv8qq,fix(runner): Windows 上 steps.json 被開著時改名寫入重試,9fd0861624991c8f58266a2c85bc5135dc71b02a,2026-10-25 07:53 PDT,2026-10-25 22:53
+#85,squash,,chore(release): 準備 v0.6.0 完整安裝包與更新檔,f76a950a84c73cb380f106aa4104eb57c1653c9e,2026-10-25 17:31 PDT,2026-10-26 08:31
+#86,merge commit,DevopsLeaDevops/fix/scene-ux-run-files,fix(portal): 場景詳情頁、運行檔案與運行報告的集中修正,299348f1fc2ea1c703c79268022ea469d40fa3a2,2026-10-26 00:58 PDT,2026-10-26 15:58
+#87,merge commit,DevopsLeaDevops/chore/release-0.6.1,chore(release): 準備 v0.6.1 更新檔,262e107c054c89ca35d5e1a149fe6b4edaac3a91,2026-10-26 01:35 PDT,2026-10-26 16:35
+#88,merge commit,DevopsLeaDevops/fix/device-update-version,fix(updates): 裝置能跟著伺服器熱更新、入參與出參的錨點,e6b688587b484a2158243cf00c05381123ba809a,2026-10-26 04:46 PDT,2026-10-26 19:46
+#89,merge commit,DevopsLeaDevops/chore/release-0.6.2,chore(release): v0.6.2,8e84c6a1d742154b2ffffa958f72743a767a0424,2026-10-26 05:03 PDT,2026-10-26 20:03
+#90,merge commit,DevopsLeaDevops/fix/remote-debug-reload,fix(debug): 在錄製端調試時可以換版本（Portal 存成新版本並繼續調試、Agent API reload）,84b46119cf8828be8e66d242e4fe332bc9aea22b,2026-10-26 08:24 PDT,2026-10-26 23:24
+#91,merge commit,DevopsLeaDevops/chore/release-0.6.3,chore(release): v0.6.3,066ded2fdab61800db41231b1d050c67483cf22d,2026-10-26 08:45 PDT,2026-10-26 23:45
+#92,merge commit,DevopsLeaDevops/docs/release-0-6-3-result,docs(handoff): v0.6.3 草稿 Release 已核對，待發布,ed3849323d8ec28155d620b3e9abbae34833053c,2026-10-26 21:38 PDT,2026-10-27 12:38
+#93,merge commit,DevopsLeaDevops/fix/scheduled-update-tests,fix(updates): 排程在 macOS、Windows 的兩個失敗（issue #80、#74）,4da719a8118b4f00d7bff5f78d0a72430f3f978d,2026-10-26 21:39 PDT,2026-10-27 12:39
+#94,merge commit,DevopsLeaDevops/ci/layered-ci,ci: 依層建置：同一組輸入只驗證一次，外殼沒變不重新打包,256918d598da9c98f1f0dde43f982caf9967265a,2026-10-26 21:44 PDT,2026-10-27 12:44
+#95,merge commit,DevopsLeaDevops/fix/update-manifest-windows-tests,test(update): 更新檔清單的測試在 Windows 失敗（issue #80、#74 的第三個原因）,30f229057e420ffc378209238c8059ba2be1c688,2026-10-26 21:48 PDT,2026-10-27 12:48
+#96,merge commit,DevopsLeaDevops/feat/composite-report,feat(portal): 組合運行的匯總報告,56936f6a702937eee8585539b5ebe40dafcc84bd,2026-10-27 17:36 PDT,2026-10-28 08:36
+#97,merge commit,DevopsLeaDevops/m7c/upload,feat: M7c 上傳檔案（Excel 匯入、圖片上傳）：檔案入參、upload 步驟、場景附件、Portal 選檔與遠端下載,a26b929d8a5e8c99c268a50d80ec791650dcba69,2026-10-28 00:46 PDT,2026-10-28 15:46
+#98,merge commit,DevopsLeaDevops/feat/composite-replay,feat(portal): 組合運行的合併回看,56953fc9199364d20b181f10e6d8429b1cbd01d3,2026-10-28 00:34 PDT,2026-10-28 15:34
+#100,merge commit,DevopsLeaDevops/docs/refresh-main,docs: 文檔站對齊 main（v0.6.3 之後：路線圖、架構、桌面端分發、開發文件）,b55928507063b9f823b7e65af7eef256a0457ada,2026-10-28 06:33 PDT,2026-10-28 21:33
+#101,merge commit,DevopsLeaDevops/fix/main-ci-red,fix: main 的 CI 紅燈（驗證後馬上發布、有頭測試沒有螢幕、回看邊界、點擊後頁面關閉）,abdfcb86f65cb48019e8bceee6210e39dafabe71,2026-10-28 02:06 PDT,2026-10-28 17:06
+#102,merge commit,DevopsLeaDevops/chore/release-0.7.0,chore(release): v0.7.0,469c3be63cdd7dcc1caa0aec54a0d7c84bdf7511,2026-10-28 02:30 PDT,2026-10-28 17:30
+#103,merge commit,DevopsLeaDevops/fix/replay-ux,fix(portal): 回看的舊快取、點步驟不動、詳情從右側滑出、場景用顏色分隔,3f3725b342f78340a3493e55030966e86cad01be,2026-10-29 03:54 PDT,2026-10-29 18:54
+#104,merge commit,DevopsLeaDevops/chore/release-0.7.1,v0.7.1,2089d482df0587b0a7d87813546a2e8d725dd35a,2026-10-29 04:08 PDT,2026-10-29 19:08
+#105,merge commit,DevopsLeaDevops/fix/nightly-windows-sockets,ci(nightly): Windows 放大動態連接埠並記錄連線狀態；排不到機器時也開 issue,c9a9d7f53d03abdc098b92ddfeca47c43187bf1a,2026-10-29 05:26 PDT,2026-10-29 20:26
+#106,merge commit,DevopsLeaDevops/feat/replay-chapters,回看：依步驟的章節軸、每一步的截圖，步驟詳情從清單上方滑出,a4298ea55ec90ed20591409d816ef8fc450b3f9f,2026-10-29 06:26 PDT,2026-10-29 21:26
+#107,squash,,chore(release): 準備 v0.8.0 版本與發布紀錄,e5b585e10c8f93e8d1578b62ef0123f2d31496b1,2026-10-29 06:37 PDT,2026-10-29 21:37
+#109,merge commit,DevopsLeaDevops/feat/python-nodes,feat(python): Python 節點，和瀏覽器場景串在組合場景裡（ADR 0020）,e6cb46234b67ca4742b95cf208dc829ef6f6b727,2026-11-06 04:55 PST,2026-11-06 20:55
+#110,merge commit,DevopsLeaDevops/dependabot/github_actions/actions-d7d93b8548,chore(deps): bump astral-sh/setup-uv from 10.3.0 to 10.3.2 in the actions group,8c895399c7fec5b7a617aab7004ab7c1954c0c8b,2026-11-05 17:14 PST,2026-11-06 09:14
+#112,merge commit,DevopsLeaDevops/dependabot/github_actions/actions-7313d4f700,chore(deps): bump astral-sh/setup-uv from 10.3.2 to 10.3.3 in the actions group,673dc4cac01d4565d8ae75338a49f80481f9464c,2026-11-06 17:50 PST,2026-11-07 09:50

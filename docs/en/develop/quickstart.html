@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:26006ef25d4ae3c1">
+<meta name="translation-source" content="sha256:211727086ba6c900">
 <title>Run locally from scratch · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -28,7 +28,7 @@
         <div class="panel-header"><h2>macOS, Linux</h2><span class="muted">Run in Terminal</span></div>
         <div class="panel-body">
 <pre class="source"># No code yet: download to ~/code/web_browser_robotic_process_automation and install
-curl -LsSf https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.sh | bash
+curl -LsSf https://raw.githubusercontent.com/ali-sx-org-free/web_browser_robotic_process_automation/main/scripts/setup.sh | bash
 
 # Already cloned: run inside the project folder
 ./scripts/setup.sh</pre>
@@ -38,7 +38,7 @@ curl -LsSf https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic
         <div class="panel-header"><h2>Windows</h2><span class="muted">Run in PowerShell</span></div>
         <div class="panel-body">
 <pre class="source"># No code yet: download the script, then run it; the code goes to %USERPROFILE%\code\web_browser_robotic_process_automation
-irm https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.ps1 -OutFile $env:TEMP\rpa-setup.ps1
+irm https://raw.githubusercontent.com/ali-sx-org-free/web_browser_robotic_process_automation/main/scripts/setup.ps1 -OutFile $env:TEMP\rpa-setup.ps1
 powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1
 
 # Already cloned: run inside the project folder
@@ -125,7 +125,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1</pre>
       <div class="panel-body">
         <p>The from-scratch commands accept options too:</p>
 <pre class="source"># macOS, Linux: put options after bash -s --
-curl -LsSf https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.sh | bash -s -- --skip-browser
+curl -LsSf https://raw.githubusercontent.com/ali-sx-org-free/web_browser_robotic_process_automation/main/scripts/setup.sh | bash -s -- --skip-browser
 
 # Windows: put options after the script path given to -File
 powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1 -SkipBrowser</pre>

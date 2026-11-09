@@ -27,7 +27,7 @@
         <div class="panel-header"><h2>macOS、Linux</h2><span class="muted">在「終端機」執行</span></div>
         <div class="panel-body">
 <pre class="source"># 還沒下載程式碼：下載到 ~/code/web_browser_robotic_process_automation 並安裝
-curl -LsSf https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.sh | bash
+curl -LsSf https://raw.githubusercontent.com/ali-sx-org-free/web_browser_robotic_process_automation/main/scripts/setup.sh | bash
 
 # 已經 clone 了：在專案資料夾裡執行
 ./scripts/setup.sh</pre>
@@ -37,7 +37,7 @@ curl -LsSf https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic
         <div class="panel-header"><h2>Windows</h2><span class="muted">在 PowerShell 執行</span></div>
         <div class="panel-body">
 <pre class="source"># 還沒下載程式碼：先下載腳本，再執行；程式碼會下載到 %USERPROFILE%\code\web_browser_robotic_process_automation
-irm https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.ps1 -OutFile $env:TEMP\rpa-setup.ps1
+irm https://raw.githubusercontent.com/ali-sx-org-free/web_browser_robotic_process_automation/main/scripts/setup.ps1 -OutFile $env:TEMP\rpa-setup.ps1
 powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1
 
 # 已經 clone 了：在專案資料夾裡執行
@@ -124,7 +124,7 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1</pre>
       <div class="panel-body">
         <p>從零開始的命令也可以帶選項：</p>
 <pre class="source"># macOS、Linux：選項放在 bash -s -- 後面
-curl -LsSf https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.sh | bash -s -- --skip-browser
+curl -LsSf https://raw.githubusercontent.com/ali-sx-org-free/web_browser_robotic_process_automation/main/scripts/setup.sh | bash -s -- --skip-browser
 
 # Windows：選項放在 -File 腳本路徑後面
 powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1 -SkipBrowser</pre>
