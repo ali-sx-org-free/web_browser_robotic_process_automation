@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-11-09 06:18 America/Los_Angeles（PST，UTC−08:00）。共 10 次運行。
+更新：2026-11-09 06:22 America/Los_Angeles（PST，UTC−08:00）。共 11 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -10,7 +10,7 @@
 | 流程 | 次數 | 通過 | 耗時中位數 | 耗時 P90 | 最長排隊中位數 | 機器時間（Linux／Windows／macOS） |
 |---|---|---|---|---|---|---|
 | CI | 2（0） | 2（0） | 6.5 分（0.0 分） | 8.1 分（0.0 分） | 2.4 分（0.0 分） | 13／8／0 分（0／0／0 分） |
-| 桌面端建置 | 3（0） | 3（0） | 7.0 分（0.0 分） | 8.7 分（0.0 分） | 0.1 分（0.0 分） | 0／12／24 分（0／0／0 分） |
+| 桌面端建置 | 4（0） | 4（0） | 3.6 分（0.0 分） | 8.7 分（0.0 分） | 0.1 分（0.0 分） | 0／12／24 分（0／0／0 分） |
 | 伺服器分發包 | 3（0） | 3（0） | 0.2 分（0.0 分） | 2.5 分（0.0 分） | 0.1 分（0.0 分） | 5／0／0 分（0／0／0 分） |
 | 一鍵安裝腳本 | 2（0） | 1（0） | 4.1 分（0.0 分） | 5.1 分（0.0 分） | 1.4 分（0.0 分） | 7／4／6 分（0／0／0 分） |
 | 每晚完整測試 | 0（0） | 0（0） | 0.0 分（0.0 分） | 0.0 分（0.0 分） | 0.0 分（0.0 分） | 0／0／0 分（0／0／0 分） |
@@ -20,7 +20,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-11-09 | 10 | 25 | 25 | 30 | 81 |
+| 2026-11-09 | 11 | 26 | 25 | 30 | 81 |
 
 ## 最慢的測試檔案（每份報告最近一次，括號是近 7 次的中位數）
 
@@ -79,6 +79,7 @@
 
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
+| 11-09 06:22 | 桌面端建置 | PR | docs/refresh-v0-8-2 | success | 0.1 分 | 0.0 分 | [#42634027287](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42634027287/attempts/1) |
 | 11-09 06:17 | 伺服器分發包 | 推送 | main | success | 0.2 分 | 0.1 分 | [#42633234661](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42633234661/attempts/1) |
 | 11-09 06:17 | 桌面端建置 | 推送 | main | success | 0.2 分 | 0.1 分 | [#42633234814](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42633234814/attempts/1) |
 | 11-09 05:59 | 伺服器分發包 | PR | docs/refresh-v0-8-2 | success | 0.2 分 | 0.1 分 | [#42630330392](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42630330392/attempts/1) |
