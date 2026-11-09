@@ -25,16 +25,16 @@
 
   <div class="stack">
     <div class="four-col">
-      <section class="panel panel-body stat"><span class="muted">目前版本</span><div class="value">v0.6.3</div><span class="muted">2026-10-26 发布；main 另有 M7c 上传文件、组合运行的报告与回看，尚未发布</span></section>
+      <section class="panel panel-body stat"><span class="muted">目前版本</span><div class="value">v0.8.0</div><span class="muted">2026-10-29 发布；main 另有 Python 节点（#109），尚未发布</span></section>
       <section class="panel panel-body stat"><span class="muted">里程碑</span><div class="value">19</div><span class="muted">8 项已完成、7 项进行中（实现已合并，人工验收进行中）、4 项未开始</span></section>
-      <section class="panel panel-body stat"><span class="muted">架构决策</span><div class="value">18</div><span class="muted">17 项已接受、1 项已取代</span></section>
+      <section class="panel panel-body stat"><span class="muted">架构决策</span><div class="value">19</div><span class="muted">18 项已接受、1 项已取代</span></section>
       <section class="panel panel-body stat"><span class="muted">主要语言</span><div class="value">Python</div><span class="muted">3.12 以上 · 页面用 Jinja 与少量 JavaScript</span></section>
     </div>
 
     <section class="panel">
       <div class="panel-header"><h2>一句话说明</h2></div>
       <div class="panel-body">
-        <p class="lead">以「<strong>场景</strong>」为内核资产：一段可重复运行的浏览器操作流程，用声明式 DSL 描述。平台负责把场景<strong>生成</strong>出来（录制、自然语言、模板），<strong>管理</strong>起来（版本、参数、权限），<strong>运行</strong>它（Playwright），再把结果<strong>反馈</strong>给用户（报告、截图、录像回看、失败定位）。</p>
+        <p class="lead">以「<strong>场景</strong>」为内核资产：一段可重复运行的浏览器操作流程，用声明式 DSL 描述。平台负责把场景<strong>生成</strong>出来（录制、自然语言、模板），<strong>管理</strong>起来（版本、参数、权限），<strong>运行</strong>它（Playwright），再把结果<strong>反馈</strong>给用户（报告、截图、录像回看、失败定位）。浏览器做不到的文件处理、数据整理与 API 调用交给 <strong>Python 节点</strong>，和浏览器场景串在同一个组合场景里（<a href="adr/0020-python-nodes.html">ADR 0020</a>）。</p>
       </div>
     </section>
 
@@ -65,18 +65,20 @@
         </div>
       </section>
       <section class="panel">
-        <div class="panel-header"><h2>仓库现况</h2><span class="muted">main <code>a26b929</code>（2026-10-28）</span></div>
+        <div class="panel-header"><h2>仓库现况</h2><span class="muted">main <code>673dc4c</code>（2026-11-06）</span></div>
         <div class="panel-body">
           <dl class="spec-list">
-            <dt>rpa-core</dt><dd>场景 DSL 与场景契约的模型、YAML 加载与校验、录制稿转 DSL 草稿；iframe、新分页、上传文件的写法（M7a～M7c）；领域文件夹与组合场景的格式；示例在 <code>scenarios/</code></dd>
-            <dt>rpa-runner</dt><dd>运行引擎：入参校验（含文件入参）、登录检查、在 Chromium 或 Firefox 中运行步骤、独立断言、出参发布、运行报告与录像；录制、人工登录与逐步调试的子进程</dd>
-            <dt>rpa-worker</dt><dd>背景 worker：领取任务、以子进程运行、取消；不依赖数据库。也可以在另一台电脑当远程 worker，经由管理 Portal 的 Worker API 领取（M9a）；配对、录制端的本机闸道与交互子进程（M10）</dd>
+            <dt>rpa-core</dt><dd>场景 DSL 与场景契约的模型、YAML 加载与校验、录制稿转 DSL 草稿；iframe、新分页、上传文件的写法（M7a～M7c）；Python 节点的 <code>script.runtime</code>、array／object 入参、file 出参与 download 步骤（ADR 0020）；领域文件夹与组合场景的格式；示例在 <code>scenarios/</code></dd>
+            <dt>rpa-runner</dt><dd>运行引擎：入参校验（含文件入参）、登录检查、在 Chromium 或 Firefox 中运行步骤、独立断言、出参发布、运行报告、录像与每一步的截图；准备 RPA Python 运行环境并运行 Python 节点、产出文件与文件变化；录制、人工登录与逐步调试的子进程</dd>
+            <dt>rpa-worker</dt><dd>背景 worker：领取任务、以子进程运行、取消；不依赖数据库。也可以在另一台电脑当远程 worker，经由管理 Portal 的 Worker API 领取（M9a）；配对、录制端的本机闸道与交互子进程（M10）；回报带了哪些运行环境、组合运行的共用工作文件夹（ADR 0020）</dd>
             <dt>rpa-server</dt><dd>管理 Portal：FastAPI 的 API 与 Jinja 页面、SQLite、版本与发布门槛、运行队列、登录角色与 Secrets、录制、逐步调试、组合场景与项目空间、设备与邀请、领域文件夹与 git 同步、运行回看、上传文件区、对外 Agent API（<code>/agent-api/v1</code>），以及把更新分发给设备</dd>
+            <dt>rpa-script</dt><dd>Python 节点的脚本界面（选用）：<code>@automation</code>、<code>run.step()</code>、事实、产出文件与数据预览，写成和 DSL 相同格式的 <code>steps.json</code>；只用标准函数库，由 Runner 交给运行环境（<a href="design/dsl.html#python">场景 DSL › Python 节点</a>）</dd>
+            <dt>RPA Python 运行环境</dt><dd><code>runtimes/python/</code>：固定的 CPython 3.13 与包（Excel、pandas、Word、PDF、requests），<code>tools/build_python_runtime.py</code> 为 Windows、macOS、Linux x64／arm64 各建一份，附在 RPA Worker 与 Linux 分发包里（<a href="adr/0020-python-nodes.html">ADR 0020</a>）</dd>
             <dt>rpa-update</dt><dd>热更新：更新档的清单、Ed25519 签章验证、环境代号、程序层的安装与选层、桌面 App 的启动器；只用标准函数库（<a href="adr/0018-layered-updates.html">ADR 0018</a>）</dd>
-            <dt>rpa-desktop</dt><dd>RPA 录制端（macOS）与 RPA Worker（Windows、macOS）两个桌面 App：pywebview 窗口、配对、下载浏览器、通知区或菜单栏、打包后的入口（<a href="design/desktop.html">桌面端分发</a>）</dd>
+            <dt>rpa-desktop</dt><dd>RPA 录制端（macOS）与 RPA Worker（Windows、macOS）两个桌面 App：pywebview 窗口、配对、下载浏览器、通知区或菜单栏、打包后的入口；RPA Worker 附带 RPA Python 运行环境（<a href="design/desktop.html">桌面端分发</a>）</dd>
             <dt>rpa-cli</dt><dd><code>rpa serve</code> 启动管理 Portal（<code>--worker-port</code> 开放给设备）；<code>rpa worker</code>、<code>rpa recorder</code> 让这台电脑当远程 worker 或录制端；<code>rpa run</code> 运行场景；<code>rpa record</code> 录制并转成场景草稿；<code>rpa validate</code> 校验场景并指出行号、步骤与字段，<code>rpa pack check</code> 校验领域文件夹，<code>rpa schema</code> 输出 DSL 或单一场景入参、出参的 JSON Schema；<code>rpa update</code> 用更新档升级服务器分发包；<code>--lang</code> 切换繁中、简中、英文</dd>
             <dt>工具链</dt><dd>uv（依赖以 <code>uv.lock</code> 锁定）、ruff、pyright（strict）、pytest、pre-commit</dd>
-            <dt>CI</dt><dd>PR 与合并时依生产角色分配测试：Linux 测网站、Windows 测 Worker、macOS 测录制端 App；依层建置，同一组输入只验证一次、外壳没变不重新打包；每天凌晨在三个系统跑全部测试，浏览器测试连跑三遍。触发节点、时间、手动触发与耗时记录见 <a href="develop/ci.html">CI 与流水线</a></dd>
+            <dt>CI</dt><dd>PR 与合并时依生产角色分配测试：Linux 测网站、Windows 测 Worker、macOS 测录制端 App；依层建置，同一组输入只验证一次、外壳没变不重新打包；RPA Python 运行环境在四个平台建置、自我测试并跑 Python 节点的测试；每天凌晨在三个系统跑全部测试，浏览器测试连跑三遍。触发节点、时间、手动触发与耗时记录见 <a href="develop/ci.html">CI 与流水线</a></dd>
             <dt>文档</dt><dd>本站，繁中、简中、英文三种语言，含链接与翻译同步的自动检查</dd>
           </dl>
         </div>

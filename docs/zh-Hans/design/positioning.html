@@ -36,7 +36,7 @@
         <div class="panel-header"><h2>不在范围内</h2></div>
         <div class="panel-body">
           <ul class="points">
-            <li>桌面应用程序自动化：只处理浏览器内的操作。</li>
+            <li>操作桌面应用程序的画面：网页操作用浏览器场景；Excel、文件、数据整理与调用 API 这类不需要画面的工作用 Python 节点（<a href="../adr/0020-python-nodes.html">ADR 0020</a>），不录制、不点击桌面程序的窗口。</li>
             <li>破解验证码或绕过目标系统的安全机制。</li>
             <li>大规模网页爬取。</li>
             <li>取代测试框架：可以做检查，但定位是业务流程自动化。</li>
@@ -52,7 +52,7 @@
           <div><h3>1　生成</h3><ul class="points"><li>录制用户操作</li><li>用自然语言让 AI 产生</li><li>由模板或子场景组合</li></ul></div>
           <div><h3>2　管理</h3><ul class="points"><li>版本与发布门槛</li><li>入参、出参与分类</li><li>权限与审核</li></ul></div>
           <div><h3>3　运行</h3><ul class="points"><li>手动、调度或 API 触发</li><li>交给远程 Worker，多台同时运行</li><li>重试与超时控制</li></ul></div>
-          <div><h3>4　反馈</h3><ul class="points"><li>每一步的截图与日志</li><li>运行录像回看，视频和步骤对上（M12）</li><li>失败定位与选择器自愈</li></ul></div>
+          <div><h3>4　反馈</h3><ul class="points"><li>每一步的截图与日志</li><li>运行录像回看，视频和步骤对上（M12）；Python 节点是步骤时间轴</li><li>失败定位与选择器自愈</li></ul></div>
         </div>
       </div>
     </section>
@@ -61,18 +61,19 @@
       <div class="panel-header"><h2>内核概念</h2></div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt>场景 Scenario</dt><dd>一段可重复运行的浏览器操作流程，以声明式 DSL 描述（少数情况用 Python 脚本，见 <a href="../adr/0009-scenario-contract.html">ADR 0009</a>）。平台的核心资产，有稳定的 id 与分类。</dd>
+          <dt>场景 Scenario</dt><dd>一段可重复运行的浏览器操作流程，以声明式 DSL 描述；浏览器做不到的工作写成 Python 节点（见下）。平台的核心资产，有稳定的 id 与分类，两种都走同一套场景契约与发布门槛（<a href="../adr/0009-scenario-contract.html">ADR 0009</a>）。</dd>
+          <dt>Python 节点 Python node</dt><dd>场景文件加上 Python 脚本（<code>script:</code>）的场景。写了 <code>script.runtime</code> 的在平台建置的 RPA Python 运行环境运行、不开浏览器，处理 Excel、文件、数据与调用 API；没写的是兼容模式，照旧可以自己用 Playwright（<a href="../adr/0020-python-nodes.html">ADR 0020</a>，main 上、尚未发布）。</dd>
           <dt>版本 Revision</dt><dd>场景的一个不可变版本：草稿 → 验证中 → 通过或失败 → 已发布。修改后要重新验证，发布的版本必须就是验证通过的版本。</dd>
           <dt>步骤 Step</dt><dd>场景中的一个动作，例如打开网址、点击、填写、抽取数据。每个步骤有稳定的 <code>id</code>。</dd>
           <dt>定位器 Target</dt><dd>描述「要操作页面上的哪个元素」，可以有多个候选，依优先级尝试。</dd>
-          <dt>入参 Input</dt><dd>运行时才给定的值，例如查询月份；有类型、限制与默认值，启动浏览器前校验。也可以是要上传的文件（<code>type: file</code>，M7c）。</dd>
+          <dt>入参 Input</dt><dd>运行时才给定的值，例如查询月份；有类型、限制与默认值，启动浏览器前校验。也可以是要上传的文件（<code>type: file</code>，M7c），或 JSON 的数组、对象（<code>type: array</code>、<code>object</code>，ADR 0020）。</dd>
           <dt>页面事实 Fact</dt><dd>运行中从页面抽取的值，只描述看到了什么，不代表成功。</dd>
           <dt>独立断言 Verify</dt><dd>自动化结束后，比较页面事实与入参的规则。「脚本没有出错」不等于成功。</dd>
-          <dt>出参 Output</dt><dd>独立断言通过后才发布的结果，可以串到下一个场景的入参。</dd>
+          <dt>出参 Output</dt><dd>独立断言通过后才发布的结果，可以串到下一个场景的入参；也可以是文件（<code>type: file</code>，例如下载的报表、Python 节点产出的 Excel，ADR 0020）。</dd>
           <dt>Secret</dt><dd>账号密码等机密，场景只引用名称，明文不会出现在场景、日志或截图说明中。</dd>
           <dt>运行 Run</dt><dd>某个版本的一次运行，记录触发者、入参、每一步的结果与耗时；状态为排队、运行中、通过、失败、超时、已取消或需要登录。</dd>
-          <dt>产物 Artifact</dt><dd>运行产生的截图、录像、报告、日志、下载文件与抽取的数据，存在服务器的运行目录。</dd>
-          <dt>组合场景 Composite</dt><dd>把已发布场景的固定版本排成 DAG（可分叉、可汇合），上游的出参绑到下游的入参，依序运行、失败就停止（M6，原称编排）；本身也有版本、验证与发布，可以依赖其他领域的场景（M11）。</dd>
+          <dt>产物 Artifact</dt><dd>运行产生的截图、录像、报告、日志、下载文件、产出文件（<code>outputs/</code>）与抽取的数据，存在服务器的运行目录。</dd>
+          <dt>组合场景 Composite</dt><dd>把已发布场景的固定版本排成 DAG（可分叉、可汇合），上游的出参绑到下游的入参，依序运行、失败就停止（M6，原称编排）；本身也有版本、验证与发布，可以依赖其他领域的场景（M11）。节点可以是浏览器场景或 Python 节点；同一次组合运行在同一台 Worker，节点之间的文件经由那台的共用工作文件夹传递（ADR 0020）。</dd>
           <dt>领域 Domain</dt><dd>场景、角色与组合场景的归属与存放单位：一个领域一个文件夹，保存不可变版本与验证、发布记录，可以和 git 仓库的一个目录同步（M11）。</dd>
           <dt>角色 Role</dt><dd>目标系统的一个登录身分；每个角色一份登录状态，场景以 <code>login: { role }</code> 声明要用哪个角色，失效时运行停在「需要登录」（M4）。</dd>
           <dt>设备 Device</dt><dd>用邀请配对的录制端或 Worker：录制端让浏览器开在录制者的电脑，Worker 运行场景（M10）。</dd>

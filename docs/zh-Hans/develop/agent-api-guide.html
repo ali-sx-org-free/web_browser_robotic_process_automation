@@ -46,7 +46,7 @@
 
 {
   "apiVersion": "1",
-  "serverVersion": "0.6.3",
+  "serverVersion": "0.8.0",
   "server": {"id": "srv-linux-01", "name": "Linux 服务器"},
   "client": {"id": "agent-erp", "name": "ERP 助理"},
   "scopes": ["scenes:read", "scenes:write", "debug", "runs:validate", "runs:read",
@@ -212,7 +212,7 @@ GET /agent-api/v1/runs/…
     </section>
 
     <section class="panel" id="files">
-      <div class="panel-header"><h2>上传文件</h2><span class="muted">M7c；在 main、尚未发布</span></div>
+      <div class="panel-header"><h2>上传文件</h2><span class="muted">M7c；v0.7.0 起</span></div>
       <div class="panel-body">
         <p>目标系统要「导入 Excel」「上传图片」时，场景用 <code>type: file</code> 的入参与 <code>upload</code> 步骤（规格见 <a href="../design/dsl.html#upload">DSL › 上传文件</a>）。<code>GET /meta</code> 的 <code>dslFeatures</code> 要有 <code>upload</code> 与 <code>fileInputs</code>；录制端或 Worker 的 App 太旧时，服务器不把这种场景交给它，请人更新 App。</p>
 <pre class="source">POST /agent-api/v1/files?name=十月订单.xlsx        （需要 files:write；本体就是文件内容，不是 multipart）
@@ -225,6 +225,25 @@ POST /agent-api/v1/scenes/order-import/revisions/3/validate
           <li><strong>固定的示例文件</strong>：做成场景附件。<code>PUT /scenes/{id}/attachments/{文件名}?base={n}</code>（本体是文件内容，需要 <code>scenes:write</code>）存成新版本，入参的 <code>default</code> 写 <code>files/文件名</code>；<code>GET /scenes/{id}/revisions/{n}/attachments</code> 列出。附件纳入场景哈希，验证的文件就是发布的文件；文件名只能用英文字母、数字、<code>_ . -</code>，每个最多 20 MB、一个版本合计 50 MB。</li>
           <li><strong>等上传完成</strong>：<code>upload</code> 在文件交给网页时就算完成，后面用 <code>waitFor</code>／<code>expect</code> 等画面上的结果；<code>verify</code> 可以拿 <code>{{ inputs.orderFile.sha256 }}</code> 和网页显示的比较。运行记录与报告只有文件名、大小与 sha256，没有路径。</li>
           <li><strong>录制稿</strong>：<code>set_input_files</code> 会转成 <code>upload</code> 加一个 file 入参，但录制稿只有文件名，要另外把文件放进入参或附件。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="python-nodes">
+      <div class="panel-header"><h2>Python 节点</h2><span class="muted"><a href="../adr/0020-python-nodes.html">ADR 0020</a>；main 上、尚未发布</span></div>
+      <div class="panel-body">
+        <p>浏览器做不到的工作（合并 Excel、整理数据、调用 API）写成 Python 节点：场景文件写 <code>script:</code> 与 <code>runtime: "1"</code>，自动化由 <code>automation.py</code> 完成，成功照样由独立断言判定（规格见 <a href="../design/dsl.html#python">DSL › Python 节点</a>）。服务器支持时 <code>GET /meta</code> 的 <code>dslFeatures</code> 有 <code>pythonNodes</code>、<code>jsonInputs</code>、<code>fileOutputs</code>、<code>download</code>。</p>
+<pre class="source">POST /agent-api/v1/scenes/merge-sales/revisions
+{"baseRevision": 1, "files": {
+   "scenario.yaml": "schemaVersion: 1\nid: merge-sales\n…\nscript:\n  runtime: \"1\"\n  automation: automation.py\n…",
+   "automation.py": "from rpa_script import Run, automation\n…"},
+ "idempotencyKey": "merge-sales-r2"}</pre>
+        <ul class="points">
+          <li><strong>保存</strong>：<code>files</code> 一起放场景文件、<code>automation.py</code>，以及 <code>assertion.py</code>（没有用 <code>verify</code> 时）与 <code>script.files</code> 列的文件，路径相对于场景文件；没有被场景文件用到的文件会被拒绝。<code>POST /dsl/check</code> 只收场景文件，还没放进来的脚本会报成 <code>dsl.script.missing</code>，以保存时的检查为准。</li>
+          <li><strong>不能逐步调试</strong>：<code>POST /scenes/{id}/debug</code> 回 422 <code>debug_script</code>。直接验证运行，看运行的步骤、事实与 <code>automation.log</code>。</li>
+          <li><strong>交给有运行环境的 Worker</strong>：只派给带了 RPA Python 运行环境 1、平台在 <code>platforms</code> 里的 Worker，不需要浏览器。运行环境附在 main 起的 RPA Worker 与 Linux 分发包；v0.8.0 以前的 App 没有，<code>GET /workers</code> 的 <code>features</code> 也没有 <code>pythonNodes</code>，这时运行会一直排队。</li>
+          <li><strong>数据与文件</strong>：<code>type: array</code>、<code>object</code> 的入参值直接写 JSON，上游同类型的出参可以接到下游。脚本写进 <code>run.output_dir</code> 的文件与 file 出参在运行的文件清单里，用 <code>GET /runs/{id}/files/outputs/…</code> 下载；组合场景里 file 出参可以接到下游 DSL 场景的 file 入参（同一台 Worker 的共用工作文件夹）。</li>
+          <li><strong>不能用登录角色</strong>：运行环境模式的场景写 <code>login</code> 会被校验挡下（这一版不支持）。</li>
         </ul>
       </div>
     </section>
