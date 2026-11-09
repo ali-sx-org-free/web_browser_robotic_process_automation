@@ -91,8 +91,8 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
           <li><strong>登录 Windows 时自动启动</strong>：第一次配对成功后默认打开，只出现在通知区；在窗口的「设置」可以关闭。文件夹搬走后开一次 RPA Worker，自动启动就会改成新的位置。</li>
           <li><strong>暂停接任务</strong>：做完目前的任务后不再领取新的，管理 Portal 约一分钟后显示这台脱机；按「继续接任务」立刻重新上线。</li>
           <li><strong>只运行一份</strong>：再双击一次会叫出已经在运行的那份窗口。</li>
-          <li><strong>设置</strong>：语言（默认繁体中文）、也下载 Firefox（运行中才勾选的话，下次打开时下载）、下载浏览器的内部镜像（<code>PLAYWRIGHT_DOWNLOAD_HOST</code>）、文件入参可以读的文件夹（场景的文件入参写这台电脑上的路径时，例如共用磁盘上的每日报表，只能读这些文件夹；一行一个，下一个任务开始时生效；没有设置时不能用路径；M7c，在 main、尚未发布，见 <a href="../design/dsl.html#upload">DSL › 上传文件</a>）、打开日志文件夹、重新配对。</li>
-          <li><strong>数据位置</strong>：<code>%LOCALAPPDATA%\rpa\worker</code>（配对的服务器与设备 <code>pairing.json</code>、设置 <code>settings.json</code>、日志 <code>logs\</code>、任务的暂存）。<strong>权杖存在 Windows 认证管理员</strong>（「一般认证」里的 <code>RPA Worker</code>）；认证管理员不能用时退回存在 <code>pairing.json</code>（只有你能读写），窗口的「权杖存放」会标出来。第一步预览版存在文件里的权杖，第一次打开时自动搬进认证管理员。浏览器在 <code>%LOCALAPPDATA%\ms-playwright</code>。日志不记权杖与邀请代码。</li>
+          <li><strong>设置</strong>：语言（默认繁体中文）、也下载 Firefox（运行中才勾选的话，下次打开时下载）、下载浏览器的内部镜像（<code>PLAYWRIGHT_DOWNLOAD_HOST</code>）、文件入参可以读的文件夹（场景的文件入参写这台电脑上的路径时，例如共用磁盘上的每日报表，只能读这些文件夹；一行一个，下一个任务开始时生效；没有设置时不能用路径；M7c，v0.7.0 起，见 <a href="../design/dsl.html#upload">DSL › 上传文件</a>）、打开日志文件夹、重新配对。</li>
+          <li><strong>数据位置</strong>：<code>%LOCALAPPDATA%\rpa\worker</code>（配对的服务器与设备 <code>pairing.json</code>、设置 <code>settings.json</code>、日志 <code>logs\</code>、任务的暂存；main 起另有组合运行的共用工作文件夹 <code>work\workspaces\</code>，组合运行结束就删）。<strong>权杖存在 Windows 认证管理员</strong>（「一般认证」里的 <code>RPA Worker</code>）；认证管理员不能用时退回存在 <code>pairing.json</code>（只有你能读写），窗口的「权杖存放」会标出来。第一步预览版存在文件里的权杖，第一次打开时自动搬进认证管理员。浏览器在 <code>%LOCALAPPDATA%\ms-playwright</code>。日志不记权杖与邀请代码。</li>
           <li><strong>需要 Microsoft Edge WebView2</strong>：Windows 11 内置，Windows 10 大多已随 Edge 更新装好；安装档在没有时会安装。还是没有时（例如免安装版、安装时没有网络），RPA Worker 会说明怎么安装，在那之前只靠通知区接任务。</li>
           <li><strong>Windows 注销或关机</strong>：运行中的任务立刻被取消并回报；来不及回报时，管理 Portal 约一分钟后判定失联。</li>
           <li><strong>排查问题</strong>：同文件夹的 <code>rpa-child.exe --worker</code> 是主控台版（和第一步的预览版相同，每一行消息都看得到）；<code>rpa-worker.exe --no-window --invite … --log 文件</code> 不开窗口（自动化用；要它结束时在文件夹放一个 <code>stop.request</code> 文件，运行中的任务会被取消并回报）。两者和窗口版用同一份配对，同一时间只能开一份。</li>
@@ -104,7 +104,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
       <div class="panel-header"><h2>macOS：RPA Worker App</h2><span class="muted">Apple 芯片；功能和 Windows 版相同</span></div>
       <div class="panel-body prose">
         <ol>
-          <li>从 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a> 下载和管理 Portal 同一个版本的 <code>RPA-Worker-版本-macos-arm64.dmg</code>（加入 macOS 版之后的第一个发布才有）。测试还没发布的版本时，改从「桌面端建置」运行记录的 <strong>Artifacts</strong> 下载 <code>worker-macos-15</code>。</li>
+          <li>从 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a> 下载和管理 Portal 同一个版本的 <code>RPA-Worker-版本-macos-arm64.dmg</code>（v0.5.0 起）。测试还没发布的版本时，改从「桌面端建置」运行记录的 <strong>Artifacts</strong> 下载 <code>worker-macos-15</code>。</li>
           <li>打开 DMG，把「RPA Worker」拖进「应用程序」。没有签章与公证，第一次打开会被挡下：到「系统设置 › 隐私权与安全性」，在下方找到 RPA Worker，选择允许打开并输入密码（和<a href="../design/desktop.html#signing">录制端</a>相同）。熟悉终端的人也可以运行 <code>xattr -dr com.apple.quarantine "/Applications/RPA Worker.app"</code>。</li>
           <li>和 Windows 相同：粘贴 Worker 邀请、按「配对」，第一次下载 Chromium，状态变成「在线」就好了。macOS 15 起第一次连到区网时会问是否允许 RPA Worker 连到区网上的设备，请选「允许」。</li>
         </ol>
@@ -114,7 +114,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
           <li><strong>登录 macOS 时自动启动</strong>：第一次配对成功后默认打开，只出现在菜单栏；在窗口的「设置」可以关闭。做法是放一个 LaunchAgent（<code>~/Library/LaunchAgents/io.github.devopsleadevops.rpa.worker.plist</code>）：macOS 13 起会通知「已加入背景项目」，也列在「系统设置 › 一般 › 登录项目」；在那里关掉时，系统另外记录禁用，App 的设置不会把它改回来。App 搬到别的位置后开一次，自动启动就会改成新的位置。</li>
           <li><strong>升级</strong>：先从菜单栏结束 RPA Worker（运行中的任务被取消并回报），再把新版的 App 拖进「应用程序」取代。配对、设置与自动启动都保留。窗口的「下载新版」打开最新的 Release。<strong>0.6.0 起</strong>服务器升级后，RPA Worker 下次连上时自己从服务器下载同一个版本，做完目前的任务后重新启动（见<a href="operations.html#device-updates">部署与操作 › 设备跟着服务器更新</a>）；只有运行环境改变、设备页说要完整安装包时，才需要照上面重新安装。</li>
           <li><strong>卸载</strong>：先在「设置」关掉自动启动并结束 RPA Worker，再把 App 拖到垃圾桶。要一并删除配对：先运行 <code>"/Applications/RPA Worker.app/Contents/MacOS/rpa-child" --forget-pairing</code>（删除钥匙串里的权杖），再删除文件夹 <code>~/Library/Application Support/rpa/worker</code>。浏览器（<code>~/Library/Caches/ms-playwright</code>）录制端也可能在用，不要删。</li>
-          <li><strong>数据位置</strong>：<code>~/Library/Application Support/rpa/worker</code>（<code>pairing.json</code>、<code>settings.json</code>、日志 <code>logs/</code>、任务的暂存）。<strong>权杖存在钥匙串</strong>（登录钥匙串里的 <code>RPA Worker</code>）；钥匙串不能用时退回存在 <code>pairing.json</code>（只有你能读写），窗口的「权杖存放」会标出来。日志不记权杖与邀请代码。</li>
+          <li><strong>数据位置</strong>：<code>~/Library/Application Support/rpa/worker</code>（<code>pairing.json</code>、<code>settings.json</code>、日志 <code>logs/</code>、任务的暂存；main 起另有组合运行的共用工作文件夹 <code>work/workspaces/</code>）。RPA Python 运行环境第一次用到时解压到 <code>~/Library/Caches/rpa/python/</code>（Windows 是 <code>%LOCALAPPDATA%\rpa\cache\python\</code>），之后沿用。<strong>权杖存在钥匙串</strong>（登录钥匙串里的 <code>RPA Worker</code>）；钥匙串不能用时退回存在 <code>pairing.json</code>（只有你能读写），窗口的「权杖存放」会标出来。日志不记权杖与邀请代码。</li>
           <li><strong>注销、重新开机或关机</strong>：运行中的任务立刻被取消并回报（只等几秒，不挡住注销）；来不及回报时，管理 Portal 约一分钟后判定失联。</li>
           <li><strong>同一台 Mac 也装了录制端</strong>：两个 App 各自配对（Worker 邀请、录制端邀请），文件夹与钥匙串项目分开，可以同时运行；下载的浏览器共用。</li>
           <li><strong>排查问题</strong>：<code>"/Applications/RPA Worker.app/Contents/MacOS/rpa-child" --worker</code> 是主控台版；同文件夹的 <code>rpa-worker --no-window --invite … --log 文件</code> 不开窗口。两者都要在登录中的桌面（例如「终端」）运行，有头模式才开得了浏览器；和 App 用同一份配对，同一时间只能开一份。</li>
@@ -176,6 +176,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代码）</pre>
           <li><strong>测试网站。</strong><code>rpa worker</code> 也在 worker 机器启动自己的测试网站（127.0.0.1:8765），所以「测试网站自动化」的示例照样能跑；它的数据和你电脑上的测试网站是分开的。其他写成 127.0.0.1 或 localhost 的网址，在 worker 上指的是 worker 自己。</li>
           <li><strong>试验场串行</strong>整个在同一台 worker：第一个节点由哪台领取，后面的节点就都给它。</li>
           <li><strong>登录角色。</strong>人工登录在你操作的那台（你的电脑，或通过<a href="#recorder">录制端</a>时在录制端），不在 worker；登录状态在运行时送到 worker，用完就删。worker 自动登录后的新状态会传回来。</li>
+          <li id="python-nodes"><strong>Python 节点（main 起，尚未发布，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）。</strong>写了 <code>script.runtime</code> 的场景只交给带了 RPA Python 运行环境、平台在场景的 <code>platforms</code> 里的 worker，不需要浏览器、不需要能显示窗口；设备页列出每台带的运行环境。RPA Worker App 与 Linux 分发包附带运行环境（v0.8.0 以前的没有）；从源代码运行的 <code>rpa worker</code> 要先在那台运行 <code>uv run python tools/build_python_runtime.py build --install</code>（要连得到 GitHub 与 PyPI），建好的运行环境解压到这台的缓存。同一次组合运行的节点固定在同一台，共用一个工作文件夹。</li>
           <li><strong>只让 worker 运行。</strong><code>rpa serve --worker-port 8081 --no-local-worker</code>：你的电脑完全不运行，全部交给 worker。</li>
         </ul>
       </div>
@@ -202,7 +203,7 @@ uv run rpa worker</pre>
             <tr><td>「<span translate="no">連不上管理 Portal</span>」一直重试</td><td>确认 Portal 有加 <code>--worker-port</code>、网址的 IP 与端口号正确、你电脑的防火墙允许传入连接。在 worker 机器用浏览器打开 <code>http://IP:8081/worker-api/v1/hello</code>：看到 <code>405</code> 或 <code>Method Not Allowed</code> 代表连得到。</td></tr>
             <tr><td>「<span translate="no">管理 Portal 拒絕這台 worker</span>」</td><td>权杖不对、已经重新邀请，或设备被禁用。到设备页按「重新邀请」，用新的邀请重新运行 <code>rpa worker --invite</code>；或按「激活」。</td></tr>
             <tr><td>「<span translate="no">配對失敗</span>」</td><td>邀请已经用过、过期（24 小时）、贴错 App，或设备被禁用：看消息的说明，在设备页重新邀请。</td></tr>
-            <tr><td>运行一直是「排队中」</td><td>运行页会说明在等哪台 worker。设备页看它是不是「在线」；有头模式的任务只给能显示窗口的 worker；场景要用的浏览器在 worker 机器要下载过（重跑安装脚本）。</td></tr>
+            <tr><td>运行一直是「排队中」</td><td>运行页会说明在等哪台 worker。设备页看它是不是「在线」；有头模式的任务只给能显示窗口的 worker；场景要用的浏览器在 worker 机器要下载过（重跑安装脚本）。Python 节点只给带了 RPA Python 运行环境、平台符合的 worker（<a href="#python-nodes">Python 节点</a>）。</td></tr>
             <tr><td>运行失败「<span translate="no">判定失聯</span>」</td><td>worker 超过一分钟没有回报（关机、断网、程序被关掉）。那次运行不会自动重跑，因为可能已经在网站上做了部分操作；确认后再重新运行。</td></tr>
             <tr><td>设备页标出「版本不同」</td><td>两台都 <code>git pull</code> 到同一个版本，worker 机器重跑安装脚本后重新启动 <code>rpa worker</code>。</td></tr>
             <tr><td>只想暂时不用 worker</td><td>设备页按「禁用」，或在 worker 机器按 Ctrl+C；默认运行位置改回本机。</td></tr>

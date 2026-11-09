@@ -108,7 +108,7 @@
         <table class="wrap">
           <thead><tr><th>节点</th><th>跑哪些流程</th><th>大约多久</th></tr></thead>
           <tbody>
-            <tr><td>往 PR 推送、合并到 main</td><td>CI（Linux）每次都跑；其他重的工作只在它的输入指纹还没通过时跑（<a href="#layered">依层建置</a>）：Windows 的 Worker 测试、三个桌面 App（外壳没变时只换代码层）、服务器分发包（建置 x64、arm64，在 Rocky 8 容器里安装、启动、升级）、一键安装脚本（只验证脚本与冒烟测试）</td><td>约 2.5～3 分（CI 是下限）；要建桌面 App 时约 4 分</td></tr>
+            <tr><td>往 PR 推送、合并到 main</td><td>CI（Linux）每次都跑；其他重的工作只在它的输入指纹还没通过时跑（<a href="#layered">依层建置</a>）：Windows 的 Worker 测试、三个桌面 App（外壳没变时只换代码层）、服务器分发包（建置 x64、arm64，在 Rocky 8 容器里安装、启动、升级）、一键安装脚本（只验证脚本与冒烟测试）、RPA Python 运行环境（四个平台建置、自我测试，再用它跑 Python 节点的测试；Linux 另在 Rocky 8 容器解压）</td><td>约 2.5～3 分（CI 是下限）；要建桌面 App 时约 4 分</td></tr>
             <tr><td>只改 <code>handoff/</code>、<code>docs/</code> 的推送</td><td>见<a href="#docs-only">下一节</a></td><td>约 1 分</td></tr>
             <tr><td>推版本标签 <code>v*</code></td><td>发布：确认版本、建桌面 App 与服务器分发包、产生并签署更新档（<a href="#update-key">密钥</a>）、草稿 Release</td><td>约 4 分</td></tr>
             <tr><td>每天 20:17 UTC</td><td>每晚完整测试：三个系统、两种浏览器、Python 3.12 与 3.13 的全部测试，浏览器测试连跑三遍</td><td>约 30 分</td></tr>
@@ -162,7 +162,7 @@ gh workflow run python-runtime.yml --ref 分支名称</pre>
     <section class="panel" id="artifacts">
       <div class="panel-header"><h2>产物与保存额度</h2></div>
       <div class="panel-body prose">
-        <p>仓库自 2026-10-22 起是私有的，Actions 的产物计入账号方案的保存额度；额度用完时上传产物会失败，发布也建不出草稿 Release（v0.5.0 就是这样）。所以桌面端建置与服务器分发包的产物在 PR 与 main 上留 3 天、发布时留 1 天，发布流程建好草稿后删掉那次运行的产物；测试报告与 Portal 轨迹只是诊断用，上传失败不让工作失败。</p>
+        <p>仓库在 2026-10-22 改成私有，Actions 的产物因此计入账号方案的保存额度；额度用完时上传产物会失败，发布也建不出草稿 Release（v0.5.0 就是这样）。2026-11-06 查证时仓库是公开的（何时改回没有记录），公开仓库的产物不计入额度；下面的保留规则照旧，仓库再改回私有也不必调整。桌面端建置与服务器分发包的产物在 PR 与 main 上留 3 天、发布时留 1 天，发布流程建好草稿后删掉那次运行的产物；测试报告与 Portal 轨迹只是诊断用，上传失败不让工作失败。</p>
         <p>依层建置另外留下两种东西：通过记录（产物 <code>pass-*</code>，每个不到 1 KB，留 30 天）与外壳缓存（Actions 的缓存，不计入产物额度；每个仓库上限 10 GB，7 天没用到就被清掉，清掉之后下一次完整建置再存）。</p>
         <p>要一次释放额度时，手动运行「清理产物」（<code>cleanup-artifacts.yml</code>）：默认只列出，摘要里依名称统计个数与大小；确认后取消勾选「只列出、不删」再运行一次。删除不能复原；正式版的文件在 Releases 上，不受影响；删掉 <code>pass-*</code> 只会让那些输入再验证一次。删完要等 GitHub 重新计算用量，额度才会降下来。</p>
       </div>

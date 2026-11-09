@@ -27,7 +27,7 @@
           <thead><tr><th>角色</th><th>做什么</th><th>装什么</th><th>启动</th></tr></thead>
           <tbody>
             <tr><td><strong>服务器</strong></td><td>管理 Portal、数据库、场景版本、运行报告、登录状态与 Secrets 都在这台；也可以自己运行任务（本机 worker）。</td><td>开发环境（<a href="quickstart.html">一键脚本</a>），macOS、Linux、Windows 都可以。</td><td><code>uv run rpa serve --worker-port 8081</code></td></tr>
-            <tr><td><strong>运行端</strong></td><td>领取并运行场景，有头模式的浏览器窗口开在这台；报告、截图、Trace 传回服务器。</td><td>Windows：<a href="remote-worker.html#packaged">RPA Worker App</a>；macOS（Apple 芯片）：<a href="remote-worker.html#packaged-mac">RPA Worker App</a>；其他系统用开发环境。</td><td>App 登录时自动启动；命令行 <code>uv run rpa worker</code></td></tr>
+            <tr><td><strong>运行端</strong></td><td>领取并运行场景，有头模式的浏览器窗口开在这台；报告、截图、Trace 传回服务器。main 起也运行 Python 节点（用附带的 RPA Python 运行环境，不需要浏览器，<a href="remote-worker.html#python-nodes">远程 worker › Python 节点</a>）。</td><td>Windows：<a href="remote-worker.html#packaged">RPA Worker App</a>；macOS（Apple 芯片）：<a href="remote-worker.html#packaged-mac">RPA Worker App</a>；其他系统用开发环境。</td><td>App 登录时自动启动；命令行 <code>uv run rpa worker</code></td></tr>
             <tr><td><strong>录制端</strong></td><td>通过它操作管理 Portal 时，录制、逐步调试、人工登录的浏览器开在这台；录制稿、截图与登录状态传回服务器。不运行场景。</td><td>macOS（Apple 芯片）：<a href="remote-worker.html#recorder-app">RPA 录制端 App</a>；其他系统用开发环境。</td><td>打开 App；命令行 <code>uv run rpa recorder</code></td></tr>
           </tbody>
         </table>
@@ -44,7 +44,7 @@
           <dt>一台 Mac 全包</dt>
           <dd><code>uv run rpa serve</code>，打开 <code>http://127.0.0.1:8080</code>。录制、调试、人工登录、运行都在这台，不需要配对任何设备。</dd>
           <dt>Linux 服务器 ＋ Mac 录制端 ＋ Windows 运行端</dt>
-          <dd>服务器放在一直开着的 Linux（没有桌面也可以）；在 Mac 打开 RPA 录制端 App 操作管理 Portal，录制、调试、人工登录的窗口开在 Mac；有头模式的运行交给 Windows 的 RPA Worker。Linux 自己也能运行无头模式的任务；全部交给 Windows 时加 <code>--no-local-worker</code>。</dd>
+          <dd>服务器放在一直开着的 Linux（没有桌面也可以）；在 Mac 打开 RPA 录制端 App 操作管理 Portal，录制、调试、人工登录的窗口开在 Mac；有头模式的运行交给 Windows 的 RPA Worker。Linux 自己也能运行无头模式的任务，以及 Python 节点（分发包附带运行环境，main 起）；全部交给 Windows 时加 <code>--no-local-worker</code>。</dd>
           <dt>Mac 服务器 ＋ Windows 运行端</dt>
           <dd>在 Mac 的 8080 操作，录制在 Mac；运行交给 Windows，Mac 不再被有头模式的窗口占住。</dd>
         </dl>
@@ -137,12 +137,12 @@ sudo systemctl restart rpa-portal          # 更新后重新启动</pre>
 
         <h3 id="update-file">用更新档升级服务器（0.6.0 起）</h3>
         <p>0.6.0 起每个 Release 多一个约 2 MB 的 <code>RPA-Update-&lt;版本&gt;.zip</code>，只含代码（<a href="../adr/0018-layered-updates.html">ADR 0018</a>）。用<a href="setup.html#linux-package">分发包</a>安装的服务器，把它拷贝到服务器后运行：</p>
-<pre class="source">~/rpa-server/bin/rpa update RPA-Update-0.6.1.zip         # 没有进行中的工作时自己重新启动
-~/rpa-server/bin/rpa update RPA-Update-0.6.1.zip --now   # 不等，立刻重新启动</pre>
+<pre class="source">~/rpa-server/bin/rpa update RPA-Update-0.8.1.zip         # 没有进行中的工作时自己重新启动
+~/rpa-server/bin/rpa update RPA-Update-0.8.1.zip --now   # 不等，立刻重新启动</pre>
         <ul>
           <li>先验证签章与每个文件，装成新的版本文件夹后才切换。服务器要由分发包的 <code>bin/rpa serve</code> 或 <code>bin/rpa-server</code> 启动（nohup、systemd 都可以）：它等到没有进行中的录制、逐步调试、人工登录、本机运行，用新的版本以同样的参数重新启动，Portal 有数秒打不开。远程 Worker 运行中的任务会等它重新报到，不会被标成失联。</li>
           <li>新版本要迁移数据库时先备份 SQLite（PostgreSQL 请自己先备份）；新版本还没开始服务就结束时，自动退回上一版并还原备份。</li>
-          <li>说要完整的分发包时（这一版换了 Python 或第三方包），照上面的步骤用分发包的 <code>install.sh</code>。</li>
+          <li>说要完整的分发包时（这一版换了 Python、第三方包或附带的 RPA Python 运行环境），照上面的步骤用分发包的 <code>install.sh</code>。main 上的 Python 节点让分发包多附运行环境：从 v0.8.0 升到第一个附带运行环境的版本时就是这种情况（<a href="../adr/0020-python-nodes.html">ADR 0020</a>）。</li>
           <li>从 clone 运行的服务器不能用更新档：先改用分发包一次，启动命令只把 <code>.venv-server/bin/rpa</code> 换成 <code>~/rpa-server/bin/rpa</code>，参数与 <code>--data</code> 照旧。</li>
         </ul>
 
@@ -153,7 +153,7 @@ sudo systemctl restart rpa-portal          # 更新后重新启动</pre>
           <li><strong>RPA 录制端：</strong>窗口显示已下载新版本，关掉再打开就会应用，不会打断录制与调试。</li>
           <li>新版本在那台起不来时自动退回原本的版本，设备页标出启动失败，同一个版本不再自动安装。</li>
           <li>设备页的「设备更新」显示服务器的版本与每台的更新状态，可以关掉「自动更新设备」（默认开）。用完整分发包安装的服务器一开始没有更新档可以给设备：拿同一版的更新档运行一次 <code>bin/rpa update</code>，它会说已经是这个版本，并把更新档放好。</li>
-          <li>设备页说「需要完整安装包」时（运行环境换了），那台照旧下载安装档或 DMG 安装。</li>
+          <li>设备页说「需要完整安装包」时（运行环境换了），那台照旧下载安装档或 DMG 安装。RPA Worker 从 v0.8.0 升到第一个附带 RPA Python 运行环境的版本时就是这样；录制端不附带运行环境，照 Release 说明的「从 v0.8.0 升级」。</li>
           <li>0.5.0 以前的服务器与 App 没有这套机制，要用 0.6.0 的完整包各安装一次；配对、设置与数据都保留。</li>
         </ul>
 
@@ -271,7 +271,7 @@ sudo systemctl restart rpa-portal          # 更新后重新启动</pre>
             <tr><td>「App 版本太旧，看不懂…（例如 iframe、新分页的写法）」</td><td>录制端或 Worker 的 App 比服务器旧，看不懂场景用到的写法（M7a 的 <code>frame</code>、<code>anyFrame</code>，M7b 的 <code>page</code>、<code>popup</code>）。服务器不把它交给那台：调试、接著录制、登录检查直接回这个错误，Worker 的运行标为失败。安装和服务器同一个版本的 DMG 或安装档后再试，见<a href="#upgrade">更新版本</a>。</td></tr>
             <tr><td>版本不同的提醒</td><td>只是程序版本不同时仍可使用，但建议更新到同一个版本；协定版本不同时连不上，一定要更新。见<a href="#upgrade">更新版本</a>。</td></tr>
             <tr><td>录制、调试突然结束，原因是失联</td><td>录制端停掉、睡眠或断线超过 30 秒，或服务器重新启动。重新打开后再开始一次。</td></tr>
-            <tr><td>任务一直排队</td><td>见<a href="remote-worker.html#faq">远程 worker › 常见问题</a>。</td></tr>
+            <tr><td>任务一直排队</td><td>见<a href="remote-worker.html#faq">远程 worker › 常见问题</a>。Python 节点只给带了 RPA Python 运行环境、平台在场景的 <code>platforms</code> 里的运行端；v0.8.0 以前的 App 没有运行环境，要装附带运行环境的完整安装包。</td></tr>
             <tr><td>同步页说认证失败或找不到仓库</td><td>HTTPS：权杖过期或没有这个仓库的 Contents 权限，到同步页重新填权杖；不要把帐密写进网址。SSH：部署密钥还没贴到仓库或没勾 Allow write access；网址要是 <code>git@github.com:组织/仓库.git</code>。见<a href="#git-sync">领域与 git 同步</a>。</td></tr>
             <tr><td>推送被挡下</td><td>对话框列出原因：删掉或搬走登录状态、私钥之类的文件与非定义档；内容含有 Secret 的值时改用 <code>{{ secrets.名称 }}</code>。</td></tr>
             <tr><td>同步冲突</td><td>见<a href="#git-sync">领域与 git 同步 › 冲突</a>。</td></tr>
