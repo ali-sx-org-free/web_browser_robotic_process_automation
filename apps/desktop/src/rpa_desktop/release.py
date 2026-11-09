@@ -9,6 +9,6 @@ from typing import Final
 
 __all__ = ["RELEASES_URL", "REPOSITORY"]
 
-REPOSITORY: Final = "https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation"
+REPOSITORY: Final = "https://github.com/ali-sx-org-free/web_browser_robotic_process_automation"
 RELEASES_URL: Final = f"{REPOSITORY}/releases/latest"
 """最新的正式 Release（草稿與預先發布不算）。"""

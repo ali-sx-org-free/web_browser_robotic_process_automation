@@ -39,7 +39,7 @@
 #define RunKey "Software\Microsoft\Windows\CurrentVersion\Run"
 #define RunValue "RPA Worker"
 #define WebView2Client "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
-#define Repository "https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation"
+#define Repository "https://github.com/ali-sx-org-free/web_browser_robotic_process_automation"
 
 [Setup]
 ; AppId 決定升級與解除安裝的身分，永遠不要改

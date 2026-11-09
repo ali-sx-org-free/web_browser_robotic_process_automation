@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:e7c98ea4f194f386">
+<meta name="translation-source" content="sha256:35cfee693cc4ec62">
 <title>Remote workers · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -50,7 +50,7 @@
         <div class="panel-header"><h2>3. Worker computer: install</h2><span class="muted">Same as a normal install</span></div>
         <div class="panel-body prose">
           <p>Use the one-command script from <a href="quickstart.html#windows">Run locally</a> (in PowerShell):</p>
-<pre class="source">irm https://raw.githubusercontent.com/DevopsLeaDevops/web_browser_robotic_process_automation/main/scripts/setup.ps1 -OutFile $env:TEMP\rpa-setup.ps1
+<pre class="source">irm https://raw.githubusercontent.com/ali-sx-org-free/web_browser_robotic_process_automation/main/scripts/setup.ps1 -OutFile $env:TEMP\rpa-setup.ps1
 powershell -ExecutionPolicy Bypass -File $env:TEMP\rpa-setup.ps1</pre>
           <p>The code goes to <code>%USERPROFILE%\code\web_browser_robotic_process_automation</code>, and Chromium and Firefox are downloaded. <strong>Both computers must run the same version</strong>: whenever you <code>git pull</code> on your computer, also <code>git pull</code> on the worker and run the script again. The devices page flags a version mismatch.</p>
         </div>
@@ -78,7 +78,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite (code)</pre>
       <div class="panel-header"><h2>Windows: the RPA Worker app</h2><span class="muted">M10.1: no uv, git or Python needed</span></div>
       <div class="panel-body prose">
         <ol>
-          <li>From the GitHub repository's <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a>, download <code>RPA-Worker-Setup-VERSION-windows-x64.exe</code> (the installer) for the same version as the management portal. To test a version that is not released yet, download <code>worker-windows-latest</code> under <strong>Artifacts</strong> of the “Desktop build” run of a PR or of <code>main</code> instead (it contains the installer and the portable zip).</li>
+          <li>From the GitHub repository's <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/releases">Releases</a>, download <code>RPA-Worker-Setup-VERSION-windows-x64.exe</code> (the installer) for the same version as the management portal. To test a version that is not released yet, download <code>worker-windows-latest</code> under <strong>Artifacts</strong> of the “Desktop build” run of a PR or of <code>main</code> instead (it contains the installer and the portable zip).</li>
           <li>Run the installer. It is not code-signed: when SmartScreen says “Windows protected your PC”, choose “More info › Run anyway”. Pick a language (Traditional Chinese by default) and choose Next through the pages: it installs for the current user only, <strong>without administrator rights</strong>, into <code>%LOCALAPPDATA%\Programs\RPA Worker</code>, with a Start menu shortcut (a desktop shortcut is optional), and opens RPA Worker when it finishes. If the WebView2 Runtime is missing, the installer installs it too (this needs an internet connection).</li>
           <li>When the window opens, paste the invitation from step 2 into the Invitation box (if you paste only the code, also enter the portal address), tick Firefox if you need it, and choose Pair.</li>
           <li>The first time it downloads Chromium (about 600 MB unpacked) and shows the progress in the window. Once the status says Online you are done; the devices page shows it online with its app version.</li>
@@ -104,7 +104,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite (code)</pre>
       <div class="panel-header"><h2>macOS: the RPA Worker app</h2><span class="muted">Apple silicon; same features as on Windows</span></div>
       <div class="panel-body prose">
         <ol>
-          <li>From <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a>, download <code>RPA-Worker-VERSION-macos-arm64.dmg</code> for the same version as the management portal (from the first release after the macOS version was added). To test a version that is not released yet, download <code>worker-macos-15</code> under <strong>Artifacts</strong> of a “Desktop build” run instead.</li>
+          <li>From <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/releases">Releases</a>, download <code>RPA-Worker-VERSION-macos-arm64.dmg</code> for the same version as the management portal (from the first release after the macOS version was added). To test a version that is not released yet, download <code>worker-macos-15</code> under <strong>Artifacts</strong> of a “Desktop build” run instead.</li>
           <li>Open the DMG and drag “RPA Worker” to Applications. It is not signed or notarized, so the first launch is blocked: in System Settings › Privacy &amp; Security, find RPA Worker near the bottom, allow it to open and enter your password (the same as for <a href="../design/desktop.html#signing">the recorder</a>). If you are comfortable with Terminal, <code>xattr -dr com.apple.quarantine "/Applications/RPA Worker.app"</code> also works.</li>
           <li>Then the same as on Windows: paste a worker invitation, choose Pair, let it download Chromium the first time, and you are done when the status says Online. From macOS 15, the first connection to the local network asks whether RPA Worker may find devices on your network: choose Allow.</li>
         </ol>
@@ -149,7 +149,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite (code)</pre>
       <div class="panel-header"><h2>macOS: the RPA Recorder app</h2><span class="muted">M10.2: no uv, git or Python needed; Apple silicon</span></div>
       <div class="panel-body prose">
         <ol>
-          <li>Download <code>RPA-Recorder-version-macos-arm64.dmg</code> for the same version as the portal from the repository's <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/releases">Releases</a> (from v0.3.0). To test an unreleased version, download <code>recorder-macos-15</code> (it contains the DMG) from the <strong>Artifacts</strong> of a “Desktop build” run for a PR or <code>main</code> instead. Open the DMG and drag “RPA Recorder” into Applications.</li>
+          <li>Download <code>RPA-Recorder-version-macos-arm64.dmg</code> for the same version as the portal from the repository's <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/releases">Releases</a> (from v0.3.0). To test an unreleased version, download <code>recorder-macos-15</code> (it contains the DMG) from the <strong>Artifacts</strong> of a “Desktop build” run for a PR or <code>main</code> instead. Open the DMG and drag “RPA Recorder” into Applications.</li>
           <li>It is not signed, so the first launch is blocked. Open “System Settings › Privacy &amp; Security”, find RPA Recorder near the bottom, allow it to open and enter your password (if you are comfortable with Terminal, <code>xattr -dr com.apple.quarantine "/Applications/RPA Recorder.app"</code> also works). From macOS 15 you are asked whether it may connect to devices on your local network; choose “Allow”.</li>
           <li>When the window opens, paste the <strong>recorder</strong> invitation from the Devices page into “Invitation” (enter the portal URL separately when pasting just the code), tick Firefox if you need it, and choose “Pair”. The first time it downloads Chromium and shows the progress; once connected it opens the portal, whose header shows “Via recorder “name””.</li>
         </ol>
