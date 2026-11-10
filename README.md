@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-11-10 07:28 America/Los_Angeles（PST，UTC−08:00）。共 59 次運行。
+更新：2026-11-10 07:28 America/Los_Angeles（PST，UTC−08:00）。共 60 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -12,7 +12,7 @@
 | CI | 17（0） | 13（0） | 4.4 分（0.0 分） | 8.1 分（0.0 分） | 0.1 分（0.0 分） | 131／21／0 分（0／0／0 分） |
 | 桌面端建置 | 13（0） | 12（0） | 0.2 分（0.0 分） | 7.0 分（0.0 分） | 0.1 分（0.0 分） | 1／25／31 分（0／0／0 分） |
 | 伺服器分發包 | 14（0） | 14（0） | 0.2 分（0.0 分） | 2.6 分（0.0 分） | 0.1 分（0.0 分） | 15／0／0 分（0／0／0 分） |
-| 一鍵安裝腳本 | 13（0） | 11（0） | 0.2 分（0.0 分） | 5.1 分（0.0 分） | 0.1 分（0.0 分） | 33／39／37 分（0／0／0 分） |
+| 一鍵安裝腳本 | 14（0） | 12（0） | 0.2 分（0.0 分） | 5.1 分（0.0 分） | 0.1 分（0.0 分） | 33／39／37 分（0／0／0 分） |
 | 每晚完整測試 | 1（0） | 0（0） | 64.9 分（0.0 分） | 64.9 分（0.0 分） | 0.1 分（0.0 分） | 60／55／76 分（0／0／0 分） |
 | 發布 | 1（0） | 1（0） | 8.0 分（0.0 分） | 8.0 分（0.0 分） | 0.1 分（0.0 分） | 5／6／11 分（0／0／0 分） |
 
@@ -20,7 +20,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-11-10 | 22 | 60 | 27 | 18 | 104 |
+| 2026-11-10 | 23 | 60 | 27 | 18 | 104 |
 | 2026-11-09 | 37 | 186 | 119 | 138 | 442 |
 
 ## 最慢的測試檔案（每份報告最近一次，括號是近 7 次的中位數）
@@ -251,6 +251,7 @@
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
 | 11-10 07:27 | 伺服器分發包 | PR | feat/login-locator-guide | success | 0.2 分 | 0.1 分 | [#42844572816](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42844572816/attempts/1) |
+| 11-10 07:27 | 一鍵安裝腳本 | PR | feat/login-locator-guide | success | 0.2 分 | 0.1 分 | [#42844572993](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42844572993/attempts/1) |
 | 11-10 07:20 | 桌面端建置 | PR | feat/login-locator-guide | success | 6.2 分 | 0.1 分 | [#42843257654](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42843257654/attempts/1) |
 | 11-10 07:20 | CI | PR | feat/login-locator-guide | success | 5.3 分 | 0.1 分 | [#42843257444](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42843257444/attempts/1) |
 | 11-10 07:20 | 伺服器分發包 | PR | feat/login-locator-guide | success | 2.6 分 | 0.1 分 | [#42843257347](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42843257347/attempts/1) |
@@ -289,5 +290,4 @@
 | 11-09 07:35 | 一鍵安裝腳本 | 推送 | main | success | 0.2 分 | 0.1 分 | [#42646195433](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42646195433/attempts/1) |
 | 11-09 07:35 | 伺服器分發包 | 推送 | main | success | 0.2 分 | 0.1 分 | [#42646195295](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42646195295/attempts/1) |
 | 11-09 07:35 | CI | 推送 | main | success | 8.7 分 | 0.1 分 | [#42646195389](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42646195389/attempts/1) |
-| 11-09 07:26 | 桌面端建置 | PR | docs/migration-record-2026-11-09 | success | 0.1 分 | 0.0 分 | [#42644628021](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42644628021/attempts/1) |
 
