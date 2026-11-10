@@ -15,13 +15,13 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261110-login-locator-guide；2026-11-10 07:13 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261110-login-locator-guide；2026-11-10 07:30 America/Los_Angeles（PST，UTC−08:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-10 06:38 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話附上需求第 (1) 項「已登入看到的元素使用難度過高，提供功能支援使用者依照引導取得 DSL 定位」與「添加登錄角色」表單的截圖，要求「調優」。驗收：不會寫 DSL 的使用者照著表單裡的步驟，能在瀏覽器裡點一個元素得到可用的定位器（存檔校驗通過、之後「登入」與「檢查」能用它判斷已登入）；沒有圖形介面時也有不必寫 DSL 的方式。</dd>
         <dt>範圍／不包含</dt><dd>範圍：<code>rpa_runner.picker</code>（點選層、寫法、在頁面上驗證）、<code>rpa_runner.login pick</code> 子命令、伺服器的點選工作階段與 <code>/api/locator-picks</code>、錄製端能力 <code>loginPick</code>、角色表單的引導（模板、portal.js、樣式）、訊息（繁中、英文；簡中由 bootstrap 產生）、Portal 設計文檔、測試。不包含：點選 iframe 裡的元素；人工登入時順便點選（點選的視窗不存登入狀態，存好角色後照常「登入」）；同一次對話的第 (2) 項（JSON 場景，另一個任務 <a href="20261110-json-scene-sections.html">20261110-json-scene-sections</a>）。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱與合併：使用者；接收方未指定。</dd>
         <dt>修改檔案／整合者</dt><dd><code>packages/rpa_runner/src/rpa_runner/{picker,login}.py</code>、<code>apps/server/src/rpa_server/{roles,api,render}.py</code>、<code>templates/roles.html</code>、<code>static/{portal.js,portal-app.css}</code>、server 的 locales、<code>apps/worker/src/rpa_worker/environment.py</code>（CAPABILITIES）、<code>tools/ci_roles.py</code>、<code>docs/{,en/}design/portal.html</code>、測試、本紀錄與任務索引。Claude 整合。和 PR #12 都改了 locales、portal.js、Portal 設計文檔與任務索引，插入位置已錯開；英文文檔的 <code>translation-source</code> 是同一行，後合併的那個要重新 stamp。</dd>
-        <dt>狀態</dt><dd>實作中：本地檢查完成，準備推送並開 PR。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>feat/login-locator-guide</code>，從 main 9ad7df4 開；PR 尚未建立。</dd>
+        <dt>狀態</dt><dd>待審閱：PR #13 的 CI 在 1036f10 全部通過；合併由使用者決定，人工驗收未執行。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>feat/login-locator-guide</code>，從 main 9ad7df4 開；<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/13">PR #13</a>。</dd>
         <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、系統 Python 3.13.18、Playwright 1.63.0 與 Chromium（<code>/opt/pw-browsers</code>，沒有 Firefox）。不能下載套件（<code>uv sync --locked</code> 失敗）；FastAPI、SQLAlchemy 不在，需要它們的測試只在 CI 跑。</dd>
       </dl></div>
@@ -39,8 +39,8 @@
       <div class="panel-header"><h2>進度、決定與下一步</h2></div>
       <div class="panel-body"><ul class="points">
         <li><strong>已完成：</strong>上述實作與測試、Portal 設計文檔（繁中、英文）。</li>
-        <li><strong>未完成：</strong>推送、PR、CI；簡中（bootstrap）；使用者在自己的電腦上用真的網站試點選（建議用測試網站的登入頁，以及回報的 ERP）。</li>
-        <li><strong>下一個具體動作：</strong>推送（提交訊息帶 [bootstrap]），等簡中產生後開 PR，確認最新 head 的 CI。</li>
+        <li><strong>未完成：</strong>使用者審閱與合併；人工驗收（在有畫面的電腦：新增角色 › 引導 › 打開瀏覽器 › 登入測試網站 › 開始點選 › 點右上角的使用者 › 使用這個 › 儲存 › 登入；再用回報的 ERP 試一次）；透過錄製端點選要等錄製端更新到含 <code>loginPick</code> 的版本。PR #12 若先合併，這個分支要 rebase 並重新 stamp 英文設計文檔。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱 PR #13；合併後升級伺服器與錄製端，照上面的步驟人工驗收。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無（本機的假套件中繼資料在倉庫外）。</li>
       </ul></div>
     </section>
@@ -54,7 +54,7 @@
           <tr><td>同上</td><td>ruff 0.16.9 check／format；pyright strict（1.1.414）看修改的檔案</td><td>通過；修改範圍 0 errors</td><td>完整 <code>uv run pyright</code> 交給 CI</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>簡中：bootstrap 產生（ffa9bda）。之後 1036f10 放寬一個測試的斷言（Firefox 可能把按鈕裡的點擊目標換成按鈕本身）。CI（PR #13，head 1036f10，2026-11-10 07:26 America/Los_Angeles（PST，UTC−08:00）結束）：<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42843257444">CI</a>、一鍵安裝腳本、RPA Python 運行環境、伺服器分發包、桌面端建置全部通過（靜態檢查、測試 Python 3.12／3.13、Worker 測試（Windows）、RPA Worker（Windows）、RPA 錄製端（macOS）、分發包 x64／arm64）。PR 上的瀏覽器測試依角色只跑 Chromium，<code>test_picker.py</code> 的 Firefox 組合由每天的完整測試承擔。人工驗收：未執行；審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -62,7 +62,7 @@
     </section>
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
-      <div class="panel-body"><ul class="points"><li>2026-11-10 07:13 America/Los_Angeles（PST，UTC−08:00），Claude：建立紀錄；完成實作與本地檢查。</li></ul></div>
+      <div class="panel-body"><ul class="points"><li>2026-11-10 07:13 America/Los_Angeles（PST，UTC−08:00），Claude：建立紀錄；完成實作與本地檢查。</li><li>2026-11-10 07:30 America/Los_Angeles（PST，UTC−08:00），Claude：推送 6d74a75，bootstrap 產生簡中 ffa9bda；開 PR #13；1036f10 放寬測試斷言；CI 全部通過。</li></ul></div>
     </section>
   </div>
 </main>
