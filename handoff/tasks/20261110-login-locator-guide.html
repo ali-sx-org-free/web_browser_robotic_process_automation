@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261110-login-locator-guide · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261110-login-locator-guide：引導取得「已登入時看得到的元素」的定位器</h1><p>登入角色表單的「已登入時看得到的元素（DSL 定位器）」要自己寫 DSL，使用者回報太難。表單加上引導：在瀏覽器裡點選元素產生定位器，或選種類、填上看到的內容。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261110-login-locator-guide；2026-11-10 07:13 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-10 06:38 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話附上需求第 (1) 項「已登入看到的元素使用難度過高，提供功能支援使用者依照引導取得 DSL 定位」與「添加登錄角色」表單的截圖，要求「調優」。驗收：不會寫 DSL 的使用者照著表單裡的步驟，能在瀏覽器裡點一個元素得到可用的定位器（存檔校驗通過、之後「登入」與「檢查」能用它判斷已登入）；沒有圖形介面時也有不必寫 DSL 的方式。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：<code>rpa_runner.picker</code>（點選層、寫法、在頁面上驗證）、<code>rpa_runner.login pick</code> 子命令、伺服器的點選工作階段與 <code>/api/locator-picks</code>、錄製端能力 <code>loginPick</code>、角色表單的引導（模板、portal.js、樣式）、訊息（繁中、英文；簡中由 bootstrap 產生）、Portal 設計文檔、測試。不包含：點選 iframe 裡的元素；人工登入時順便點選（點選的視窗不存登入狀態，存好角色後照常「登入」）；同一次對話的第 (2) 項（JSON 場景，另一個任務 <a href="20261110-json-scene-sections.html">20261110-json-scene-sections</a>）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱與合併：使用者；接收方未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>packages/rpa_runner/src/rpa_runner/{picker,login}.py</code>、<code>apps/server/src/rpa_server/{roles,api,render}.py</code>、<code>templates/roles.html</code>、<code>static/{portal.js,portal-app.css}</code>、server 的 locales、<code>apps/worker/src/rpa_worker/environment.py</code>（CAPABILITIES）、<code>tools/ci_roles.py</code>、<code>docs/{,en/}design/portal.html</code>、測試、本紀錄與任務索引。Claude 整合。和 PR #12 都改了 locales、portal.js、Portal 設計文檔與任務索引，插入位置已錯開；英文文檔的 <code>translation-source</code> 是同一行，後合併的那個要重新 stamp。</dd>
+        <dt>狀態</dt><dd>實作中：本地檢查完成，準備推送並開 PR。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>feat/login-locator-guide</code>，從 main 9ad7df4 開；PR 尚未建立。</dd>
+        <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、系統 Python 3.13.18、Playwright 1.63.0 與 Chromium（<code>/opt/pw-browsers</code>，沒有 Firefox）。不能下載套件（<code>uv sync --locked</code> 失敗）；FastAPI、SQLAlchemy 不在，需要它們的測試只在 CI 跑。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="design">
+      <div class="panel-header"><h2>做法</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>在瀏覽器裡點選：</strong>表單填好登入網址按「打開瀏覽器」→ <code>POST /api/locator-picks</code>（角色還不用存）→ 在操作的那台（Portal 這台或錄製端）啟動 <code>python -m rpa_runner.login pick</code>，和人工登入一樣開有頭視窗到登入網址。使用者登入後按「開始點選」，子程序在每個分頁放點選層（換頁後重放）：滑過的元素框起來，點一下記下那個元素與往上幾層，<strong>點擊不傳給網頁</strong>。依點到的元素與往上兩層產生寫法（測試代號 → 角色與名稱 → 文字 → title → alt → 穩定的 <code>#id</code>），每一種用執行時同一套 <code>resolve</code> 在頁面上找：找不到的不列，只有一個、看得到的排前面。表單列出寫法與找到幾個；「使用這個」填入，確認網址沒填時換成點選時的網址。填入、關掉表單、離開頁面或閒置 15 分鐘時關掉視窗；同時最多 4 個。</li>
+        <li><strong>自己填：</strong>選種類（頁面上的文字、按鈕、連結、測試代號、CSS）與看到的內容，產生一行定位器（需要時加引號，例如 <code>{ css: "#user-menu" }</code>）。沒有圖形介面時用這個。</li>
+        <li><strong>相容：</strong>錄製端的 App 回報能力 <code>loginPick</code>；舊的 App 沒有時說明要更新錄製端（沿用 <code>RecorderHub.require</code>）。點選的子程序在錄製端的允許清單 <code>rpa_runner.login</code> 裡，不用改錄製端的清單。</li>
+        <li><strong>決定（實作選擇）：</strong>點選視窗不存登入狀態、不和人工登入合併：角色要先有「已登入時看得到的元素」才能確認登入，合併會讓角色在沒有判斷依據時存下登入狀態。代價是新角色要登入兩次（點選一次、存登入狀態一次）。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>上述實作與測試、Portal 設計文檔（繁中、英文）。</li>
+        <li><strong>未完成：</strong>推送、PR、CI；簡中（bootstrap）；使用者在自己的電腦上用真的網站試點選（建議用測試網站的登入頁，以及回報的 ERP）。</li>
+        <li><strong>下一個具體動作：</strong>推送（提交訊息帶 [bootstrap]），等簡中產生後開 PR，確認最新 head 的 CI。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無（本機的假套件中繼資料在倉庫外）。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>9ad7df4＋本分支的修改；雲端容器、Chromium（Playwright 1.63.0）</td><td><code>pytest packages/rpa_runner/tests/test_picker.py</code></td><td>4 passed、3 skipped（沒有 Firefox）：寫法的規則；真的頁面上點選、點擊沒有傳給網頁、寫法與找到的數量；拿掉點選層後點擊照常；<code>pick</code> 子程序的命令流程</td><td>Firefox 交給 CI</td></tr>
+          <tr><td>同上（FastAPI、SQLAlchemy 以本機假模組代替，只為了匯入）</td><td><code>pytest apps/server/tests/test_role_guide_ui.py apps/server/tests/test_render.py</code></td><td>3＋58 passed：表單在 Chromium 裡打開瀏覽器、點選、填入（含確認網址）、關掉表單時關視窗、沒有畫面時自己填</td><td>需要資料庫的 <code>test_production_api.py</code> 新增 2 個 API 測試只在 CI 跑</td></tr>
+          <tr><td>同上</td><td>ruff 0.16.9 check／format；pyright strict（1.1.414）看修改的檔案</td><td>通過；修改範圍 0 errors</td><td>完整 <code>uv run pyright</code> 交給 CI</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points"><li>2026-11-10 07:13 America/Los_Angeles（PST，UTC−08:00），Claude：建立紀錄；完成實作與本地檢查。</li></ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
