@@ -10,6 +10,7 @@
 
     python -m rpa_runner.login check --out 目錄 --deadline 秒數 [--engine 瀏覽器] [--state 狀態檔]
     python -m rpa_runner.login capture --state 新狀態檔 [--engine 瀏覽器]
+    python -m rpa_runner.login pick [--engine 瀏覽器]
 
 設定以 JSON 放在環境變數 ``RPA_LOGIN``，Secrets 也從環境變數讀取。
 
@@ -23,6 +24,12 @@
   Portal 那台不需要瀏覽器。還沒登入時：視窗還開著就繼續等（使用者登入後再按一次「完成登入」），
   視窗已經關了就結束（退出碼 4）。收到 ``cancel`` 時不存。進度以一行一個 JSON 印在標準輸出：
   ready、checking、not_logged_in（url、message、closed）、saved（verified）、cancelled、error。
+
+- ``pick``（引導取得「已登入時看得到的元素」，2026-11-10）：和 ``capture`` 一樣在這台開視窗
+  到登入網址，使用者自己登入；標準輸入收到 ``pick`` 時在頁面放點選層
+  （:mod:`rpa_runner.picker`），使用者點一個元素後列出幾種 DSL 定位器與在頁面上找到幾個。
+  ``stop`` 停止點選、``cancel`` 結束；不存登入狀態。進度：ready、picking、stopped、
+  picked（url、candidates）、closed（使用者關了視窗）、cancelled、error。
 
 錯誤訊息換成看得懂的說明（:func:`describe_error`）：瀏覽器還沒下載時說要執行的命令；連不到
 127.0.0.1、localhost 時說明那是開瀏覽器的這台電腦自己。
@@ -52,6 +59,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from rpa_core.dsl import Locator, Scenario
 from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, parse_locale, set_locale
+from rpa_runner import picker
 from rpa_runner.browser import Deadline, DeadlineExceeded, plan_records, resolve, run_steps
 from rpa_runner.contexts import Engine, open_context
 from rpa_runner.files import LOGIN, LOGIN_SCREENSHOT, write_json
@@ -457,6 +465,84 @@ def capture(args: argparse.Namespace, settings: LoginSettings) -> int:
             # 視窗還開著：使用者繼續登入，之後再按一次「完成登入」
 
 
+def _pick_round(pages: Sequence[Page]) -> tuple[Page, list[dict[str, object]]] | None:
+    """點選中的一輪：有分頁點到了就回傳那一頁與點到的資料；其他分頁（換頁後）重新放點選層。"""
+    for page in pages:
+        chain = picker.picked(page)
+        if chain:
+            return page, chain
+        picker.install(page)
+    return None
+
+
+def pick(args: argparse.Namespace, settings: LoginSettings) -> int:
+    """引導取得「已登入時看得到的元素」：開視窗到登入網址，收到 pick 時讓使用者點選元素。
+
+    不存登入狀態（之後照常按「登入」）；使用者關掉視窗時結束。
+    """
+    commands: queue.Queue[str] = queue.Queue()
+    threading.Thread(target=_read_commands, args=(commands,), daemon=True).start()
+    engine = cast("Engine", args.engine)
+    with sync_playwright() as playwright, contextlib.ExitStack() as stack:
+        try:
+            context = open_context(
+                playwright,
+                engine,
+                headed=not args.headless,
+                timeout_ms=60_000,
+                budget_seconds=60,
+                stack=stack,
+                persistent=False,
+                no_viewport=True,  # 同 capture：有頭的 Firefox 不模擬固定大小
+            )
+            page = context.pages[0] if context.pages else context.new_page()
+            if settings.login_url:
+                page.goto(settings.login_url, wait_until="domcontentloaded", timeout=60_000)
+        except BaseException as error:
+            _emit("error", message=describe_error(error, url=settings.login_url))
+            return _EXIT_FAILED
+        _emit("ready")
+        picking = False
+        while True:
+            try:
+                command = commands.get_nowait()
+            except queue.Empty:
+                command = ""
+            if command == "cancel":
+                _emit("cancelled")
+                return EXIT_CANCELLED
+            pages = list(context.pages)
+            if not pages:
+                _emit("closed")
+                return 0
+            if command == "pick":
+                picking = True
+                _emit("picking")
+            elif command == "stop" and picking:
+                picking = False
+                for each in pages:
+                    picker.remove(each)
+                _emit("stopped")
+            if picking and (found := _pick_round(pages)) is not None:
+                picking = False
+                where, chain = found
+                for each in pages:
+                    picker.remove(each)
+                try:
+                    listed = [
+                        item.to_json() for item in picker.verify(where, picker.candidates(chain))
+                    ]
+                    url = where.url
+                except PlaywrightError:  # 剛好關掉了那個分頁
+                    listed, url = [], None
+                _emit("picked", url=url, candidates=listed)
+            try:
+                # 讓 Playwright 處理瀏覽器的事件（例如使用者關掉分頁），同時等下一個命令
+                pages[0].wait_for_timeout(_PUMP_MS)
+            except PlaywrightError:
+                time.sleep(0.05)
+
+
 # ---------------------------------------------------------------- 入口
 
 
@@ -480,12 +566,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     capturing.add_argument(
         "--engine", choices=["chromium", "firefox", "webkit"], default="chromium"
     )
+    picking = commands.add_parser("pick")
+    picking.add_argument("--headless", action="store_true", help=argparse.SUPPRESS)
+    picking.add_argument("--engine", choices=["chromium", "firefox", "webkit"], default="chromium")
     args = parser.parse_args(argv)
     settings = LoginSettings.from_json(cast("dict[str, object]", json.loads(os.environ[ENV_LOGIN])))
     if args.command == "check":
         if args.state:
             settings = dataclasses.replace(settings, state=Path(args.state))
         return check(args, settings, _secrets(settings))
+    if args.command == "pick":
+        return pick(args, settings)
     return capture(args, settings)
 
 

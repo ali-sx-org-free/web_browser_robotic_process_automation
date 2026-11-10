@@ -30,6 +30,7 @@ ROLES: Final[Mapping[str, str]] = {
     "apps/desktop/tests/test_selftest.py": "worker",
     # 錄製端：逐步調試、錄製、互動子程序、本機閘道
     "packages/rpa_runner/tests/test_debug.py": "recorder",
+    "packages/rpa_runner/tests/test_picker.py": "recorder",
     "apps/worker/tests/test_recorder.py": "recorder",
     "apps/worker/tests/test_interactive.py": "recorder",
     "apps/worker/tests/test_gateway.py": "recorder",

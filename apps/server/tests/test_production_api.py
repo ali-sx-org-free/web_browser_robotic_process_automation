@@ -265,6 +265,121 @@ def test_manual_login_that_cannot_be_confirmed_keeps_the_old_state(
     assert not (state.parent / "candidate.json").exists()
 
 
+SCRIPTED_PICK = dedent(
+    """\
+    import json
+    import os
+    import sys
+
+    settings = json.loads(os.environ["RPA_LOGIN"])
+    home = settings["loginUrl"].replace("/login", "/home")
+    found = [
+        {"locator": {"testId": "current-user"}, "text": "{ testId: current-user }", "count": 1,
+         "visible": True},
+        {"locator": {"text": "王小明"}, "text": "{ text: 王小明 }", "count": 2, "visible": True},
+    ]
+
+    def emit(event, **details):
+        print(json.dumps({"event": event, **details}, ensure_ascii=False), flush=True)
+
+    emit("ready")
+    for line in sys.stdin:
+        command = line.strip()
+        if command == "cancel":
+            emit("cancelled")
+            sys.exit(2)
+        if command == "pick":
+            emit("picking")
+            emit("picked", url=home + "#top", candidates=found)
+        elif command == "stop":
+            emit("stopped")
+    """
+)
+
+
+def scripted_pick(tmp: Path, seen: list[list[str]]) -> Callable[..., subprocess.Popen[str]]:
+    """假的點選子程序（不開瀏覽器）：pick 時馬上列出兩種寫法。"""
+    script = tmp / "scripted_pick.py"
+    script.write_text(SCRIPTED_PICK, encoding="utf-8")
+
+    def launcher(
+        command: list[str], *, env: dict[str, str], **options: object
+    ) -> subprocess.Popen[str]:
+        seen.append([*command[3:], env["RPA_LOGIN"]])
+        return subprocess.Popen(
+            [sys.executable, str(script)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            env=env,
+        )
+
+    return launcher
+
+
+def pick_state(client: Client, pick_id: str, status: str) -> JsonObject:
+    deadline = time.monotonic() + 30
+    while True:
+        data = body(client.get(f"/api/locator-picks/{pick_id}"), 200)
+        if data["status"] == status:
+            return data
+        assert time.monotonic() < deadline, data
+        time.sleep(0.05)
+
+
+def test_locator_pick_lists_candidates_from_the_login_page(
+    app: FastAPI, client: Client, tmp_path: Path
+) -> None:
+    """角色表單的引導（2026-11-10）：角色還不用存，開視窗到表單的登入網址，點選後列出寫法。"""
+    roles = services(app).roles
+    roles.display = True
+    seen: list[list[str]] = []
+    roles.launcher = scripted_pick(tmp_path, seen)
+    started = client.post(
+        "/api/locator-picks", json={"loginUrl": "http://127.0.0.1:9/login", "engine": "firefox"}
+    )
+    pick_id = str(body(started, 202)["id"])
+    assert seen[0][:3] == ["pick", "--engine", "firefox"]
+    assert json.loads(seen[0][3])["loginUrl"] == "http://127.0.0.1:9/login"
+    pick_state(client, pick_id, "ready")
+
+    body(client.post(f"/api/locator-picks/{pick_id}/pick"), 200)
+    picked = pick_state(client, pick_id, "picked")
+    assert picked["url"] == "http://127.0.0.1:9/home#top"
+    found = cast("list[JsonObject]", picked["candidates"])
+    assert [item["text"] for item in found] == ["{ testId: current-user }", "{ text: 王小明 }"]
+    # 不會因此建立角色或存登入狀態
+    assert body(client.get("/api/roles"))["roles"] == []
+
+    body(client.post(f"/api/locator-picks/{pick_id}/stop"), 200)
+    pick_state(client, pick_id, "ready")
+    unknown = client.post(f"/api/locator-picks/{pick_id}/screenshot")
+    assert error(unknown)["code"] == "pick_command_unknown"
+    assert body(client.delete(f"/api/locator-picks/{pick_id}"), 200)["status"] == "closed"
+    assert error(client.post(f"/api/locator-picks/{pick_id}/pick"))["code"] == "pick_not_ready"
+    assert client.get("/api/locator-picks/nope").status_code == 404
+
+
+def test_locator_pick_needs_a_window_and_a_login_url(app: FastAPI, client: Client) -> None:
+    roles = services(app).roles
+    roles.display = False
+    refused = client.post("/api/locator-picks", json={"loginUrl": "http://127.0.0.1:9/login"})
+    assert error(refused)["code"] == "display_unavailable"
+    page = client.get("/roles").text
+    assert "data-locator-guide" in page
+    assert 'data-guide="open" disabled' in page
+    assert "這台電腦沒有圖形介面，不能開視窗點選" in page
+    roles.display = True
+    assert error(client.post("/api/locator-picks", json={"loginUrl": "ftp://x"}))["code"] == (
+        "role_url_invalid"
+    )
+    wrong = client.post(
+        "/api/locator-picks", json={"loginUrl": "http://127.0.0.1:9/login", "engine": "webkit"}
+    )
+    assert error(wrong)["code"] == "role_engine_invalid"
+
+
 def test_check_needs_a_browser_here_or_a_recorder(app: FastAPI, client: Client) -> None:
     """伺服器沒有下載角色用的瀏覽器、也不是透過錄製端：「檢查」變灰並說明，角色的狀態不變。"""
     body(client.post("/api/roles", json={**ROLE, "engine": "firefox"}), 201)

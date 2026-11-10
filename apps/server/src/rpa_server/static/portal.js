@@ -1179,7 +1179,128 @@
     }
     const first = qs(editing ? '[name="name"]' : '[name="id"]', dialog);
     if (first) first.focus();
+    bindLocatorGuide(dialog);
     return dialog;
+  }
+
+  // 引導取得「已登入時看得到的元素」（2026-11-10）：使用者回報自己寫 DSL 定位器太難。
+  // 點選：在操作的那台開瀏覽器視窗到表單的登入網址，登入後點一個元素，從列出的寫法選一個填入；
+  // 表單關掉、頁面離開或填入之後就關掉那個視窗。自己填：選種類、填看到的內容，產生一行定位器。
+  const yamlScalar = value => {
+    const special = /^(?:~|null|Null|NULL|true|True|TRUE|false|False|FALSE)$/.test(value)
+      || /^[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?$/.test(value)
+      || /^(?:0o[0-7]+|0x[0-9a-fA-F]+)$/.test(value);
+    const plain = !special && value === value.trim() && /^[\p{L}\p{N}_/.][\p{L}\p{N}_/. ()-]*$/u.test(value);
+    return plain ? value : JSON.stringify(value);
+  };
+  const builtLocator = (kind, value) => {
+    const text = yamlScalar(value);
+    if (kind === 'button' || kind === 'link') return '{ role: ' + kind + ', name: ' + text + ' }';
+    return '{ ' + kind + ': ' + text + ' }';
+  };
+  const withoutHash = url => String(url || '').split('#')[0];
+
+  function bindLocatorGuide(dialog) {
+    const guide = qs('[data-locator-guide]', dialog);
+    if (!guide) return;
+    const field = qs('[name="check"]', dialog);
+    const status = qs('[data-guide-status]', guide);
+    const list = qs('[data-guide-candidates]', guide);
+    const control = name => qs('[data-guide="' + name + '"]', guide);
+    const open = ['starting', 'ready', 'picking', 'picked'];
+    let pick = null, timer = null, shown = '';
+    const say = text => { status.textContent = text || ''; };
+    const close = () => {
+      clearInterval(timer);
+      timer = null;
+      if (pick && open.includes(pick.status)) {
+        // 頁面離開時一般的請求會被取消：keepalive 讓關閉視窗的請求送得出去
+        fetch('/api/locator-picks/' + path(pick.id), {method: 'DELETE', keepalive: true}).catch(() => {});
+      }
+      pick = null;
+    };
+    const render = data => {
+      pick = data;
+      const state = data.status;
+      control('open').hidden = open.includes(state);
+      control('pick').hidden = !['ready', 'picked'].includes(state);
+      control('stop').hidden = state !== 'picking';
+      control('close').hidden = !open.includes(state);
+      if (state === 'picked' && !data.candidates.length) say(messages.guide_none);
+      else say(data.message || messages['guide_' + state] || '');
+      const key = state === 'picked' ? JSON.stringify(data.candidates) : '';
+      if (key !== shown) {
+        shown = key;
+        list.innerHTML = state === 'picked' ? data.candidates.map((item, index) => {
+          const found = item.count === 1 ? messages.guide_count_one : fill(messages.guide_count_many, {count: item.count});
+          const note = found + (item.visible ? '' : messages.list_separator + messages.guide_hidden);
+          return '<li><code>' + esc(item.text) + '</code><span class="cell-sub">' + esc(note) + '</span>'
+            + '<button type="button" class="text-btn" data-guide-use="' + index + '">' + esc(messages.guide_use) + '</button></li>';
+        }).join('') : '';
+        list.hidden = !list.innerHTML;
+      }
+      if (!open.includes(state)) { clearInterval(timer); timer = null; }
+    };
+    const refresh = async () => {
+      if (!pick) return;
+      const result = await api('GET', '/api/locator-picks/' + path(pick.id));
+      if (pick && result.ok) render(result.data);
+    };
+    const kind = qs('[data-guide-kind]', guide);
+    const value = qs('[data-guide-value]', guide);
+    const kindHint = qs('[data-guide-kind-hint]', guide);
+    kind.addEventListener('change', () => {
+      const option = kind.selectedOptions[0];
+      kindHint.textContent = option.dataset.hint;
+      value.placeholder = option.dataset.placeholder;
+    });
+    guide.addEventListener('click', async event => {
+      const use = event.target.closest('[data-guide-use]');
+      if (use && pick) {
+        const item = pick.candidates[Number(use.dataset.guideUse)];
+        field.value = item.text;
+        const checkUrl = qs('[name="checkUrl"]', dialog);
+        const loginUrl = withoutHash(qs('[name="loginUrl"]', dialog).value.trim());
+        const url = withoutHash(pick.url);
+        const moved = !checkUrl.value.trim() && /^https?:/.test(url) && url !== loginUrl;
+        if (moved) checkUrl.value = url;
+        close();
+        render({id: '', status: 'closed', message: moved ? messages.guide_used_url : messages.guide_used, candidates: []});
+        pick = null;
+        field.focus();
+        return;
+      }
+      const button = event.target.closest('[data-guide]');
+      if (!button) return;
+      const action = button.dataset.guide;
+      if (action === 'build') {
+        const text = value.value.trim();
+        if (!text) { say(messages.guide_need_value); value.focus(); return; }
+        field.value = builtLocator(kind.value, text);
+        say(messages.guide_used);
+        field.focus();
+      } else if (action === 'open') {
+        const loginUrl = qs('[name="loginUrl"]', dialog).value.trim();
+        if (!loginUrl) { say(messages.guide_need_url); qs('[name="loginUrl"]', dialog).focus(); return; }
+        busy(button, true);
+        const result = await api('POST', '/api/locator-picks', {loginUrl, engine: qs('[name="engine"]', dialog).value});
+        busy(button, false);
+        if (!result.ok) { say(errorMessage(result)); return; }
+        render(result.data);
+        clearInterval(timer);
+        timer = setInterval(refresh, 800);
+      } else if ((action === 'pick' || action === 'stop') && pick) {
+        const result = await api('POST', '/api/locator-picks/' + path(pick.id) + '/' + action);
+        if (!result.ok) { say(errorMessage(result)); return; }
+        render(result.data);
+      } else if (action === 'close') {
+        close();
+        render({id: '', status: 'closed', message: null, candidates: []});
+        pick = null;
+      }
+    });
+    $('#dialog').addEventListener('close', close, {once: true});
+    window.addEventListener('pagehide', close, {once: true});
   }
 
   function roleBody(dialog) {
