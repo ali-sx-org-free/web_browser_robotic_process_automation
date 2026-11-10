@@ -1,12 +1,25 @@
 """改寫場景檔的入參、出參段落（表單編輯），以及產生 YAML 片段。"""
 
+import json
 from pathlib import Path
 from textwrap import dedent
+from typing import cast
 
 import pytest
 
 from rpa_core.dsl import validate_text
-from rpa_core.dsl.editing import find_block, rename_input, replace_contract
+from rpa_core.dsl.editing import (
+    SectionError,
+    append_items,
+    contract_section,
+    find_block,
+    json_document,
+    rename_input,
+    replace_contract,
+    replace_section,
+    section_line,
+    section_text,
+)
 from rpa_core.dsl.yaml_loader import load_yaml
 from rpa_core.dsl.yaml_writer import block, flow, scalar
 
@@ -239,3 +252,170 @@ def test_append_items_follows_the_existing_indentation() -> None:
     assert append_items(flow, "secrets", ["  - B"], whole=["secrets:", "  - A", "  - B"]) == (
         "schemaVersion: 1\nsecrets:\n  - A\n  - B\n"
     )
+
+
+# ---------------------------------------------------------------- JSON 寫法的場景檔（2026-11-10）
+
+JSON_SCENARIO = (
+    json.dumps(
+        {
+            "schemaVersion": 1,
+            "id": "demo",
+            "name": "示範",
+            "inputs": {"title": {"type": "string", "default": "舊的"}},
+            "deadline": 120000,
+            "steps": [
+                {"id": "open", "action": "goto", "url": "https://example.com/"},
+                {
+                    "id": "fill",
+                    "action": "fill",
+                    "target": {"label": "標題"},
+                    "value": '{{ inputs.title }} / {{ inputs["title"] }}',
+                },
+                {"id": "read", "action": "extract", "target": {"css": "#result"}, "as": "result"},
+            ],
+            "verify": [{"name": "有結果", "value": "{{ facts.result }}", "notEmpty": True}],
+            "outputs": {"result": {"type": "string", "from": "{{ facts.result }}"}},
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    + "\n"
+)
+"""壓成一行的 JSON 場景檔：使用者回報的寫法（AI 產生），可以執行，但段落不能顯示與編輯。"""
+
+
+def _keys(text: str) -> list[str]:
+    return list(json.loads(text))
+
+
+def test_json_document_only_accepts_a_plain_json_object() -> None:
+    assert json_document(JSON_SCENARIO) is not None
+    assert json_document("﻿  " + JSON_SCENARIO) is not None
+    assert json_document(SECTIONS) is None
+    assert json_document("[1, 2]") is None
+    assert json_document('{"a": 1, "a": 2}') is None  # 重複的鍵交給校驗說明
+    assert json_document('{"a": NaN}') is None
+    assert json_document("{ a: 1 }") is None  # YAML 的流式寫法不是 JSON
+
+
+def test_section_text_of_a_json_scenario_is_a_json_object_with_that_key() -> None:
+    steps = section_text(JSON_SCENARIO, "steps")
+    assert steps.startswith('{\n  "steps": [\n    {\n      "id": "open",')
+    assert json.loads(steps) == {"steps": json.loads(JSON_SCENARIO)["steps"]}
+    assert '"label": "標題"' in steps  # 中文不跳脫
+    assert json.loads(section_text(JSON_SCENARIO, "inputs")) == {
+        "inputs": {"title": {"type": "string", "default": "舊的"}}
+    }
+    assert section_text(JSON_SCENARIO, "secrets") == ""
+
+
+def test_replacing_a_section_of_a_json_scenario_keeps_it_json() -> None:
+    """回報的問題：入參存檔時在 JSON 後面接上 YAML，出現「expected '<document start>'」。"""
+    yaml_inputs = (
+        "inputs:\n  title:\n    type: string\n    default: 新的\n  count:\n    type: integer"
+    )
+    json_inputs = '{"inputs": {"title": {"type": "string", "default": "新的"}, "count": {}}}'
+    for section in (yaml_inputs, json_inputs):
+        text = replace_section(JSON_SCENARIO, "inputs", section)
+        assert text.endswith("}\n")
+        assert text.count("\n") == 1  # 壓成一行的還是一行
+        assert _keys(text) == _keys(JSON_SCENARIO)  # 鍵的順序不變
+        assert json.loads(text)["inputs"]["title"]["default"] == "新的"
+        assert validate_text(text).ok
+    assert replace_section(JSON_SCENARIO, "steps", section_text(JSON_SCENARIO, "steps")) == (
+        JSON_SCENARIO
+    )
+
+
+def test_adding_and_removing_sections_of_a_json_scenario() -> None:
+    without = replace_section(JSON_SCENARIO, "verify", "")
+    assert "verify" not in json.loads(without)
+    again = replace_section(without, "verify", section_text(JSON_SCENARIO, "verify"))
+    assert again == JSON_SCENARIO  # 加回來時接在 steps 後面
+    no_inputs = replace_section(JSON_SCENARIO, "inputs", "  \n")
+    added = replace_section(no_inputs, "inputs", "inputs:\n  q: { type: string }")
+    assert _keys(added).index("inputs") < _keys(added).index("deadline")
+
+
+def test_json_scenarios_keep_their_indentation_and_line_endings() -> None:
+    data = json.loads(JSON_SCENARIO)
+    pretty = json.dumps(data, ensure_ascii=False, indent=4).replace("\n", "\r\n")
+    text = replace_section(pretty, "inputs", "inputs:\n  title: { type: string }")
+    assert text.startswith('{\r\n    "schemaVersion": 1,')
+    assert "\n" not in text.replace("\r\n", "")
+    assert not text.endswith("\n")
+    spaced = json.dumps(data, ensure_ascii=False) + "\n"
+    assert replace_section(spaced, "inputs", section_text(spaced, "inputs")) == spaced
+
+
+def test_unreadable_or_wrong_sections_raise_section_error() -> None:
+    with pytest.raises(SectionError) as caught:
+        replace_section(JSON_SCENARIO, "steps", '{\n  "steps": [\n    {"id" "a"}\n  ]\n}')
+    assert caught.value.error is not None
+    assert caught.value.position is not None
+    assert caught.value.position.line == 3  # 段落裡的行號
+    with pytest.raises(SectionError) as caught:
+        replace_section(JSON_SCENARIO, "steps", '{"verify": []}')
+    assert caught.value.error is None
+    with pytest.raises(SectionError):
+        replace_section(SECTIONS, "steps", '{"steps": [], "verify": []}')
+
+
+def test_json_sections_in_a_yaml_scenario_become_block_yaml() -> None:
+    steps = '{"steps": [{"id": "open", "action": "goto", "url": "https://example.com/"}, ' + (
+        '{"id": "ok", "action": "click", "target": {"role": "button", "name": "確定"}}]}'
+    )
+    text = replace_section(SECTIONS, "steps", steps)
+    assert "\nsteps:\n  - id: open\n" in text
+    assert "    target: { role: button, name: 確定 }\n" in text
+    assert "# 斷言的說明\nverify:" in text  # 其他段落一個字都不動
+    assert text.startswith("schemaVersion: 1\nid: demo\nname: 範例\n\nsteps:")
+    data, _ = load_yaml(text)
+    assert cast("dict[str, object]", data)["steps"] == json.loads(steps)["steps"]
+
+
+def test_replace_contract_of_a_json_scenario_renames_references_in_values() -> None:
+    text = replace_contract(
+        JSON_SCENARIO,
+        inputs={"headline": {"default": "x", "type": "string"}},
+        outputs={},
+        renames={"title": "headline"},
+    )
+    data = json.loads(text)
+    assert data["inputs"] == {"headline": {"type": "string", "default": "x"}}  # 欄位依固定順序
+    assert data["steps"][1]["value"] == '{{ inputs.headline }} / {{ inputs["headline"] }}'
+    assert "outputs" not in data
+    assert text.count("\n") == 1
+    assert replace_contract(JSON_SCENARIO, inputs=None, outputs=None) == JSON_SCENARIO
+    assert json.loads(
+        contract_section("outputs", {"a": {"from": "x", "type": "string"}}, as_json=True)
+    ) == {"outputs": {"a": {"type": "string", "from": "x"}}}
+
+
+def test_append_items_to_a_json_scenario() -> None:
+    step = ["  - id: next", "    action: goto", "    url: https://example.com/next"]
+    text = append_items(JSON_SCENARIO, "steps", step, whole=["steps:", *step])
+    assert [item["id"] for item in json.loads(text)["steps"]] == ["open", "fill", "read", "next"]
+    text = append_items(text, "inputs", ["  q:", "    type: string"], whole=[])
+    assert list(json.loads(text)["inputs"]) == ["title", "q"]
+    text = append_items(text, "secrets", ["  - PASSWORD"], whole=["secrets:", "  - PASSWORD"])
+    assert _keys(text).index("secrets") < _keys(text).index("steps")
+    assert append_items(text, "steps", ["  # 轉不了的一行"], whole=[]) == text
+    assert text.count("\n") == 1
+
+
+def test_section_line_points_into_the_section_text() -> None:
+    broken = replace_section(JSON_SCENARIO, "steps", '{"steps": [{"id": "a", "action": "goto"}]}')
+    issues = validate_text(broken).issues
+    assert issues
+    issue = issues[0]
+    assert issue.position is not None
+    assert issue.position.line == 1  # 整份只有一行
+    line = section_line(broken, "steps", issue.path, issue.position.line)
+    assert line == 3
+    assert section_text(broken, "steps").splitlines()[2] == "    {"
+    assert section_line(broken, "verify", issue.path, issue.position.line) is None
+    # YAML 寫法照舊用檔案的行號換算：段落第一行是 steps:
+    assert section_line(SECTIONS, "steps", ("steps", 0), 6) == 2
+    assert section_line(SECTIONS, "steps", ("verify", 0), 11) is None

@@ -33,12 +33,16 @@ from sqlalchemy.orm import Session, sessionmaker
 from rpa_core.dsl import GotoStep, Scenario, ScriptConfig, validate_file
 from rpa_core.dsl.editing import (
     SECTION_KEYS,
+    SectionError,
     contract_section,
-    find_block,
+    json_document,
     replace_contract,
     replace_section,
+    section_line,
+    section_value,
 )
 from rpa_core.dsl.files import ATTACHMENT_DIR, is_attachment_path
+from rpa_core.dsl.issues import issue_from_yaml_error
 from rpa_core.dsl.sources import attachment_files, scenario_sources
 from rpa_core.i18n import DEFAULT_LOCALE, Locale
 from rpa_core.pack import PackSource, PublishedRef, SceneManifest, parse_timestamp, timestamp
@@ -159,29 +163,63 @@ def _contract_specs(
     return converted, renames
 
 
-def render_contract(key: str, items: Sequence[Mapping[str, object]]) -> str:
-    """表格切換成 YAML：入參或出參段落的原文（不存檔、不校驗）。"""
+def render_contract(
+    key: str, items: Sequence[Mapping[str, object]], *, as_json: bool = False
+) -> str:
+    """表格切換成原文：入參或出參段落的原文（不存檔、不校驗）；``as_json`` 給 JSON 寫法的場景檔。"""
     if key not in ("inputs", "outputs"):
         raise _not_found("section_unknown", t("error.section_unknown", key=key))
     specs, _ = _contract_specs(items)
-    return contract_section(key, specs)
+    return contract_section(key, specs, as_json=as_json)
+
+
+def _issue_section_line(issue: Mapping[str, object], text: str, key: str) -> int | None:
+    """校驗問題在 ``key`` 這一段的原文裡是第幾行；不在這一段時回傳 None。"""
+    line = issue.get("line")
+    path = issue.get("path")
+    return section_line(
+        text,
+        key,
+        cast("list[str | int]", path) if isinstance(path, list) else (),
+        line if isinstance(line, int) else None,
+    )
 
 
 def _section_lines(issues: list[dict[str, object]], text: str, key: str) -> None:
-    """校驗問題落在這一段時，加上段落裡的行號 sectionLine（第一行是 ``key:``）。"""
-    found = find_block(text.splitlines(), key)
-    if found is None:
-        return
-    start, end = found
+    """校驗問題落在這一段時，加上段落裡的行號 sectionLine（第一行是段落原文的第一行）。"""
     for issue in issues:
-        line = issue.get("line")
-        if isinstance(line, int) and start < line <= end:
-            issue["sectionLine"] = line - start
+        if (found := _issue_section_line(issue, text, key)) is not None:
+            issue["sectionLine"] = found
 
 
-def _check_section(key: str, section: str) -> None:
-    """段落的原文要以 ``key:`` 開頭，而且只能有這一段（不能順便改其他最上層的鍵）。"""
+def _section_error(key: str, section: str, error: SectionError) -> ServiceError:
+    """段落讀不懂（附段落裡的行號）或不是只有 ``key`` 這一段。"""
+    if error.error is None:
+        json_form = section.lstrip().startswith("{")
+        message = t("error.section_key_json" if json_form else "error.section_key", key=key)
+        return _invalid("section_key", message)
+    issue = issue_json(issue_from_yaml_error(error.error))
+    # 位置是段落裡的；整份檔案的行號在這裡沒有意義
+    issue["line"] = None
+    issue["section"] = key
+    if error.position is not None:
+        issue["sectionLine"] = error.position.line
+    return _invalid("revision_invalid", t("error.revision_invalid", count=1), issues=[issue])
+
+
+def _check_section(key: str, section: str, source: str) -> None:
+    """段落的原文只能有 ``key`` 這一段（不能順便改其他最上層的鍵）。
+
+    YAML 寫法要以 ``key:`` 開頭。JSON 寫法的場景檔（``source``）或 JSON 寫法的段落
+    （``{"key": …}``）先讀成資料再檢查，讀不懂時問題附上段落裡的行號。
+    """
     if not section.strip():
+        return
+    if json_document(source) is not None or section.lstrip().startswith("{"):
+        try:
+            section_value(key, section)
+        except SectionError as error:
+            raise _section_error(key, section, error) from error
         return
     keys = [
         match.group(1)
@@ -1999,7 +2037,7 @@ class Services:
         files = dict(self.revision_files(scene_id, base))
         for key, text in (("inputs", inputs), ("outputs", outputs)):
             section = text.replace("\r\n", "\n").strip("\n")
-            _check_section(key, section)
+            _check_section(key, section, files[SCENARIO_FILE])
             files[SCENARIO_FILE] = replace_section(files[SCENARIO_FILE], key, section)
         if renames:
             files[SCENARIO_FILE] = replace_contract(
@@ -2009,12 +2047,11 @@ class Services:
         if not checked.ok:
             issues = [issue_json(issue) for issue in checked.issues]
             for key in ("inputs", "outputs"):
-                found = find_block(files[SCENARIO_FILE].splitlines(), key)
                 for issue in issues:
-                    line = issue.get("line")
-                    if found and isinstance(line, int) and found[0] < line <= found[1]:
+                    found = _issue_section_line(issue, files[SCENARIO_FILE], key)
+                    if found is not None:
                         issue["section"] = key
-                        issue["sectionLine"] = line - found[0]
+                        issue["sectionLine"] = found
             raise _invalid(
                 "revision_invalid", t("error.revision_invalid", count=len(issues)), issues=issues
             )
@@ -2037,7 +2074,7 @@ class Services:
         if script is not None and (key == "steps" or (key == "verify" and not script.uses_runtime)):
             raise _invalid("section_script", t("error.section_script"))
         section = text.replace("\r\n", "\n").strip("\n")
-        _check_section(key, section)
+        _check_section(key, section, files[SCENARIO_FILE])
         files[SCENARIO_FILE] = replace_section(files[SCENARIO_FILE], key, section)
         return files
 

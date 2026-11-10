@@ -856,6 +856,7 @@ def _pages() -> dict[str, str]:
             contract_data=CONTRACT,
             facts=FACTS,
             scripts=SCRIPTS,
+            script_format="yaml",
             script_counts=SCRIPT_COUNTS,
         ),
         "edit": render(
@@ -1101,6 +1102,43 @@ def test_scene_page_shows_versions_and_contract() -> None:
     assert 'id="contract-preview-mapping"' in html
     assert 'id="contract-inputs"' in html
     assert 'id="contract-outputs"' in html
+
+
+def test_scene_page_of_a_json_scenario_says_json() -> None:
+    """JSON 寫法的場景檔（2026-11-10）：原文的標籤、提示與腳本區都說明是 JSON。"""
+    scenario = _scenario()
+    scripts = {
+        "steps": '{\n  "steps": [\n    {"id": "open", "action": "goto", "url": "/"}\n  ]\n}',
+        "verify": '{\n  "verify": []\n}',
+    }
+    with use_locale("zh-Hant"):
+        html = render(
+            "scene.html",
+            page="domain:testsite",
+            title=SCENE.name,
+            domains=DOMAINS,
+            domain=DOMAIN,
+            scene=SCENE,
+            revisions=REVISIONS,
+            verifications=VERIFICATIONS,
+            scenario=scenario,
+            default_base_url=scenario.browser.base_url,
+            runs=[RUN],
+            needs=NEEDS,
+            contract_data={**CONTRACT, "format": "json"},
+            facts=FACTS,
+            scripts=scripts,
+            script_format="json",
+            script_counts=SCRIPT_COUNTS,
+        )
+    text = _text(html)
+    assert 'id="script-form"' in html
+    assert 'data-format="json"' in html.split('id="script-form"')[1].split(">")[0]
+    assert 'data-format="json"' in html.split('id="contract-workspace"')[1].split(">")[0]
+    assert "JSON 原文" in text
+    assert "YAML 原文" not in text
+    assert '{"steps": [ … ]}' in text
+    assert "&#34;steps&#34;: [" in html or "&quot;steps&quot;: [" in html
 
 
 def test_running_page_polls() -> None:
@@ -1396,6 +1434,7 @@ def _english_domain_pages() -> dict[str, str]:
                 contract_data=CONTRACT,
                 facts=FACTS,
                 scripts=SCRIPTS,
+                script_format="yaml",
                 script_counts=SCRIPT_COUNTS,
             ),
             **_m4_pages(scenario, english=True),

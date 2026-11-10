@@ -59,12 +59,14 @@
     </form>
   </section>
 
-  {#- 2. 腳本：自動化腳本與斷言腳本在同一個區域切換，存成一個新版本 -#}
+  {#- 2. 腳本：自動化腳本與斷言腳本在同一個區域切換，存成一個新版本。
+      JSON 寫法的場景檔（2026-11-10）：兩段都是 {"steps": [...]} 這樣的 JSON，存檔時整份保持 JSON -#}
   {% set dsl = scenario is not none and scenario.script is none %}
   <section class="panel scene-script" id="script" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}" data-archived="{{ '1' if scene.archived else '0' }}"{% if dsl %} data-editable="1"{% endif %}>
     <div class="panel-header">
       <div class="header-main">
         <h2>{{ t("scene.scripts") }}</h2>
+        {% if dsl and script_format == "json" %}<span class="tag" title="{{ t('scene.json_title') }}">JSON</span>{% endif %}
         <div class="segmented" role="tablist" aria-label="{{ t('scene.scripts') }}">
           {% if dsl %}
           <button type="button" role="tab" class="active" aria-selected="true" data-script-tab="steps">{{ t("card.automation") }} <span class="count" id="script-count-steps">{{ script_counts.steps }}</span></button>
@@ -77,7 +79,7 @@
       <a class="text-btn external-link" href="/scenes/{{ scene.id }}/edit" target="_blank" rel="noopener" title="{{ t('scene.whole_file_title') }}">{{ t("scene.whole_file") }}<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
     </div>
     {% if dsl %}
-    <form class="panel-body stack" id="script-form" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}" data-key="steps">
+    <form class="panel-body stack" id="script-form" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}" data-key="steps" data-format="{{ script_format }}">
       <ul class="checklist form-issues issue-links" id="script-issues" role="alert" hidden></ul>
       <div class="editor-layout">
         <div class="stack">
@@ -85,7 +87,7 @@
           <div data-script-part="{{ part }}"{% if part != "steps" %} hidden{% endif %}>
             <textarea class="code-editor" name="{{ part }}" rows="22" spellcheck="false" aria-label="{{ t('card.automation') if part == 'steps' else t('card.assertion') }}"{% if scene.archived %} disabled{% endif %}>
 {{ scripts[part] }}</textarea>
-            <p class="hint">{{ t("section.hint_" + part) }}</p>
+            <p class="hint">{{ t("section.hint_" + part + ("_json" if script_format == "json" else "")) }}</p>
           </div>
           {% endfor %}
         </div>

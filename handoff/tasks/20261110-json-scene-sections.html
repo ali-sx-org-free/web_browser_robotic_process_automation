@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261110-json-scene-sections · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261110-json-scene-sections：JSON 寫法的場景檔顯示與編輯腳本、入參與出參</h1><p>整份寫成一個 JSON 物件的場景檔（AI 產生、壓成一行）可以執行，但場景頁的自動化腳本、斷言腳本、入參、出參都是空的；編輯入參、出參存檔時報「第 1 行 YAML 語法錯誤：expected '&lt;document start&gt;', but found '&lt;block mapping start&gt;'」。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261110-json-scene-sections；2026-11-10 07:52 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-10 06:38 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話附上需求（第 (2) 項）與一份壓成一行的 JSON 場景（採購關單配置清單-組合查詢；業務內容不寫進倉庫），要求「調優」。驗收：JSON 場景檔的四段在場景頁以 JSON 顯示；四段都能編輯存檔，存檔後整份仍是 JSON 且能通過校驗；問題標出段落裡的行號；YAML 場景檔的行為不變。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：<code>rpa_core.dsl.editing</code>（段落讀寫認得 JSON 寫法）、伺服器的段落檢查與行號、<code>POST /api/contract/render</code> 的 <code>format</code>、場景頁的標籤、提示與「插入檢查」、訊息（繁中、英文；簡中由 bootstrap 產生）、正式文檔（Portal 設計、Agent API 指南）、測試。不包含：完整場景檔編輯器與逐步調試的整份原文（照原文顯示，不改寫法）；把 JSON 場景檔轉成 YAML 的功能；同一次對話的第 (1) 項（登入元素的引導）另開任務。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱與合併：使用者；接收方未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>packages/rpa_core/src/rpa_core/dsl/editing.py</code>、<code>apps/server/src/rpa_server/{services,api,pages,render}.py</code>、<code>templates/{scene,_contract}.html</code>、<code>static/portal.js</code>、server 的 locales、<code>docs/{,en/}design/portal.html</code>、<code>docs/{,en/}develop/agent-api-guide.html</code>、相關測試、本紀錄與任務索引。Claude 整合；locales 與任務索引是共用檔案，合併前以最新 main 重新確認。</dd>
+        <dt>狀態</dt><dd>待審閱：PR #13 合併後已把 main 合併進來、解決衝突（見追加紀錄），等最新 head 的 CI；合併由使用者決定，人工驗收未執行。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>fix/json-scene-sections</code>，從 main 9ad7df4（PR #11 合併後）開；<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/12">PR #12</a>。</dd>
+        <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13.18。這個環境不能下載套件：<code>uv sync --locked</code> 失敗（快取缺 cryptography 等），改用系統 Python 已有的 pydantic、PyYAML、Jinja2、pytest 跑 rpa_core 與不需資料庫的測試；ruff 0.16.9、pyright 1.1.414 取自本機快取。需要 FastAPI、SQLAlchemy 的伺服器測試與簡中產生（OpenCC）交給 CI 與 bootstrap。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="cause">
+      <div class="panel-header"><h2>原因</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>段落是用行切的：</strong><code>editing.find_block</code> 找「第一欄開始的 <code>key:</code>」那一行。JSON 寫法沒有這種行（整份只有一行 <code>{"schemaVersion":1,…}</code>），所以 <code>section_text</code> 四段都回傳空字串，場景頁的腳本與入參、出參原文是空的。表格是用解析後的資料畫的，看起來正常。</li>
+        <li><strong>存檔接在後面：</strong><code>replace_section</code> 找不到段落就把新段落（YAML 區塊寫法）加在檔案最後，變成「一行 JSON＋<code>inputs:</code>…」，YAML 讀到第二個文件開頭的鍵報 <code>expected '&lt;document start&gt;'</code>；問題換算成段落行號時剛好是第 1 行。</li>
+        <li><strong>功能本身正常：</strong>JSON 是合法的 YAML，<code>load_yaml</code> 讀得懂，所以執行、驗證沒有問題。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong><code>json_document</code> 判斷整份是不是 JSON 物件（重複的鍵、NaN 不算，交給校驗說明）；JSON 場景檔的段落原文是只有那個鍵的 JSON 物件（縮排兩格），存檔把那個鍵的值換掉、整份照原本的寫法（壓成一行、或原本的縮排與 CRLF）寫回，鍵的順序不變，新增的段落位置和 YAML 相同；段落寫 YAML 也收。入參改名在 JSON 資料的字串值裡改（<code>inputs["舊名"]</code> 在 JSON 原文裡有跳脫的引號，用原文的正規表示式改不到）。錄製接在既有 JSON 場景後面時，項目讀成資料接在清單或物件後面。YAML 場景檔收到 JSON 寫法的段落時轉成區塊寫法。讀不懂的段落拋出 <code>SectionError</code>，伺服器回 422，問題附段落裡的行號；校驗問題的段落行號在 JSON 場景檔改用資料路徑在段落原文裡找。場景頁：腳本區標「JSON」、提示說明 JSON 寫法；契約工作台的原文標籤是「JSON 原文」，表格切到原文與存檔用 <code>format: "json"</code>；「插入檢查」在 JSON 斷言腳本裡加一個物件，原文不是正確 JSON 時提示先修正。</li>
+        <li><strong>決定（實作選擇）：</strong>JSON 場景檔不自動轉成 YAML、也不自動排版成多行：只改被編輯的那個鍵，其他內容的寫法照舊，和 YAML「其他行一個字都不動」的原則一致。段落原文用 <code>{"steps": …}</code> 而不是只放值，和 YAML 的段落以 <code>steps:</code> 開頭對應，貼回去時也能檢查鍵對不對。</li>
+        <li><strong>未完成：</strong>使用者審閱與合併；人工驗收（用回報的那份 JSON 場景：四段都顯示 JSON；改入參的預設值存檔後，「完整場景檔」還是一行 JSON）。和 PR #13（登入元素的引導）都改了 locales、portal.js、Portal 設計文檔與任務索引，插入位置已錯開；英文設計文檔的 <code>translation-source</code> 是同一行，後合併的那個要重新 stamp（PR #13 先合併，已在這個分支處理）。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱 PR #12；合併後在伺服器升級，開那份 JSON 場景確認。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。本機為了跑測試建的假套件中繼資料與假 SQLAlchemy／FastAPI 在倉庫外，不提交。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>9ad7df4＋本分支的修改；雲端容器、系統 Python 3.13.18</td><td><code>pytest packages/rpa_core tests/docs -m "not browser"</code></td><td>811 passed（含 <code>test_editing.py</code> 新增的 JSON 測試 10 個）</td><td>無</td></tr>
+          <tr><td>同上（FastAPI、SQLAlchemy 以本機假模組代替，只為了匯入）</td><td><code>pytest apps/server/tests/test_render.py</code></td><td>59 passed（含新增的 JSON 場景頁渲染）</td><td>需要資料庫的 <code>test_production_api.py</code> 新增的 3 個測試只在 CI 跑</td></tr>
+          <tr><td>同上</td><td><code>ruff check</code>、<code>ruff format --check</code>（0.16.9）；pyright strict（1.1.414）只看修改的檔案</td><td>通過；修改的程式範圍 0 errors（其他錯誤都是本機沒有 SQLAlchemy、FastAPI 造成的未知型別）</td><td>完整 <code>uv run pyright</code> 交給 CI</td></tr>
+          <tr><td>同上</td><td><code>pytest tests/i18n</code></td><td>2 failed：server 的簡中缺新鍵、沒有 OpenCC；等 bootstrap</td><td>簡中</td></tr>
+          <tr><td>85de478；雲端容器、Chromium（Playwright 1.63.0）；FastAPI、SQLAlchemy 以假模組代替</td><td>臨時腳本（沒有提交）：渲染 JSON 場景的場景頁、攔截 API，在 Chromium 操作</td><td>斷言腳本「插入檢查」加一個 JSON 物件、游標停在 <code>"name": "</code>；原文不是正確 JSON 時提示先修正；契約表格切回原文時 <code>/api/contract/render</code> 帶 <code>format: "json"</code>；標籤是「JSON 原文」</td><td>沒有寫成自動測試</td></tr>
+          <tr><td>85de478（bootstrap 產生簡中）</td><td>bootstrap</td><td>通過，提交 85de478（server 的簡中、兩頁簡中文檔）</td><td>無</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI（PR #12，head 85de478，2026-11-10 07:15 America/Los_Angeles（PST，UTC−08:00）結束）：<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42841329725">CI</a>、一鍵安裝腳本、RPA Python 運行環境、伺服器分發包、桌面端建置全部通過（靜態檢查、測試 Python 3.12／3.13、Worker 測試（Windows）、RPA Worker（Windows）、分發包 x64／arm64）。之後只改本紀錄的推送依共用流程沿用這次的重工作。人工驗收：未執行；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points"><li>2026-11-10 06:57 America/Los_Angeles（PST，UTC−08:00），Claude：建立紀錄；找到原因並完成實作與本地檢查。</li><li>2026-11-10 07:20 America/Los_Angeles（PST，UTC−08:00），Claude：推送 c2c69e0，bootstrap 產生簡中 85de478；開 PR #12，CI 全部通過；補上瀏覽器裡的臨時檢查。</li><li>2026-11-10 07:52 America/Los_Angeles（PST，UTC−08:00），Claude：使用者要求解決 PR #12 的衝突。PR #13 已於 07:44 合併（main 3df0f0c）。把 origin/main 合併進本分支（ab9a5d1，merge，不改寫歷史、不強推）：衝突只有 <code>docs/en/design/portal.html</code> 的 <code>translation-source</code>，依合併後的繁中頁重新 stamp；locales、portal.js、render.py、Portal 設計文檔（繁中、簡中）、任務索引與 <code>test_production_api.py</code> 自動合併，兩邊的內容都在，三種語言的訊息鍵數相同。本機在合併結果上跑 <code>pytest packages/rpa_core tests/docs tests/i18n/test_catalogs.py apps/server/tests/test_render.py apps/server/tests/test_role_guide_ui.py packages/rpa_runner/tests/test_picker.py</code>：886 passed、3 skipped（沒有 Firefox）；ruff check／format 通過；重跑 JSON 場景頁的臨時瀏覽器檢查正常。簡中頁是兩邊 bootstrap 結果的自動合併，本機沒有 OpenCC，由 CI 的 <code>tests/i18n</code> 確認。</li></ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
