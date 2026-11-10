@@ -15,12 +15,12 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261024-python-scripts；2026-11-05 17:40 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261024-python-scripts；2026-11-10 00:22 America/Los_Angeles（PST，UTC−08:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>2026-10-24 的兩次需求見<a href="#revision">修訂說明</a>。第三版來自使用者在 Claude 專案對話的兩則訊息：2026-10-29 06:19 America/Los_Angeles（PDT，UTC−07:00）提出命題「本機自動化 Python 腳本場景能不能和現有的場景模型相容，已實作的 Python 腳本場景最好也能適配；非瀏覽器的普通自動化節點也能運行在組合場景裡，讓瀏覽器場景和 Python 結合，補足檔案操作、資料處理、模型構建、網路操作」；06:39 回覆四項決定與分期（原文見<a href="#decisions">第 13 節</a>）。驗收條件見<a href="#goal">第 1 節</a>。</dd>
         <dt>範圍／不包含</dt><dd>這次實作 P0～P2（<a href="#phases">第 11 節</a>）：場景模型、入參與出參型別、組合場景的共用工作資料夾、派工、RPA Python 運行環境、<code>rpa_script</code>、file 出參、DSL 的下載步驟、報告與回看。規劃保留但這次不做（P3）：模型套件的選用運行環境層、腳本工作台、組合場景的扇出（foreach）。不包含：Python 節點開瀏覽器、運行環境模式的 Python 節點使用登入角色（D5：這一版不支援，之後視情況再決定）、錄製桌面操作、AI 生成腳本（M5）、使用者權限（M8）、Python 以外的語言。</dd>
         <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude。審閱與合併：使用者。Codex 先前接手的 PR #82（只有第二版設計）不再延續；第三版與實作在新分支，見下。</dd>
         <dt>修改檔案／整合者</dt><dd>本任務分支整合以下檔案：<code>packages/rpa_core</code>（DSL、組合場景）、新的 <code>packages/rpa_script</code>、<code>packages/rpa_runner</code>、<code>apps/worker</code>、<code>apps/server</code>、<code>apps/cli</code>、<code>apps/desktop</code>、<code>runtimes/python/</code>、<code>tools/</code>、<code>.github/workflows</code>、<code>docs/</code>、<code>scenarios/</code>、<code>schema/</code>、<code>handoff/</code>。共用檔案（<code>uv.lock</code>、多語言目錄、<code>docs/assets/nav.js</code>、任務索引、ADR 與遷移編號）由本分支整合；<code>uv.lock</code> 與簡中由 bootstrap 產生。</dd>
-        <dt>狀態</dt><dd>第三版設計已依使用者決定定稿。P0～P2 的程式、測試與文件都已提交（2026-10-30 補完合併回看裡 Python 節點的步驟時間軸、主控台逐步對應、經過 Portal 的瀏覽器＋Python 組合運行等測試、Portal／ADR／路線圖文件）。剩下人工驗收、PR 轉為可審閱與合併（使用者），列在<a href="#progress">第 15 節</a>。</dd>
+        <dt>狀態</dt><dd>第三版設計已依使用者決定定稿。P0～P2 的程式、測試與文件都已提交（2026-10-30 補完合併回看裡 Python 節點的步驟時間軸、主控台逐步對應、經過 Portal 的瀏覽器＋Python 組合運行等測試、Portal／ADR／路線圖文件）。PR #109 已於 2026-11-06 合併進 main（<code>e6cb462</code>）。<strong>人工驗收一～五在 2026-11-10 全部通過</strong>（使用者，MacBook，<code>d4f4aff</code>，見<a href="#validation">第 16 節</a>）；驗收六（三個系統一致）隨 v0.9.0 的草稿 Release 做，見<a href="20261110-release-0-9-0.html">發布任務</a>。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>feat/python-nodes</code>，從 <code>e5b585e</code>（origin/main，v0.8.0，#107）開；2026-11-05 合入 main <code>8c89539</code>（#110）；<a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/109">PR #109</a>（草稿，base main）。</dd>
         <dt>交接版本／同步狀態</dt><dd>推送到 <code>feat/python-nodes</code>；<code>uv.lock</code>、簡中、JSON Schema 由 bootstrap 產生（提交訊息含 [bootstrap]）。PR 已開（#109，草稿）；CI 結果見<a href="#validation">第 16 節</a>。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux x86_64、Python 3.13.18、uv 0.11.32、Ruff 0.16.9、Pyright 1.1.414）。這個環境連不到 PyPI 與瀏覽器下載站（代理回 403），所以不能 <code>uv sync</code>：<code>uv.lock</code>、簡中、JSON Schema 交給 bootstrap 產生，完整測試以 CI 為準；本機只跑得了用系統已有套件（Pydantic、PyYAML、Jinja2、click、Playwright 1.63，沒有瀏覽器）的測試。2026-10-30 的 Claude 雲端環境可以 <code>uv sync --locked</code>（.venv：Python 3.13.17、Ruff 0.17.1、Pyright 1.1.414），伺服器測試也能在本機跑；Chromium 用 <code>/opt/pw-browsers</code> 裡的舊版（以 <code>PLAYWRIGHT_BROWSERS_PATH</code> 指到 scratchpad 的連結），沒有 Firefox。</dd>
@@ -392,12 +392,11 @@ def main(run: Run) -&gt; None:
         </li>
         <li><strong>未完成（接手的人照這個順序）：</strong>
           <ol>
-            <li>人工驗收（第 11 節），步驟照<a href="https://claude.ai/artifact/CwgLXT8wHQCV7ifTweyjHi">Claude Docs 的驗收教程</a>（一台電腦用分支的原始碼啟動 Portal 做驗收一、二、三、五；驗收四要第二台；Worker App 版等合併後的草稿 Release）：Windows Worker 驗證並執行第 1 節的組合場景範例、看合併回看裡的 Python 段與主控台；macOS Worker 與 Linux <code>rpa worker</code> 各執行一次運行環境模式的範例；第二次執行的「運行環境」顯示「沿用」。</li>
-            <li>PR #109 轉為可審閱、更新 PR 說明；合併由使用者決定。P3（模型套件層、腳本工作台、foreach）只規劃不做；D5 已決定這一版不支援（第 13 節）。</li>
+            <li>人工驗收六：v0.9.0 的草稿 Release 裝到 Windows、macOS（Worker App）與 Linux（分發包）各一台，執行同一個運行環境模式的範例，結果一致；第二次「沿用」在 1 秒內；Windows 再跑一次組合場景。見<a href="20261110-release-0-9-0.html">發布任務</a>與<a href="https://claude.ai/artifact/9RCdhXMCUcYHHvtByyiHet">驗收教程</a>的驗收六。（驗收一～五已通過；PR #109 已合併。P3 只規劃不做；D5 這一版不支援，第 13 節。）</li>
           </ol>
         </li>
         <li><strong>決定：</strong>見第 13 節；寫進<a href="../decisions.html">決定</a>。D5 在 2026-11-05 17:16 America/Los_Angeles（PST，UTC−08:00） 決定這一版不支援、之後視情況。實作時確定（使用者授權「按建議」的細節）：<code>rpa_script</code> 不裝在運行環境裡，由 Runner 提供（6.2）；file 出參的值用 <code>{"workspace", …}</code>（不用 <code>path</code>，避免和「那台電腦上的路徑」混淆），Python 節點 outputs/ 的檔案複製到共用工作資料夾的 <code>.outputs/</code> 給下游。</li>
-        <li><strong>下一個具體動作：</strong>使用者照<a href="https://claude.ai/artifact/CwgLXT8wHQCV7ifTweyjHi">Claude Docs 的驗收教程</a>人工驗收，結果回填本頁；之後由使用者決定 PR #109 要不要轉成可審閱、合併。最新 head <code>70ea978</code>（合入 main 與 D5 之後）的 CI 全部通過（第 16 節）。</li>
+        <li><strong>下一個具體動作：</strong>發布 v0.9.0（<a href="20261110-release-0-9-0.html">20261110-release-0-9-0</a>）：版本 PR 合併、推標籤後，用草稿 Release 做驗收六，通過才發布。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -416,9 +415,10 @@ def main(run: Run) -&gt; None:
           <tr><td><code>7f7d14e</code>，GitHub Actions</td><td>CI、python-runtime.yml、桌面端建置、伺服器分發包</td><td>運行環境四個平台（建置、自我測試、真的運行環境跑 Python 節點測試、Linux 在 Rocky 8 自我測試）通過；伺服器分發包 x64／arm64（Rocky 8 執行範例 Python 節點）通過；RPA Worker（Windows）完整建置與自我測試（含範例 Python 節點）通過；Linux 測試 3.12／3.13、靜態檢查通過。Worker 測試（Windows）兩個 Firefox 的既有測試逾時（<code>test_run</code> 斷言失敗、<code>test_login</code>），重跑失敗的工作後通過（機器慢造成的偶發逾時）</td><td>RPA Worker（macOS）、錄製端在這次沒有跑（指紋沒變或之前已通過）；人工驗收未做</td></tr>
           <tr><td><code>f620e3a</code>＋P1 工作區差異，Claude 雲端環境（系統 Python 3.13.18、Ruff 0.16.9、Pyright 1.1.414、uv 0.11.32；沒有 .venv，連不到 PyPI）</td><td><code>ruff check .</code>、<code>ruff format --check .</code>；Pyright strict（改到的 tools、rpa_runner、桌面自我測試與它們的測試）；<code>pytest -m "not browser"</code>：packages、apps/worker、apps/testsite、apps/desktop、tests/ci、tests/examples；<code>tools/i18n.py stamp</code>、文檔連結檢查</td><td>Ruff 通過；Pyright 0 errors；1321 passed、7 skipped（Windows 專用、keyring、要真的運行環境的 2 個）；<code>test_lock_covers_every_requirement</code> 要 bootstrap 產生的鎖定檔，本機沒有跑；連結 0 個問題。f620e3a 的 CI 兩個失敗（Pyright：本機 Job 的 <code>workspace</code> 參數重複；<code>_macros.html</code> 在 StrictUndefined 下讀不存在的鍵）已修</td><td>運行環境的實際建置、自我測試與四個平台的 Python 節點測試、Worker App 與分發包的打包、Rocky 8：以 CI 為準；伺服器測試要 CI</td></tr>
           <tr><td>main <code>c9a9d7f</code>，Claude 雲端環境，系統的 Python 3.13.18 直接從原始碼執行（沒有 .venv）</td><td>第 2 節的查證：腳本場景冒煙測試 6 種情況與入參超出範圍；<code>check_workflow</code> 檢查瀏覽器＋Python＋瀏覽器的組合；<code>pytest -k script</code>（rpa_core 與 rpa_runner 不需要瀏覽器的部分）</td><td>全部符合預期；17 passed</td><td>沒有瀏覽器、沒有伺服器的依賴：Portal、Worker、瀏覽器的部分沒有跑</td></tr>
+          <tr><td>main <code>d4f4aff</code>（2026-11-09 搬到 <code>ali-sx-org-free</code> 後），使用者的 MacBook（Apple 晶片，macOS），一鍵安裝的原始碼與 <code>tools/build_python_runtime.py build --install</code> 建的運行環境 1.0.0；約 2026-11-09 21:50～2026-11-10 00:10 America/Los_Angeles（PST，依對話時間）</td><td>照 <a href="https://claude.ai/artifact/9RCdhXMCUcYHHvtByyiHet">Claude Docs 的「Python 節點人工驗收教程」</a>（2026-11-10 版，取代 10-29、10-30 的兩份教程）：一 命令列跑 <code>python-node</code>、第二次沿用、<code>branches={}</code> 失敗、<code>uv run --offline</code> 斷網執行、五種錯誤寫法；二 相容模式的 <code>ba-001-script</code>；三 Portal 驗證、發布、運行、報告與步驟時間軸；四 組合場景「下載 → 彙總 → 上傳」驗證與執行、合併回看；五 <code>PLAYWRIGHT_BROWSERS_PATH</code> 指到空資料夾的命令列 worker 領 Python 節點、DSL 場景排隊</td><td>一～五全部通過（使用者在教程的結果表填寫，證據欄寫「通過」）</td><td>六（Windows、macOS Worker App 與 Linux 分發包一致）未做，等草稿 Release；證據欄沒有執行目錄或運行編號；驗收四在同一台電腦（教程不需要第二台）</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：見上表，最新是 <code>70ea978</code> 全部通過（重的工作沿用同一批改動 <code>b93c3d5</code> 的完整建置）。人工驗收：未執行，照<a href="https://claude.ai/artifact/CwgLXT8wHQCV7ifTweyjHi">Claude Docs 的驗收教程</a>做。審閱：等使用者。</p></div>
+      <div class="panel-body"><p>CI：見上表，最新是 <code>70ea978</code> 全部通過（重的工作沿用同一批改動 <code>b93c3d5</code> 的完整建置）。人工驗收：一～五通過（2026-11-10，見上表最後一列）；六隨 v0.9.0 的草稿 Release 做。審閱：使用者已合併 PR #109。</p></div>
     </section>
 
     <section class="panel" id="receipt">
@@ -445,6 +445,7 @@ def main(run: Run) -&gt; None:
         <li>2026-11-05 17:30 America/Los_Angeles（PST，UTC−08:00），Claude：依使用者 17:16 的要求處理 PR #109 的衝突。#110（setup-uv v10.3.0 → v10.3.2）合併後 main 到了 <code>8c89539</code>；合入 main（<code>abb18dc</code>），#110 改到的 bootstrap、desktop、server-package 三個工作流程自動合併、沒有文字衝突；本分支新增的 <code>python-runtime.yml</code> 不在 #110 的範圍，還是 v10.3.0，另外升到 v10.3.2（<code>0b041a0</code>），現在全部工作流程一致。同時記錄使用者的 D5 決定（這一版不支援，之後視情況）：第 13 節、範圍、第 11 節的 P3、<a href="../decisions.html">決定</a>、ADR 0020（繁中、英文；簡中由 bootstrap 產生）。程式不用改：運行環境模式寫 <code>login</code> 本來就被校驗擋下。不重寫既有提交；PR 保持草稿，不合併。</li>
         <li>2026-11-05 17:40 America/Los_Angeles（PST，UTC−08:00），Claude：bootstrap 推了 <code>70ea978</code>（只有簡中 ADR 0020），快轉接收；最新 head 的 CI 一開始停在 action_required，以 API 核准後全部通過（第 16 節）。PR #109 的說明已補上這次合入 main 與 D5；GitHub 顯示可以合併（clean）。PR 保持草稿；剩下的仍是人工驗收與使用者的合併決定。</li>
         <li>2026-11-06 17:59 America/Los_Angeles（PST，UTC−08:00），Claude（<a href="20261106-docs-refresh-v0-8.html">20261106-docs-refresh-v0-8</a>，只回填狀態、不改本任務的內容）：GitHub 的紀錄是使用者 2026-11-06 04:55 America/Los_Angeles（PST，UTC−08:00）把 PR #109 合併到 main（merge <code>e6cb462</code>，合併時已不是草稿）；之後 main 只多了 setup-uv 的依賴更新 #112。還沒有發布：最新的 Release 是 v0.8.0，不含 Python 節點。本頁其他欄位（狀態、下一個具體動作）照共用流程留給本任務的主責更新；人工驗收仍是未執行。</li>
+        <li>2026-11-10 00:22 America/Los_Angeles（PST，UTC−08:00），Claude（<a href="20261110-release-0-9-0.html">20261110-release-0-9-0</a>）：倉庫已搬到 <code>ali-sx-org-free</code>（<a href="20261108-github-migration.html">遷移任務</a>），本頁的 PR #109 連結指向舊倉庫。2026-11-10 寫了新的驗收教程，使用者 00:13 回報驗收一～五在 MacBook 以 <code>d4f4aff</code> 全部通過；回填狀態、第 15、16 節。過程中更正教程的幾處畫面文字（卡片不顯示運行環境、本機執行不出現在裝置頁、從終端機跑 App 自我測試要先設 <code>PLAYWRIGHT_BROWSERS_PATH</code>）。版本照建議用 0.9.0。</li>
       </ul></div>
     </section>
   </div>

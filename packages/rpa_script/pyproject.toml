@@ -1,6 +1,6 @@
 [project]
 name = "rpa-script"
-version = "0.8.0"
+version = "0.9.0"
 description = "Python 節點的腳本介面（ADR 0020）：步驟、事實、產出檔案、資料預覽；只用標準函式庫，裝在 RPA Python 運行環境裡"
 requires-python = ">=3.12"
 dependencies = []
