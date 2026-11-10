@@ -13,6 +13,9 @@
 - 執行的結果也會更新角色的狀態：需要登入的執行把角色標成需要登入，通過登入檢查的標成已登入。
 - 角色的定義放在領域資料夾的 ``roles/<角色>.yaml``（M11），跟著領域同步；資料庫是它的索引，
   登入檢查的結果只在資料庫。
+- **引導取得「已登入時看得到的元素」**（2026-11-10）：角色表單裡的「點選」在操作的那台開瀏覽器視窗到
+  表單填的登入網址（角色還不用存），使用者登入後在頁面上點一個元素，列出幾種 DSL 定位器與在頁面上
+  找到幾個（子程序 ``rpa_runner.login pick``）。不存登入狀態；表單關掉或閒置太久就關掉視窗。
 """
 
 import contextlib
@@ -54,7 +57,7 @@ if TYPE_CHECKING:
     from rpa_server.devices import RecorderHub
     from rpa_server.packs import PackStore
 
-__all__ = ["CHECK_SECONDS", "LOGIN_SECONDS", "RoleService", "parse_locator"]
+__all__ = ["CHECK_SECONDS", "LOGIN_SECONDS", "PICK_LIMIT", "RoleService", "parse_locator"]
 
 CHECK_SECONDS: Final = 60.0
 """檢查是否已登入（含自動登入）最多花多久。"""
@@ -69,6 +72,12 @@ BROWSERS_TTL: Final = 300.0
 """這台下載了哪些瀏覽器：判斷的結果快取這麼久（秒）。"""
 STATE_COPY: Final = "state.json"
 """登入檢查用的登入狀態複本，放在檢查的資料夾裡；檢查通過後才取代角色的狀態。"""
+PICK_LIMIT: Final = 4
+"""同時開著的點選視窗最多幾個（角色表單的引導）。"""
+_PICK_OPEN: Final = frozenset({"starting", "ready", "picking", "picked"})
+_PICK_COMMANDS: Final = frozenset({"pick", "stop"})
+_PICK_FOLDER: Final = "_picks"
+"""點選子程序的日誌放在 roles/_picks/（角色代號不能以底線開頭，不會和角色的資料夾撞名）。"""
 
 
 class LocalBrowsers:
@@ -255,6 +264,37 @@ class _LoginSession:
         }
 
 
+@dataclass(slots=True)
+class _PickSession:
+    """角色表單的引導：一個點選視窗（開在操作的這台或錄製端）。"""
+
+    id: str
+    process: ChildProcess
+    device: str | None = None
+    status: str = "starting"
+    """starting → ready（視窗已開、等使用者登入）⇄ picking（點選中）→ picked（列出寫法）
+    → closed（關掉視窗或結束）／failed。picked 之後可以再點選一次。"""
+    message: str | None = None
+    url: str | None = None
+    """點選時的網址（建議當確認網址）。"""
+    candidates: list[dict[str, object]] = field(default_factory=list[dict[str, object]])
+    started_at: datetime = field(default_factory=now)
+
+    @property
+    def open(self) -> bool:
+        return self.status in _PICK_OPEN
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "id": self.id,
+            "status": self.status,
+            "message": self.message,
+            "url": self.url,
+            "candidates": self.candidates,
+            "deviceId": self.device,
+        }
+
+
 class RoleService:
     def __init__(
         self,
@@ -287,6 +327,7 @@ class RoleService:
         """沒指定領域時放在哪個領域（「未分類」，需要時建立）。"""
         self._lock = threading.Lock()
         self._logins: dict[str, _LoginSession] = {}
+        self._picks: dict[str, _PickSession] = {}
         self._checking: set[str] = set()
         self.local_engines: Callable[[], Collection[str]] = _LOCAL_BROWSERS
         """這台下載了哪些瀏覽器（決定登入檢查在哪台跑）；測試換成固定的清單。"""
@@ -939,12 +980,139 @@ class RoleService:
         return login
 
     def close(self) -> None:
-        """伺服器關閉：結束所有進行中的人工登入。"""
+        """伺服器關閉：結束所有進行中的人工登入與點選視窗。"""
         with self._lock:
-            logins = [login for login in self._logins.values() if login.active]
-        for login in logins:
-            send(login.process, "cancel")
-            stop(login.process, grace=2)
+            processes = [login.process for login in self._logins.values() if login.active]
+            processes += [pick.process for pick in self._picks.values() if pick.open]
+        for process in processes:
+            send(process, "cancel")
+            stop(process, grace=2)
+
+    # ------------------------------------------------------------ 引導取得已登入的元素
+
+    def start_pick(self, login_url: str | None, engine: str | None) -> dict[str, object]:
+        """在操作的這台（或錄製端）開瀏覽器視窗到登入網址，讓使用者登入後點選元素。
+
+        角色還不用存：網址與瀏覽器取自表單。透過錄製端時要那台的 App 支援（``loginPick``）。
+        """
+        url = _check_url(login_url, required=True)
+        engine = engine or "chromium"
+        if engine not in ENGINES:
+            raise _error(422, "role_engine_invalid", t("error.role_engine_invalid", engine=engine))
+        via = self.hosts.current() if self.hosts is not None else None
+        if via is None and not self.display:
+            raise _error(422, "display_unavailable", t("error.pick_display_unavailable"))
+        launcher = self.launcher
+        if via is not None and self.hosts is not None:
+            self.hosts.check(via, engine=engine)
+            self.hosts.require(via, "loginPick")
+            launcher = self.hosts.launcher(via)
+        folder = self.storage.roles / _PICK_FOLDER
+        folder.mkdir(parents=True, exist_ok=True)
+        settings = LoginSettings(role="pick", state=folder / "unused.json", login_url=url)
+        pick_id = os.urandom(6).hex()
+        with self._lock:
+            self._picks = {key: pick for key, pick in self._picks.items() if pick.open}
+            if len(self._picks) >= PICK_LIMIT:
+                raise _error(409, "pick_busy", t("error.pick_busy", limit=PICK_LIMIT))
+            process = launcher(
+                module_command("rpa_runner.login", ["pick", "--engine", engine]),
+                env=child_env(self.locale, {ENV_LOGIN: json.dumps(settings.to_json())}),
+                log=folder / f"{pick_id}.log",
+            )
+            session = _PickSession(
+                id=pick_id, process=process, device=via.id if via is not None else None
+            )
+            self._picks[pick_id] = session
+        threading.Thread(
+            target=self._follow_pick, args=(session,), name=f"pick-{pick_id}", daemon=True
+        ).start()
+        return self.pick_status(pick_id)
+
+    def _follow_pick(self, session: _PickSession) -> None:
+        """讀點選子程序的進度；閒置太久（同人工登入）就關掉視窗。"""
+        with use_locale(self.locale):
+            lines = Lines(session.process)
+            deadline = time.monotonic() + LOGIN_SECONDS
+            ready = False
+            while True:
+                try:
+                    line = lines.get(timeout=max(0.1, deadline - time.monotonic()))
+                except TimeoutError:
+                    send(session.process, "cancel")
+                    self._pick_set(session, "closed", t("role.pick_timeout"))
+                    stop(session.process)
+                    return
+                if line is None:
+                    break
+                with contextlib.suppress(ValueError, AttributeError):
+                    event = cast("dict[str, object]", json.loads(line))
+                    kind = event.get("event")
+                    if kind in ("ready", "stopped"):
+                        ready = True
+                        self._pick_set(session, "ready")
+                    elif kind == "picking":
+                        self._pick_set(session, "picking")
+                    elif kind == "picked":
+                        found = event.get("candidates")
+                        url = event.get("url")
+                        with self._lock:
+                            if session.open:
+                                session.status = "picked"
+                                session.message = None
+                                session.url = url if isinstance(url, str) else None
+                                session.candidates = (
+                                    cast("list[dict[str, object]]", found)
+                                    if isinstance(found, list)
+                                    else []
+                                )
+                    elif kind in ("closed", "cancelled"):
+                        self._pick_set(session, "closed")
+                    elif kind == "error":
+                        self._pick_set(session, "failed", str(event.get("message") or ""))
+            code = session.process.wait()
+            if session.open:
+                message = None if ready else t("role.pick_ended", code=code)
+                self._pick_set(session, "closed" if ready else "failed", message)
+
+    def _pick_set(self, session: _PickSession, status: str, message: str | None = None) -> None:
+        with self._lock:
+            if not session.open:
+                return
+            session.status = status
+            session.message = message
+
+    def _pick(self, pick_id: str) -> _PickSession:
+        with self._lock:
+            session = self._picks.get(pick_id)
+        if session is None:
+            raise _error(404, "pick_not_found", t("error.pick_not_found", id=pick_id))
+        return session
+
+    def pick_status(self, pick_id: str) -> dict[str, object]:
+        session = self._pick(pick_id)
+        with self._lock:
+            return session.to_json()
+
+    def pick_command(self, pick_id: str, command: str) -> dict[str, object]:
+        """開始點選（``pick``）或停止點選（``stop``）。"""
+        session = self._pick(pick_id)
+        if command not in _PICK_COMMANDS:
+            raise _error(404, "pick_command_unknown", t("error.pick_command_unknown", name=command))
+        if session.status not in ("ready", "picking", "picked") or not send(
+            session.process, command
+        ):
+            raise _error(409, "pick_not_ready", t("error.pick_not_ready"))
+        return self.pick_status(pick_id)
+
+    def close_pick(self, pick_id: str) -> dict[str, object]:
+        """關掉點選視窗（表單關掉、填入之後）；已經結束時照樣回傳狀態。"""
+        session = self._pick(pick_id)
+        if session.open:
+            send(session.process, "cancel")
+            self._pick_set(session, "closed")
+            threading.Thread(target=stop, args=(session.process,), daemon=True).start()
+        return self.pick_status(pick_id)
 
     # ------------------------------------------------------------ Secrets
 

@@ -619,3 +619,20 @@ details.creport-node.anchor-hit{animation:anchor-hit 1.6s ease-out}
 .creplay-node-values dt{color:var(--muted)}.creplay-node-values dd{margin:0;min-width:0;overflow-wrap:anywhere}
 .creplay-node-downloads{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 10px;padding-left:4px;color:var(--muted)}
 @media(max-width:700px){.creplay-card-flow{grid-template-columns:minmax(0,1fr)}.replay-card{padding:8px}.creplay-card{padding:10px 12px;font-size:12px}}
+/* 登入角色表單：引導取得「已登入時看得到的元素」（2026-11-10）。點選（步驟、按鈕、狀態、候選的寫法）與自己填 */
+.locator-guide{border:1px solid var(--line);border-radius:6px;background:#f8fafd;padding:0 12px;font-size:12px}
+.locator-guide>summary{cursor:pointer;padding:8px 0;color:var(--blue-strong);font-weight:600}
+.locator-guide[open]>summary{border-bottom:1px solid var(--line);margin-bottom:8px}
+.locator-guide-way{display:grid;gap:6px;padding-bottom:10px}
+.locator-guide-way+.locator-guide-way{border-top:1px dashed var(--line);padding-top:10px}
+.locator-guide-way h3{margin:0;font-size:12px}
+.locator-guide-steps{margin:0;padding-left:18px;display:grid;gap:3px;line-height:1.6;color:#4d5d73}
+.locator-guide-actions,.locator-guide-build{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.locator-guide-build input{flex:1 1 160px;min-width:0}
+.locator-guide .hint{margin:0}
+.locator-guide .hint:empty{display:none}
+.locator-guide-candidates{margin:0;padding:0;list-style:none;display:grid;gap:4px}
+.locator-guide-candidates li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:6px 8px;background:#fff;border:1px solid var(--line);border-radius:4px}
+.locator-guide-candidates code{font-size:12px;overflow-wrap:anywhere}
+.locator-guide-candidates .cell-sub{margin:0;flex:1 1 auto}
+.dialog-body>.locator-guide{margin:4px 0 8px}

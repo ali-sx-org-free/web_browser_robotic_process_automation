@@ -95,6 +95,38 @@
   <label>{{ t("roles.form_login_url") }}<input name="loginUrl" type="url" required placeholder="https://"></label>
   <label>{{ t("roles.form_check_url") }}<input name="checkUrl" type="url" placeholder="{{ t('roles.form_check_url_placeholder') }}"></label>
   <label>{{ t("roles.form_check") }}<input name="check" required class="mono" placeholder="{ testId: current-user }"><span class="cell-sub">{{ t("roles.form_check_hint") }}</span></label>
+  {#- 引導取得「已登入時看得到的元素」（2026-11-10）：在瀏覽器裡點選，或選種類自己填 -#}
+  <details class="locator-guide" data-locator-guide>
+    <summary>{{ t("roles.guide_summary") }}</summary>
+    <section class="locator-guide-way" aria-labelledby="guide-pick-title">
+      <h3 id="guide-pick-title">{{ t("roles.guide_pick_title") }}</h3>
+      <ol class="locator-guide-steps">
+        <li>{{ t("roles.guide_step_open") }}</li>
+        <li>{{ t("roles.guide_step_pick") }}</li>
+        <li>{{ t("roles.guide_step_choose") }}</li>
+      </ol>
+      <div class="locator-guide-actions">
+        <button type="button" class="button" data-guide="open"{% if not display %} disabled{% endif %}>{{ t("roles.guide_open") }}</button>
+        <button type="button" class="button primary" data-guide="pick" hidden>{{ t("roles.guide_pick") }}</button>
+        <button type="button" class="button" data-guide="stop" hidden>{{ t("roles.guide_stop") }}</button>
+        <button type="button" class="text-btn" data-guide="close" hidden>{{ t("roles.guide_close") }}</button>
+      </div>
+      {% if not display %}<p class="hint">{{ t("roles.guide_no_display") }}</p>{% endif %}
+      <p class="hint" data-guide-status role="status"></p>
+      <ul class="locator-guide-candidates" data-guide-candidates hidden></ul>
+    </section>
+    <section class="locator-guide-way" aria-labelledby="guide-build-title">
+      <h3 id="guide-build-title">{{ t("roles.guide_build_title") }}</h3>
+      <div class="locator-guide-build">
+        <select data-guide-kind aria-label="{{ t('roles.guide_kind') }}">
+          {% for kind in ("text", "button", "link", "testId", "css") %}<option value="{{ kind }}" data-hint="{{ t('roles.guide_kind_hint_' + kind) }}" data-placeholder="{{ t('roles.guide_kind_placeholder_' + kind) }}">{{ t("roles.guide_kind_" + kind) }}</option>{% endfor %}
+        </select>
+        <input data-guide-value aria-label="{{ t('roles.guide_value') }}" placeholder="{{ t('roles.guide_kind_placeholder_text') }}">
+        <button type="button" class="button" data-guide="build">{{ t("roles.guide_fill") }}</button>
+      </div>
+      <p class="hint" data-guide-kind-hint>{{ t("roles.guide_kind_hint_text") }}</p>
+    </section>
+  </details>
   <label>{{ t("roles.form_domain") }}<select name="domainId">{% for item in domains %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}</select><span class="cell-sub">{{ t("roles.form_domain_hint") }}</span></label>
   <label>{{ t("roles.form_engine") }}<select name="engine">{% for engine in engines %}<option value="{{ engine }}">{{ engine }}</option>{% endfor %}</select></label>
   <label>{{ t("roles.form_auto") }}<textarea name="autoLogin" rows="7" class="code-editor" spellcheck="false" placeholder="{{ auto_example }}"></textarea><span class="cell-sub">{{ t("roles.form_auto_hint") }}</span></label>

@@ -242,6 +242,13 @@ class RoleBody(_Body):
     """定義放在哪個領域資料夾（M11）；建立時沒有就放「未分類」。"""
 
 
+class PickBody(_Body):
+    """角色表單的引導：在操作的那台開視窗到登入網址，點選已登入時看得到的元素。"""
+
+    login_url: str = Field(max_length=2000)
+    engine: str | None = Field(default=None, max_length=20)
+
+
 class SecretValue(_Body):
     value: str = Field(max_length=10_000)
 
@@ -949,6 +956,24 @@ def api_router(services: Services) -> APIRouter:
     def cancel_login(role_id: str) -> dict[str, object]:
         roles.cancel_login(role_id)
         return roles.get_role(role_id).to_json()
+
+    # 引導取得「已登入時看得到的元素」（2026-11-10）：角色還不用存，網址與瀏覽器取自表單
+    @router.post("/locator-picks", status_code=202)
+    def start_pick(body: PickBody) -> dict[str, object]:
+        return roles.start_pick(body.login_url, body.engine)
+
+    @router.get("/locator-picks/{pick_id}")
+    def pick_status(pick_id: str) -> dict[str, object]:
+        return roles.pick_status(pick_id)
+
+    @router.post("/locator-picks/{pick_id}/{command}")
+    def pick_command(pick_id: str, command: str) -> dict[str, object]:
+        """開始點選（pick）或停止點選（stop）。"""
+        return roles.pick_command(pick_id, command)
+
+    @router.delete("/locator-picks/{pick_id}")
+    def close_pick(pick_id: str) -> dict[str, object]:
+        return roles.close_pick(pick_id)
 
     @router.get("/secrets")
     def list_secrets() -> dict[str, object]:

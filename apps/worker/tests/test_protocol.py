@@ -308,7 +308,7 @@ def test_worker_info_to_json() -> None:
             "upload",
         ],
         # 調試時讀頁面結構（M14）：錄製端的 App 要支援，Agent 才能用
-        "capabilities": ["debugInlineLoad", "debugSnapshot"],
+        "capabilities": ["debugInlineLoad", "debugSnapshot", "loginPick"],
         # Python 節點（ADR 0020）：運行環境模式的節點只交給有那個主版本、平台符合的 worker
         "runtimes": ["1.0.0"],
         "platform": "windows-x86_64",
