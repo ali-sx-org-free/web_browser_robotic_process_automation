@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261109-windows-colon-test · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261109-windows-colon-test：Windows 上建不出有冒號的檔名，排程測試失敗</h1><p>issue #7（一鍵安裝腳本）與 issue #8（每晚完整測試）是同一個原因：<code>apps/worker/tests/test_protocol.py::test_pack_skips_names_the_portal_would_reject</code> 在 Windows 上要建立 <code>a:b.csv</code>，建不出來。產品程式沒有問題，改的是測試。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261109-windows-colon-test；2026-11-09 18:31 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-09 18:16 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話要求看最新的兩個 issue；18:29 要求「開一個 PR 修復這個問題」。驗收：本 PR 的 CI 通過；合併後下一次排程的一鍵安裝腳本與每晚完整測試在 Windows 上不再因這個測試失敗。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：<code>apps/worker/tests/test_protocol.py</code> 的這個測試在 Windows 上跳過（<code>os.name == "nt"</code>，與 <code>packages/rpa_update/tests/test_manifest.py</code> 相同寫法）；本紀錄、任務索引。不包含：<code>pack_directory</code>／<code>is_artifact_path</code> 的行為（不變）；關閉 issue #7、#8（等合併後的排程通過，由使用者決定）；PR 上的 CI 在 Windows 只跑瀏覽器與冒煙測試這個安排（沿用依生產角色分配的既有設計，見 <a href="../../docs/develop/ci.html">CI 文檔</a>）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱與合併：使用者；接收方未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>apps/worker/tests/test_protocol.py</code>、本紀錄、任務索引。Claude 整合。開工時沒有其他開啟中的 PR 修改這些檔案。</dd>
+        <dt>狀態</dt><dd>實作中：本地檢查完成，推送並開 PR。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-j92asl</code>（本次雲端會話指定的分支名稱，不是 <code>fix/</code> 慣例），從 main d4f4aff（PR #9 合併後）開；PR 建立後回填於追加紀錄。</dd>
+        <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64）、Python 3.13.18、uv 0.11.32；<code>uv sync --locked</code> 可用。沒有 Windows，Windows 上的結果看 CI。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="cause">
+      <div class="panel-header"><h2>原因</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>失敗的運行：</strong>issue #8：每晚完整測試 run 42698747699（2026-11-09 13:02 America/Los_Angeles（PST，UTC−08:00）開始，main 8c0e7ad），只有「完整測試（windows-latest，Python 3.13）」第 1 遍失敗（1 failed、2231 passed），瀏覽器測試再跑的第 2、3 遍與 Ubuntu、macOS 都通過。issue #7：一鍵安裝腳本 run 42703656541（13:33 開始，同一個 SHA），「專案內執行（windows-latest）」與「從零開始（windows-latest）」的 setup.ps1 最後跑測試時失敗；Linux、macOS、Rocky 8 都通過。三個 job 失敗的都只有這一個測試，錯誤是 <code>FileNotFoundError: [Errno 2] No such file or directory: 'a:b.csv'</code>。</li>
+        <li><strong>為什麼：</strong>測試先真的建立 <code>outputs/a:b.csv</code>，確認 <code>pack_directory</code> 會跳過 Portal 不接受的檔名。Windows 上 pathlib 把 <code>a:</code> 當成磁碟機代號，<code>tmp_path / "outputs" / "a:b.csv"</code> 整個變成 <code>WindowsPath('a:b.csv')</code>（A 槽上的相對路徑）；就算不被當成磁碟機，Windows 檔名也不能有冒號。本地以 <code>PureWindowsPath('C:/Users/x/run') / 'outputs' / 'a:b.csv'</code> 重現，結果是 <code>PureWindowsPath('a:b.csv')</code>。</li>
+        <li><strong>為什麼現在才出現：</strong>這個測試由 d1b440f（2026-10-29 23:37 America/Los_Angeles（PDT，UTC−07:00））加入。PR 的 CI 在 Windows 只跑 <code>-m "browser and (role_worker or smoke)"</code>，一鍵安裝腳本在 PR 上也只跑冒煙測試（<code>role</code> 範圍），Windows 上不需要瀏覽器的測試只在排程（或手動選 <code>full</code>）裡跑；這兩次是倉庫搬到 ali-sx-org-free 之後的第一次排程（每晚完整測試 run_number 1）。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>測試加上 <code>@pytest.mark.skipif(os.name == "nt", reason="Windows 的檔名不能有冒號")</code> 與說明的註解。</li>
+        <li><strong>未完成／阻礙：</strong>推送、PR 與 CI；合併後的排程結果。</li>
+        <li><strong>決定：</strong>實作選擇：Windows 上跳過，而不是在 Windows 換一個檔名測。這個測試要驗證的情境（腳本寫出有冒號的檔名）在 Windows 上不會發生；<code>is_artifact_path</code> 擋冒號的規則由不碰檔案系統的 <code>test_artifact_paths</code>（含 <code>outputs/a:b.csv</code>）在三個系統驗證。</li>
+        <li><strong>下一個具體動作：</strong>推送並開 PR，看本 PR 的 CI。合併後看下一次每晚完整測試與一鍵安裝腳本的排程（Windows），通過時由使用者決定是否關閉 issue #7、#8。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>d4f4aff＋本分支的修改；雲端容器（Linux、Python 3.13.18）</td><td><code>uv run ruff check .</code>；<code>uv run ruff format --check .</code>；<code>uv run pyright</code></td><td>通過；351 個檔案已格式化；0 errors（11 個既有的 warning，桌面端的 <code>pystray</code> 等）</td><td>無</td></tr>
+          <tr><td>同上</td><td><code>uv run pytest -q apps/worker/tests/test_protocol.py</code>；<code>uv run pytest -q -m "not browser" apps/worker/tests</code></td><td>43 通過（Linux 上這個測試照常執行並通過）；148 通過、1 deselected</td><td>Windows 上確實跳過要看 CI 的排程；跳過條件與 <code>test_manifest.py</code> 相同，那個測試在這兩次的 Windows 日誌裡是 SKIPPED</td></tr>
+          <tr><td>同上</td><td><code>uv run python tools/i18n.py check</code>；<code>git diff --check</code></td><td>通過（結束碼 0）；通過</td><td>沒有改正式文檔與多語言目錄</td></tr>
+          <tr><td>同上</td><td>完整的 <code>uv run pytest -m "not browser"</code></td><td>未執行：只改一個測試的跳過條件，跑了它所在的 Worker 測試；完整矩陣由 CI 執行</td><td>見 CI</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行（推送後回填）；人工驗收：不需要（只改測試）；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-11-09 18:31 America/Los_Angeles（PST，UTC−08:00），Claude：讀 issue #7、#8 與 run 42698747699、42703656541 的失敗 job 日誌，找出共同原因；從 main d4f4aff 在 <code>claude/project-thread-j92asl</code> 修改測試，寫本紀錄與任務索引；本地檢查見上。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

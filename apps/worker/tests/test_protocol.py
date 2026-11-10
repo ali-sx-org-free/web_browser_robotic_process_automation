@@ -1,5 +1,6 @@
 """Worker API 的資料格式：任務的編碼與解碼、執行目錄的打包與安全解開、這台電腦的資訊（M9a）。"""
 
+import os
 import zipfile
 from pathlib import Path
 
@@ -163,6 +164,9 @@ def test_artifact_paths(name: str, ok: bool) -> None:
     assert is_artifact_path(name) is ok
 
 
+# Windows 的檔名不能有冒號，腳本寫不出這種檔案；pathlib 還會把 "a:b.csv" 的 a: 當成磁碟機，
+# 整個路徑變成 A 槽上的相對路徑。is_artifact_path 擋冒號的規則由 test_artifact_paths 在各系統驗證。
+@pytest.mark.skipif(os.name == "nt", reason="Windows 的檔名不能有冒號")
 def test_pack_skips_names_the_portal_would_reject(tmp_path: Path) -> None:
     source = tmp_path / "run"
     (source / "outputs").mkdir(parents=True)
