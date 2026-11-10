@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-11-09 18:40 America/Los_Angeles（PST，UTC−08:00）。共 35 次運行。
+更新：2026-11-09 18:40 America/Los_Angeles（PST，UTC−08:00）。共 36 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -12,7 +12,7 @@
 | CI | 10（0） | 8（0） | 4.7 分（0.0 分） | 8.3 分（0.0 分） | 0.1 分（0.0 分） | 84／13／0 分（0／0／0 分） |
 | 桌面端建置 | 8（0） | 8（0） | 0.2 分（0.0 分） | 7.0 分（0.0 分） | 0.1 分（0.0 分） | 1／12／24 分（0／0／0 分） |
 | 伺服器分發包 | 8（0） | 8（0） | 0.2 分（0.0 分） | 0.2 分（0.0 分） | 0.1 分（0.0 分） | 5／0／0 分（0／0／0 分） |
-| 一鍵安裝腳本 | 8（0） | 6（0） | 0.2 分（0.0 分） | 5.1 分（0.0 分） | 0.1 分（0.0 分） | 32／39／37 分（0／0／0 分） |
+| 一鍵安裝腳本 | 9（0） | 7（0） | 0.2 分（0.0 分） | 5.1 分（0.0 分） | 0.1 分（0.0 分） | 32／39／37 分（0／0／0 分） |
 | 每晚完整測試 | 1（0） | 0（0） | 64.9 分（0.0 分） | 64.9 分（0.0 分） | 0.1 分（0.0 分） | 60／55／76 分（0／0／0 分） |
 | 發布 | 0（0） | 0（0） | 0.0 分（0.0 分） | 0.0 分（0.0 分） | 0.0 分（0.0 分） | 0／0／0 分（0／0／0 分） |
 
@@ -20,7 +20,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-11-09 | 35 | 182 | 119 | 138 | 438 |
+| 2026-11-09 | 36 | 182 | 119 | 138 | 438 |
 
 ## 最慢的測試檔案（每份報告最近一次，括號是近 7 次的中位數）
 
@@ -249,6 +249,7 @@
 
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
+| 11-09 18:40 | 一鍵安裝腳本 | PR | claude/project-thread-j92asl | success | 0.2 分 | 0.1 分 | [#42744340496](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42744340496/attempts/1) |
 | 11-09 18:40 | 伺服器分發包 | PR | claude/project-thread-j92asl | success | 0.1 分 | 0.1 分 | [#42744339806](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42744339806/attempts/1) |
 | 11-09 18:33 | 桌面端建置 | PR | claude/project-thread-j92asl | success | 0.2 分 | 0.1 分 | [#42743540981](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42743540981/attempts/1) |
 | 11-09 18:33 | 一鍵安裝腳本 | PR | claude/project-thread-j92asl | success | 0.2 分 | 0.1 分 | [#42743540953](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42743540953/attempts/1) |
