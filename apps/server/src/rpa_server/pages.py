@@ -15,7 +15,7 @@ from markupsafe import escape
 from starlette.background import BackgroundTask
 
 from rpa_core.dsl import ExtractStep, Scenario, ScriptConfig, validate_text
-from rpa_core.dsl.editing import contract_section, section_text
+from rpa_core.dsl.editing import contract_section, json_document, section_text
 from rpa_core.dsl.files import (
     ATTACHMENT_DIR,
     MAX_ATTACHMENT_BYTES,
@@ -178,7 +178,13 @@ def _contract_data(scenario: Scenario, source: str | None = None) -> dict[str, o
         )
         for key, specs in (("inputs", scenario.inputs), ("outputs", scenario.outputs))
     }
+    data["format"] = _source_format(source)
     return data
+
+
+def _source_format(source: str | None) -> str:
+    """場景檔的寫法：整份是 JSON 物件時是 json（段落以 JSON 顯示與編輯），否則是 yaml。"""
+    return "json" if source is not None and json_document(source) is not None else "yaml"
 
 
 def _facts(scenario: Scenario) -> list[tuple[str, list[str]]]:
@@ -524,6 +530,7 @@ def page_router(services: Services) -> APIRouter:
         return page(
             "scene.html",
             scripts=scripts,
+            script_format=_source_format(files[SCENARIO_FILE]),
             script_roles=script_roles,
             script_counts={
                 "steps": len(scenario.steps or []) if scenario is not None else 0,

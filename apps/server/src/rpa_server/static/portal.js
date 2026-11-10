@@ -1642,8 +1642,24 @@
     qsa('[data-insert]', form).forEach(chip => chip.addEventListener('click', () => insertAt(areas[form.dataset.key], chip.dataset.insert)));
     // 斷言範本：接在最後，縮排跟著現有的項目
     const rules = {notEmpty: 'notEmpty: true', equals: 'equals: ""', contains: 'contains: ""', matches: 'matches: "^$"'};
+    // JSON 寫法的場景檔（2026-11-10）：斷言腳本是 {"verify": [...]}，讀成資料加一條再寫回，游標放在 name
+    const jsonRules = {notEmpty: true, equals: '', contains: '', matches: '^$'};
+    const insertJsonCheck = (area, rule) => {
+      let data;
+      try { data = area.value.trim() ? JSON.parse(area.value) : {}; } catch { data = null; }
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return toast(messages.json_insert_invalid);
+      if (!Array.isArray(data.verify)) data.verify = [];
+      data.verify.push({name: '', value: '{{ facts. }}', [rule]: jsonRules[rule]});
+      area.value = JSON.stringify(data, null, 2) + '\n';
+      const marker = '"name": "';
+      const position = area.value.lastIndexOf(marker) + marker.length;
+      area.focus();
+      area.setSelectionRange(position, position);
+      refresh();
+    };
     qsa('[data-insert-check]', form).forEach(button => button.addEventListener('click', () => {
       const area = areas.verify;
+      if (form.dataset.format === 'json') return insertJsonCheck(area, button.dataset.insertCheck);
       const found = /^( *)- /m.exec(area.value.replace(/^verify:.*$/m, ''));
       const indent = found ? found[1] : '  ';
       let text = area.value.replace(/\s+$/, '');
@@ -1881,6 +1897,8 @@
     if (!host) return;
     const data = JSON.parse(qs('#contract-data').textContent || '{}');
     const scene = host.dataset.scene;
+    // 原文跟著場景檔的寫法：JSON 寫法的場景檔，表格切到原文、存檔時都用 JSON（2026-11-10）
+    const format = host.dataset.format === 'json' ? 'json' : 'yaml';
     let base = Number(host.dataset.base), dirty = false, loaded = false, working = false;
     let previewSeq = 0, previewTimer, sample = null, pendingRenames = {};
     const state = qs('#contract-state'), saveButton = qs('[data-action="save-contract"]');
@@ -1940,7 +1958,7 @@
       qs('.form-issues', editor).hidden = true;
       // 表格 → YAML：由伺服器產生和存檔一樣的寫法；YAML → 表格：先校驗，再用結果重建表格
       const result = next === 'yaml'
-        ? await api('POST', '/api/contract/render', {key: kind, items: items(editor)})
+        ? await api('POST', '/api/contract/render', {key: kind, items: items(editor), format})
         : await api('POST', '/api/scenes/' + path(scene) + '/contract-yaml/preview', await payload());
       editor.inert = false;
       if (!result.ok) return issues(editor, result);
@@ -2002,7 +2020,7 @@
         if (view(editor) === 'yaml') value[kind] = qs('[name="yaml"]', editor).value;
         else {
           const rows = items(editor);
-          const rendered = await api('POST', '/api/contract/render', {key: kind, items: rows});
+          const rendered = await api('POST', '/api/contract/render', {key: kind, items: rows, format});
           if (!rendered.ok) { if (!silent) issues(editor, rendered); return null; }
           value[kind] = rendered.data.text;
           if (kind === 'inputs') value.renames = mergedRenames(rows);

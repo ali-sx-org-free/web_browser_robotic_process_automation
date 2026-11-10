@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:2eb496292d471ab9">
+<meta name="translation-source" content="sha256:5079bf7e91a5a670">
 <title>Agent API guide · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -186,7 +186,7 @@ POST /agent-api/v1/debug/a1b2c3d4e5f6/run-to/3
         <div class="notice warn">Click, fill, select, check and press are side-effect steps: they really happen in the target system. Running a side-effect step again with <code>POST /debug/{sid}/steps/{index}</code> after it has run once returns 409 <code>confirm_required</code> and requires <code>{"force": true}</code>; do this only when you are sure redoing it will not create duplicate data. <code>run-to</code> returns 409 <code>already_executed</code> when its target comes before the next step that has not run.</div>
 
         <h3>5. Complete inputs, outputs and independent checks</h3>
-        <p>Use <code>GET</code>/<code>PUT /scenes/{id}/sections/steps</code>, <code>verify</code>, <code>inputs</code> or <code>outputs</code> to read or write one section (<code>{"baseRevision": n, "text": "verify:\n  - …"}</code>), or <code>PUT /scenes/{id}/contract</code> to edit inputs and outputs as tables; each call saves a new revision. If you already have a Playwright (Python) script, <code>POST /scenes/{id}/import {"source": "…", "mode": "replace"}</code> converts it to DSL and lists what it could not convert in <code>warnings</code>. When finished, <code>DELETE /debug/{sid}</code> ends the session and frees the recorder.</p>
+        <p>Use <code>GET</code>/<code>PUT /scenes/{id}/sections/steps</code>, <code>verify</code>, <code>inputs</code> or <code>outputs</code> to read or write one section (<code>{"baseRevision": n, "text": "verify:\n  - …"}</code>; when the whole scenario file is written in JSON the section text is JSON too, such as <code>{"verify": [ … ]}</code>, and the file stays JSON after saving), or <code>PUT /scenes/{id}/contract</code> to edit inputs and outputs as tables; each call saves a new revision. If you already have a Playwright (Python) script, <code>POST /scenes/{id}/import {"source": "…", "mode": "replace"}</code> converts it to DSL and lists what it could not convert in <code>warnings</code>. When finished, <code>DELETE /debug/{sid}</code> ends the session and frees the recorder.</p>
 
         <h3>6. Have a worker validate it</h3>
 <pre class="source">POST /agent-api/v1/scenes/order-create/revisions/6/validate

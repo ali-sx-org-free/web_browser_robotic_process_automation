@@ -185,7 +185,7 @@ POST /agent-api/v1/debug/a1b2c3d4e5f6/run-to/3
         <div class="notice warn">點擊、填寫、選擇、勾選、按鍵是有副作用的步驟，會在目標系統上真的發生。執行過一次的有副作用步驟用 <code>POST /debug/{sid}/steps/{index}</code> 再執行時回 409 <code>confirm_required</code>，必須帶 <code>{"force": true}</code>；只在確定重做不會造成重複資料時才這樣做。<code>run-to</code> 的目標在下一個還沒執行的步驟之前時回 409 <code>already_executed</code>。</div>
 
         <h3>5. 補齊入參、出參與獨立斷言</h3>
-        <p>用 <code>GET</code>／<code>PUT /scenes/{id}/sections/steps</code>、<code>verify</code>、<code>inputs</code>、<code>outputs</code> 只讀寫一段（<code>{"baseRevision": n, "text": "verify:\n  - …"}</code>），或 <code>PUT /scenes/{id}/contract</code> 以表格形式改入參與出參；每次都會存成新版本。已經有 Playwright（Python）腳本時，可以用 <code>POST /scenes/{id}/import {"source": "…", "mode": "replace"}</code> 轉成 DSL，轉不了的寫在 <code>warnings</code>。完成後 <code>DELETE /debug/{sid}</code> 結束工作階段，釋放錄製端。</p>
+        <p>用 <code>GET</code>／<code>PUT /scenes/{id}/sections/steps</code>、<code>verify</code>、<code>inputs</code>、<code>outputs</code> 只讀寫一段（<code>{"baseRevision": n, "text": "verify:\n  - …"}</code>；場景檔整份寫成 JSON 時，段落的原文也是 JSON，例如 <code>{"verify": [ … ]}</code>，存檔後整份還是 JSON），或 <code>PUT /scenes/{id}/contract</code> 以表格形式改入參與出參；每次都會存成新版本。已經有 Playwright（Python）腳本時，可以用 <code>POST /scenes/{id}/import {"source": "…", "mode": "replace"}</code> 轉成 DSL，轉不了的寫在 <code>warnings</code>。完成後 <code>DELETE /debug/{sid}</code> 結束工作階段，釋放錄製端。</p>
 
         <h3>6. 交給 Worker 驗證</h3>
 <pre class="source">POST /agent-api/v1/scenes/order-create/revisions/6/validate

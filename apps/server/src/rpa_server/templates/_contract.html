@@ -1,5 +1,7 @@
-{#- 入參、出參的編輯器（場景頁）：表格或 YAML 兩種檢視，存檔只改寫那一段，建立新版本。
-    表格的列由 portal.js 依 contract-data 產生（YAML 切回表格時也用同一份程式）。 -#}
+{#- 入參、出參的編輯器（場景頁）：表格或原文兩種檢視，存檔只改寫那一段，建立新版本。
+    表格的列由 portal.js 依 contract-data 產生（原文切回表格時也用同一份程式）。
+    原文跟著場景檔的寫法：JSON 寫法的場景檔（contract_data.format 是 json）顯示與編輯 JSON。 -#}
+{% set as_json = contract_data.get("format") == "json" %}
 {% macro rule_fields(kind) -%}
 <label data-types="string">minLength<input name="minLength" type="number" min="0" step="1"></label>
 <label data-types="string">maxLength<input name="maxLength" type="number" min="0" step="1"></label>
@@ -25,7 +27,7 @@
       <h2>{{ t("contract.title_" + kind) }}</h2>
       <div class="segmented" role="tablist" aria-label="{{ t('contract.views') }}">
         <button type="button" role="tab" aria-selected="false" data-view="table">{{ t("contract.view_table") }}</button>
-        <button type="button" role="tab" class="active" aria-selected="true" data-view="yaml">{{ t("contract.view_yaml") }}</button>
+        <button type="button" role="tab" class="active" aria-selected="true" data-view="yaml">{{ t("contract.view_json") if contract_data.get("format") == "json" else t("contract.view_yaml") }}</button>
       </div>
     </div>
 
@@ -48,7 +50,7 @@
   </div>
   <div class="panel-body" data-view-panel="yaml">
     <textarea class="code-editor" name="yaml" rows="12" disabled spellcheck="false" aria-label="{{ t('contract.title_' + kind) }}">{{ contract_data.get("yaml", {}).get(kind, "") }}</textarea>
-    <p class="hint">{{ t("contract.yaml_hint_" + kind) }}</p>
+    <p class="hint">{{ t(("contract.json_hint_" if contract_data.get("format") == "json" else "contract.yaml_hint_") + kind) }}</p>
   </div>
   <template data-row>
     <tr class="edit-row">
@@ -75,7 +77,7 @@
 
 <script type="application/json" id="contract-data">{{ contract_data | tojson }}</script>
 <datalist id="facts-list">{% for name, fields in facts %}<option value="{{ '{{ facts.' ~ name ~ ' }}' }}">{% for item in fields %}<option value="{{ '{{ facts.' ~ name ~ '.' ~ item ~ ' }}' }}">{% endfor %}{% endfor %}</datalist>
-<section id="contract-workspace" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}" data-archived="{{ '1' if scene.archived else '0' }}">
+<section id="contract-workspace" data-scene="{{ scene.id }}" data-base="{{ scene.latest_number }}" data-archived="{{ '1' if scene.archived else '0' }}" data-format="{{ 'json' if as_json else 'yaml' }}">
   <div class="contract-toolbar">
     <span id="contract-state" class="muted" role="status">{{ t("contract.based_on", number=scene.latest_number) }}</span>
     <button class="button primary" type="button" data-action="save-contract" disabled>{{ t("contract.save_both") }}</button>

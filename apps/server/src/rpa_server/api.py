@@ -39,7 +39,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from rpa_core.dsl import validate_text
-from rpa_core.dsl.editing import SECTION_KEYS, section_text
+from rpa_core.dsl.editing import SECTION_KEYS, json_document, section_text
 from rpa_core.dsl.files import MAX_ATTACHMENT_BYTES, guess_media_type
 from rpa_server.agents import AUDIT_LIMIT, DEFAULT_SCOPES, ClientPolicy
 from rpa_server.composite_report import report_json
@@ -202,6 +202,8 @@ class ContractSave(_Body):
 class ContractRender(_Body):
     key: Literal["inputs", "outputs"]
     items: list[ContractItem] = Field(default_factory=list[ContractItem])
+    format: Literal["yaml", "json"] = "yaml"
+    """場景檔的寫法：JSON 寫法的場景檔要 JSON 的段落原文。"""
 
 
 class ContractYaml(_Body):
@@ -749,7 +751,9 @@ def api_router(services: Services) -> APIRouter:
         )
         return {
             "revision": shown.number,
+            # 段落的原文；JSON 寫法的場景檔（format）是 JSON，鍵名沿用 yaml
             "yaml": {key: section_text(source, key) for key in ("inputs", "outputs")},
+            "format": "json" if json_document(source) is not None else "yaml",
             "script": scenario.script is not None,
             "sample": {"runId": runs[0].id, "values": runs[0].output} if runs else None,
         }
@@ -791,9 +795,13 @@ def api_router(services: Services) -> APIRouter:
 
     @router.post("/contract/render")
     def contract_render(body: ContractRender) -> dict[str, object]:
-        """入參或出參的表格 → 段落的 YAML 原文（表格切換成 YAML 時用；不存檔）。"""
+        """入參或出參的表格 → 段落的原文（表格切換成原文時用；不存檔）。
+
+        format 是 json 時寫成 JSON（JSON 寫法的場景檔）。
+        """
         items = [row.model_dump(by_alias=True) for row in body.items]
-        return {"key": body.key, "text": render_contract(body.key, items)}
+        text = render_contract(body.key, items, as_json=body.format == "json")
+        return {"key": body.key, "text": text, "format": body.format}
 
     @router.get("/scenes/{scene_id}/sections/{key}")
     def section(scene_id: str, key: str, revision: int | None = None) -> dict[str, object]:

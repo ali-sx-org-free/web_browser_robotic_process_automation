@@ -991,6 +991,154 @@ def test_automation_and_assertion_saved_together(client: Client) -> None:
     assert error(script)["code"] == "section_script"
 
 
+def _json_scene(client: Client) -> dict[str, str]:
+    """把 ba-001 的 v2 存成壓成一行的 JSON 場景檔（使用者回報的寫法），回傳 v2 的檔案。"""
+    from rpa_core.dsl.yaml_loader import load_yaml
+
+    body(client.post("/api/scenes/import"))
+    files = cast("dict[str, str]", body(client.get("/api/scenes/ba-001/revisions/1"))["files"])
+    data, _ = load_yaml(files["scenario.yaml"])
+    files["scenario.yaml"] = json.dumps(data, ensure_ascii=False, separators=(",", ":")) + "\n"
+    saved = client.post("/api/scenes/ba-001/revisions", json={"baseRevision": 1, "files": files})
+    assert saved.status_code == 201, saved.text
+    return files
+
+
+def _json_file(client: Client, number: int) -> str:
+    files = cast(
+        "dict[str, str]", body(client.get(f"/api/scenes/ba-001/revisions/{number}"))["files"]
+    )
+    text = files["scenario.yaml"]
+    assert text.count("\n") == 1  # 還是壓成一行的 JSON
+    json.loads(text)
+    return text
+
+
+def test_json_scenario_sections_are_shown_and_edited_as_json(client: Client) -> None:
+    """JSON 寫法的場景檔：腳本、入參、出參以 JSON 顯示，存檔後整份還是 JSON（2026-11-10）。
+
+    以前段落是空白，存入參時把 YAML 接在 JSON 後面，出現「第 1 行 YAML 語法錯誤：
+    expected '<document start>', but found '<block mapping start>'」。
+    """
+    _json_scene(client)
+    steps = str(body(client.get("/api/scenes/ba-001/sections/steps"))["text"])
+    assert steps.startswith('{\n  "steps": [\n    {\n      "id": "open",')
+    verify = str(body(client.get("/api/scenes/ba-001/sections/verify"))["text"])
+    assert json.loads(verify)["verify"]
+
+    page = client.get("/scenes/ba-001").text
+    assert 'data-format="json"' in page
+    assert "&#34;steps&#34;: [" in page or "&quot;steps&quot;: [" in page
+    assert "JSON 原文" in page
+
+    workspace = body(client.get("/api/scenes/ba-001/contract-workspace"))
+    assert workspace["format"] == "json"
+    texts = cast("dict[str, str]", workspace["yaml"])
+    assert json.loads(texts["inputs"])["inputs"]["quantity"]["default"] == 12
+    rendered = body(
+        client.post(
+            "/api/contract/render",
+            json={"key": "inputs", "items": [{"name": "q", "type": "string"}], "format": "json"},
+        )
+    )
+    assert json.loads(str(rendered["text"])) == {"inputs": {"q": {"type": "string"}}}
+
+    # 原文編輯：入參寫 JSON、出參貼 YAML 都可以；存檔後還是 JSON
+    payload = {
+        "baseRevision": 2,
+        "inputs": texts["inputs"].replace('"default": 12', '"default": 9'),
+        "outputs": "outputs:\n  recordId:\n    type: string\n"
+        "    from: '{{ facts.record.recordId }}'",
+    }
+    assert client.post("/api/scenes/ba-001/contract-yaml/preview", json=payload).status_code == 200
+    assert body(client.put("/api/scenes/ba-001/contract-yaml", json=payload), 201)["number"] == 3
+    saved = json.loads(_json_file(client, 3))
+    assert saved["inputs"]["quantity"]["default"] == 9
+    assert list(saved["outputs"]) == ["recordId"]
+
+    # 表格存檔（改名連引用一起改）
+    body(
+        client.put(
+            "/api/scenes/ba-001/contract",
+            json={
+                "baseRevision": 3,
+                "inputs": [
+                    {"name": "headline", "previous": "title", "type": "string", "default": "x"},
+                    {"name": "quantity", "previous": "quantity", "type": "integer", "default": 2},
+                ],
+            },
+        ),
+        201,
+    )
+    text = _json_file(client, 4)
+    assert "inputs.headline" in text
+    assert "inputs.title" not in text
+
+    # 兩段腳本一起存（斷言裡的 inputs.title 已經跟著改名，重新讀一次）
+    added = json.loads(str(body(client.get("/api/scenes/ba-001/sections/verify"))["text"]))
+    assert "inputs.headline" in json.dumps(added)
+    added["verify"].append(
+        {"name": "標題有值", "value": "{{ facts.record.title }}", "notEmpty": True}
+    )
+    saved_scripts = client.put(
+        "/api/scenes/ba-001/sections",
+        json={"baseRevision": 4, "sections": {"verify": json.dumps(added, ensure_ascii=False)}},
+    )
+    assert body(saved_scripts, 201)["number"] == 5
+    assert "標題有值" in _json_file(client, 5)
+
+
+def test_json_scenario_section_problems_point_into_the_section(client: Client) -> None:
+    _json_scene(client)
+    url = "/api/scenes/ba-001/sections"
+    # 讀不懂的 JSON：行號是段落裡的
+    broken = client.put(
+        url,
+        json={
+            "baseRevision": 2,
+            "sections": {"verify": '{\n  "verify": [\n    {"name" "x"}\n  ]\n}'},
+        },
+    )
+    issue = cast("list[JsonObject]", error(broken)["issues"])[0]
+    assert issue["section"] == "verify"
+    assert issue["sectionLine"] == 3
+    # 校驗問題：整份檔案只有一行，依資料路徑找到段落裡的行號
+    unknown = {"verify": [{"value": "{{ facts.nope }}", "notEmpty": True}]}
+    invalid = client.put(
+        url,
+        json={"baseRevision": 2, "sections": {"verify": json.dumps(unknown, indent=2)}},
+    )
+    issues = cast("list[JsonObject]", error(invalid)["issues"])
+    assert any(
+        item.get("section") == "verify" and item.get("sectionLine") == 4 for item in issues
+    ), issues
+    # 只能有這一段
+    other = client.put(url, json={"baseRevision": 2, "sections": {"verify": '{"steps": []}'}})
+    assert error(other)["code"] == "section_key"
+    assert "verify" in str(error(other)["message"])
+    assert body(client.get("/api/scenes/ba-001"))["latestRevision"] == 2
+
+
+def test_json_sections_in_a_yaml_scenario_become_yaml(client: Client) -> None:
+    body(client.post("/api/scenes/import"))
+    inputs = {
+        "inputs": {
+            "title": {"type": "string", "default": "貼上的 JSON"},
+            "quantity": {"type": "integer", "default": 2},
+        }
+    }
+    saved = client.put(
+        "/api/scenes/ba-001/sections/inputs",
+        json={"baseRevision": 1, "text": json.dumps(inputs, ensure_ascii=False)},
+    )
+    assert body(saved, 201)["number"] == 2
+    text = cast("dict[str, str]", body(client.get("/api/scenes/ba-001/revisions/2"))["files"])[
+        "scenario.yaml"
+    ]
+    assert "inputs:\n  title:\n    type: string\n    default: 貼上的 JSON\n" in text
+    assert text.startswith("# yaml-language-server")  # 註解保留
+
+
 def test_input_table_and_yaml_views(client: Client) -> None:
     body(client.post("/api/scenes/import"))
     # 表格 → YAML：伺服器產生和存檔相同的寫法
