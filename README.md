@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-11-10 07:52 America/Los_Angeles（PST，UTC−08:00）。共 68 次運行。
+更新：2026-11-10 08:06 America/Los_Angeles（PST，UTC−08:00）。共 69 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -13,14 +13,14 @@
 | 桌面端建置 | 15（0） | 14（0） | 0.2 分（0.0 分） | 7.0 分（0.0 分） | 0.1 分（0.0 分） | 2／28／31 分（0／0／0 分） |
 | 伺服器分發包 | 15（0） | 15（0） | 0.2 分（0.0 分） | 2.8 分（0.0 分） | 0.1 分（0.0 分） | 20／0／0 分（0／0／0 分） |
 | 一鍵安裝腳本 | 16（0） | 14（0） | 0.2 分（0.0 分） | 5.1 分（0.0 分） | 0.1 分（0.0 分） | 33／39／37 分（0／0／0 分） |
-| 每晚完整測試 | 1（0） | 0（0） | 64.9 分（0.0 分） | 64.9 分（0.0 分） | 0.1 分（0.0 分） | 60／55／76 分（0／0／0 分） |
+| 每晚完整測試 | 2（0） | 1（0） | 43.7 分（0.0 分） | 64.9 分（0.0 分） | 0.1 分（0.0 分） | 60／77／76 分（0／0／0 分） |
 | 發布 | 1（0） | 1（0） | 8.0 分（0.0 分） | 8.0 分（0.0 分） | 0.1 分（0.0 分） | 5／6／11 分（0／0／0 分） |
 
 ## 每天的機器時間（分鐘，洛杉磯日期，最近 14 天）
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-11-10 | 31 | 91 | 34 | 18 | 143 |
+| 2026-11-10 | 32 | 91 | 56 | 18 | 165 |
 | 2026-11-09 | 37 | 186 | 119 | 138 | 442 |
 
 ## 最慢的測試檔案（每份報告最近一次，括號是近 7 次的中位數）
@@ -197,20 +197,20 @@
 
 ### 每晚完整測試 · test-results-windows-latest-3.13/pass-1.xml
 
-最近一次：2026-11-09 13:03 America/Los_Angeles（PST，UTC−08:00），合計 1367 秒。
+最近一次：2026-11-10 07:43 America/Los_Angeles（PST，UTC−08:00），合計 1275 秒。
 
 | 秒 | 測試數 | 檔案 |
 |---|---|---|
-| 132.1（132.1） | 15 | `apps\server\tests\test_portal.py` |
-| 114.4（114.4） | 16 | `packages\rpa_runner\tests\test_login.py` |
-| 102.2（102.2） | 16 | `packages\rpa_runner\tests\test_video_browser.py` |
-| 101.1（101.1） | 6 | `apps\server\tests\test_workflow_flow.py` |
-| 84.9（84.9） | 19 | `packages\rpa_runner\tests\test_debug.py` |
-| 67.0（67.0） | 9 | `apps\server\tests\test_production_flow.py` |
-| 57.8（57.8） | 5 | `apps\server\tests\test_remote_worker_flow.py` |
-| 55.1（55.1） | 20 | `packages\rpa_runner\tests\test_run.py` |
-| 40.4（40.4） | 18 | `packages\rpa_runner\tests\test_profiles.py` |
-| 37.6（37.6） | 4 | `apps\server\tests\test_replay_flow.py` |
+| 125.6（128.8） | 15 | `apps\server\tests\test_portal.py` |
+| 107.6（104.9） | 16 | `packages\rpa_runner\tests\test_video_browser.py` |
+| 101.3（107.8） | 16 | `packages\rpa_runner\tests\test_login.py` |
+| 95.2（98.2） | 6 | `apps\server\tests\test_workflow_flow.py` |
+| 77.4（81.2） | 19 | `packages\rpa_runner\tests\test_debug.py` |
+| 63.5（65.2） | 9 | `apps\server\tests\test_production_flow.py` |
+| 54.6（56.2） | 5 | `apps\server\tests\test_remote_worker_flow.py` |
+| 49.1（52.1） | 20 | `packages\rpa_runner\tests\test_run.py` |
+| 37.7（37.7） | 4 | `apps\server\tests\test_replay_flow.py` |
+| 27.0（29.1） | 11 | `apps\server\tests\test_gitsync.py` |
 
 ### 每晚完整測試 · test-results-windows-latest-3.13/pass-2.xml
 
@@ -257,6 +257,7 @@
 | 11-10 07:44 | 桌面端建置 | 推送 | main | success | 0.2 分 | 0.1 分 | [#42847532709](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42847532709/attempts/1) |
 | 11-10 07:44 | 一鍵安裝腳本 | 推送 | main | success | 0.2 分 | 0.1 分 | [#42847532714](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42847532714/attempts/1) |
 | 11-10 07:44 | CI | 推送 | main | success | 7.8 分 | 0.1 分 | [#42847532856](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42847532856/attempts/1) |
+| 11-10 07:43 | 每晚完整測試 | 手動 | main | success | 22.5 分 | 0.1 分 | [#42847296159](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42847296159/attempts/1) |
 | 11-10 07:27 | 伺服器分發包 | PR | feat/login-locator-guide | success | 0.2 分 | 0.1 分 | [#42844572816](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42844572816/attempts/1) |
 | 11-10 07:27 | 一鍵安裝腳本 | PR | feat/login-locator-guide | success | 0.2 分 | 0.1 分 | [#42844572993](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42844572993/attempts/1) |
 | 11-10 07:27 | CI | PR | feat/login-locator-guide | success | 2.5 分 | 0.1 分 | [#42844572800](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42844572800/attempts/1) |
@@ -289,5 +290,4 @@
 | 11-09 18:33 | CI | PR | claude/project-thread-j92asl | success | 4.6 分 | 0.1 分 | [#42743540767](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42743540767/attempts/1) |
 | 11-09 16:56 | 一鍵安裝腳本 | 推送 | main | success | 0.1 分 | 0.1 分 | [#42732096119](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42732096119/attempts/1) |
 | 11-09 16:56 | 伺服器分發包 | 推送 | main | success | 0.2 分 | 0.1 分 | [#42732096334](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42732096334/attempts/1) |
-| 11-09 16:56 | CI | 推送 | main | success | 2.4 分 | 0.1 分 | [#42732096075](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42732096075/attempts/1) |
 
