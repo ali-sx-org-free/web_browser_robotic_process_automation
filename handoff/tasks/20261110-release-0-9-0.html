@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261110-release-0-9-0 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261110-release-0-9-0：發布 v0.9.0</h1><p>把已合併、人工驗收一～五通過的 Python 節點（RPA Python 運行環境、組合場景裡的資料與檔案傳遞），連同倉庫搬到新組織後的新網址，發布為 v0.9.0。這是搬家後新倉庫的第一個 Release。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID</dt><dd>20261110-release-0-9-0</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-10 00:13 America/Los_Angeles（PST，UTC−08:00）在 Claude 對話確認 Python 節點的人工驗收一～五完成，版本號照建議用 0.9.0（新功能，升次版本）。驗收條件：版本一致、版本 PR 的 CI 通過、標籤位於 <code>main</code>、發布流程通過、分發檔與 <code>SHA256SUMS.txt</code> 齊全；<strong>草稿 Release 先做人工驗收六（三個系統一致）</strong>，通過才發布。</dd>
+        <dt>主責／授權</dt><dd>Claude 準備版本差異與本紀錄、開版本 PR；使用者合併 PR、在自己的電腦推標籤（Claude 的雲端環境推不了標籤）、做驗收六、按 Publish。本任務不代表線上環境已升級。</dd>
+        <dt>修改檔案／整合者</dt><dd>九個套件的 <code>pyproject.toml</code>（多了 <code>packages/rpa_script</code>）、<code>uv.lock</code>、本任務紀錄與索引，以及 <a href="20261024-python-scripts.html">Python 節點任務</a>的人工驗收結果；Claude 整合。</dd>
+        <dt>分支／基準</dt><dd><code>chore/release-0.9.0</code>，從 <code>origin/main@d4f4aff</code> 建立。</dd>
+        <dt>狀態／同步</dt><dd>本地驗證通過；隨本提交推送並建立版本 PR，CI、標籤、草稿 Release、驗收六與發布仍待完成。</dd>
+        <dt>環境</dt><dd>Claude 雲端環境（Linux x86_64、Python 3.13）做版本差異與文件檢查；跨平台安裝包由 GitHub Actions 建置。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="changes">
+      <div class="panel-header"><h2>發布內容與驗證</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><a href="20261024-python-scripts.html">舊倉庫 PR #109：Python 節點（第三版）</a>：場景檔寫 <code>script.runtime: '1'</code> 的 Python 節點用平台自建的 RPA Python 運行環境 1.0.0（Python 3.13，附 pandas、openpyxl 等）執行，不開瀏覽器、可以離線；檔案入參與出參、object／array 入參、步驟與資料預覽、步驟時間軸的回看；組合場景裡瀏覽器節點與 Python 節點之間傳遞資料與檔案。沒寫 <code>runtime</code> 的舊腳本場景照舊（相容模式）。設計見 ADR 0020。</li>
+        <li><a href="20261108-github-migration.html">搬家</a>（新倉庫 PR #4、#5）：「下載新版」、Windows 安裝檔、一鍵安裝腳本與文件改用 <code>ali-sx-org-free/web_browser_robotic_process_automation</code>；文檔對齊 v0.8.0 與 Python 節點（舊倉庫 PR #114）。</li>
+        <li>舊倉庫 PR #110、#112：Dependabot 的 GitHub Actions 版本更新。</li>
+        <li><strong>升級方式</strong>：RPA Worker 與伺服器分發包多了 RPA Python 運行環境，執行環境不同，要用<strong>完整的安裝包</strong>（ADR 0020）；錄製端以發布流程的建置結果為準（<code>uv.lock</code> 的第三方依賴和 v0.8.0 相同，只多了自己的 <code>rpa-script</code>）。新倉庫沒有上一個 Release，所以發布說明不會自動產生「從 v0.8.0 升級」那一段，要手動補上。簽章私鑰沿用 2026-10-25 那把，<code>keys.py</code> 不變。</li>
+        <li>使用 <code>tools/release_version.py bump 0.9.0</code> 統一九個套件與鎖檔；<code>release_version.py check v0.9.0</code>：版本一致。</li>
+        <li>人工驗收（Python 節點）：一～五由使用者約 2026-11-09 21:50～2026-11-10 00:10 PST（依對話時間）在 MacBook（Apple 晶片；同一台的 Worker App 自我測試報告為 Darwin 25.3.0 arm64）以 <code>d4f4aff</code> 的原始碼完成，全部通過，步驟照 <a href="https://claude.ai/artifact/9RCdhXMCUcYHHvtByyiHet">Claude Docs 的驗收教程</a>；六（Windows、macOS Worker App 與 Linux 分發包的結果一致）在草稿 Release 做。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-11-10 00:20 America/Los_Angeles（PST，UTC−08:00），Claude：從 <code>d4f4aff</code> 開 <code>chore/release-0.9.0</code>，bump 0.9.0，回填 Python 節點的驗收一～五，寫本紀錄；本地檢查見提交說明，推送並開版本 PR。</li>
+        <li><strong>下一步（使用者）</strong>：版本 PR 的 CI 通過後合併 → 在自己的電腦 <code>git pull</code> 後 <code>git tag v0.9.0 &amp;&amp; git push origin v0.9.0</code>（只推這一個標籤）→ 發布流程建草稿 Release → 用草稿的安裝檔做驗收六 → 補上升級說明後按 Publish → 正式伺服器與各台電腦用完整的安裝包升級。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
