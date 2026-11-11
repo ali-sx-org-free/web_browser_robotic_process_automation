@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-11-11 03:55 America/Los_Angeles（PST，UTC−08:00）。共 106 次運行。
+更新：2026-11-11 03:55 America/Los_Angeles（PST，UTC−08:00）。共 107 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -10,7 +10,7 @@
 | 流程 | 次數 | 通過 | 耗時中位數 | 耗時 P90 | 最長排隊中位數 | 機器時間（Linux／Windows／macOS） |
 |---|---|---|---|---|---|---|
 | CI | 30（0） | 23（0） | 4.5 分（0.0 分） | 8.2 分（0.0 分） | 0.1 分（0.0 分） | 228／36／0 分（0／0／0 分） |
-| 桌面端建置 | 20（0） | 19（0） | 0.2 分（0.0 分） | 6.7 分（0.0 分） | 0.1 分（0.0 分） | 2／37／36 分（0／0／0 分） |
+| 桌面端建置 | 21（0） | 20（0） | 0.2 分（0.0 分） | 6.7 分（0.0 分） | 0.1 分（0.0 分） | 2／37／36 分（0／0／0 分） |
 | 伺服器分發包 | 25（0） | 24（0） | 0.2 分（0.0 分） | 2.6 分（0.0 分） | 0.1 分（0.0 分） | 36／0／0 分（0／0／0 分） |
 | 一鍵安裝腳本 | 25（0） | 23（0） | 0.2 分（0.0 分） | 5.1 分（0.0 分） | 0.1 分（0.0 分） | 60／76／74 分（0／0／0 分） |
 | 每晚完整測試 | 3（0） | 1（0） | 61.2 分（0.0 分） | 64.9 分（0.0 分） | 0.1 分（0.0 分） | 124／129／147 分（0／0／0 分） |
@@ -20,7 +20,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-11-11 | 8 | 15 | 0 | 0 | 15 |
+| 2026-11-11 | 9 | 15 | 0 | 0 | 15 |
 | 2026-11-10 | 61 | 265 | 177 | 153 | 595 |
 | 2026-11-09 | 37 | 186 | 119 | 138 | 442 |
 
@@ -252,6 +252,7 @@
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
 | 11-11 03:54 | 一鍵安裝腳本 | PR | fix/scene-dag-visual-order | success | 0.2 分 | 0.0 分 | [#43015871314](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43015871314/attempts/1) |
+| 11-11 03:54 | 桌面端建置 | PR | fix/scene-dag-visual-order | success | 0.2 分 | 0.1 分 | [#43015871296](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43015871296/attempts/1) |
 | 11-11 02:17 | CI | PR | fix/scene-dag-visual-order | success | 3.0 分 | 0.1 分 | [#43002361457](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43002361457/attempts/1) |
 | 11-11 02:17 | 伺服器分發包 | PR | fix/scene-dag-visual-order | success | 2.5 分 | 0.1 分 | [#43002361211](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43002361211/attempts/1) |
 | 11-11 02:17 | 桌面端建置 | PR | fix/scene-dag-visual-order | success | 0.1 分 | 0.0 分 | [#43002361250](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43002361250/attempts/1) |
@@ -290,5 +291,4 @@
 | 11-10 15:56 | CI | 推送 | main | success | 8.2 分 | 0.1 分 | [#42927345766](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42927345766/attempts/1) |
 | 11-10 07:47 | 一鍵安裝腳本 | PR | fix/json-scene-sections | success | 0.2 分 | 0.1 分 | [#42847985514](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42847985514/attempts/1) |
 | 11-10 07:47 | 伺服器分發包 | PR | fix/json-scene-sections | success | 2.8 分 | 0.1 分 | [#42847985630](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42847985630/attempts/1) |
-| 11-10 07:47 | 桌面端建置 | PR | fix/json-scene-sections | success | 3.0 分 | 0.1 分 | [#42847985540](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42847985540/attempts/1) |
 
