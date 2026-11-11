@@ -1909,3 +1909,26 @@ def test_workflow_preview_preserves_layout_and_dependencies(mode: str) -> None:
     assert left + width > 850
     assert top < 40
     assert top + height > 316
+
+
+def test_flow_snippets_only_for_yaml_scene_files() -> None:
+    """M7.1 的流程範本是 YAML；整份寫成 JSON 的場景檔不提供，插進去會壞掉。"""
+
+    def has_menu(text: str) -> bool:
+        html = render(
+            "edit.html",
+            page="domain:testsite",
+            title="編輯",
+            domains=DOMAINS,
+            domain=DOMAIN,
+            scene=SCENE,
+            revision=REVISIONS[1],
+            files={"scenario.yaml": text, "automation.py": "pass\n"},
+            selected="scenario.yaml",
+            focus="",
+        )
+        return html.count('data-action="insert-snippet"') == 1
+
+    assert has_menu("id: ba-001\nsteps: []\n")
+    assert not has_menu('{"id": "ba-001", "steps": []}\n')
+    assert not has_menu('﻿\n  {\n  "id": "ba-001"\n}\n')

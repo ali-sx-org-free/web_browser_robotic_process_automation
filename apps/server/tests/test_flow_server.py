@@ -133,7 +133,11 @@ def manager_for(
     session: DebugSession, replies: Replies, monkeypatch: pytest.MonkeyPatch
 ) -> DebugManager:
     manager = object.__new__(DebugManager)
-    monkeypatch.setattr(manager, "get", lambda session_id: session, raising=False)
+
+    def get(session_id: str) -> DebugSession:
+        return session
+
+    monkeypatch.setattr(manager, "get", get, raising=False)
     monkeypatch.setattr(manager, "_command", replies, raising=False)
     return manager
 

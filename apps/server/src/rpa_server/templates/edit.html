@@ -34,7 +34,7 @@
   </template>
   {% for path, text in files.items() %}
   <section class="panel" data-file="{{ path }}"{% if path != selected %} hidden{% endif %}>
-    <div class="panel-header"><h2 class="mono">{{ path }}</h2>{% if path != "scenario.yaml" %}<button class="text-btn" type="button" data-action="remove-file">{{ t("edit.remove_file") }}</button>{% else %}<label class="snippet-insert" title="{{ t('edit.insert_snippet_hint') }}">{{ t("edit.insert_snippet") }} <select data-action="insert-snippet"><option value="">{{ t("edit.insert_snippet_choose") }}</option>{% for snippet in flow_snippets() %}<option value="{{ snippet.key }}" data-snippet="{{ snippet.text }}">{{ snippet.label }}</option>{% endfor %}</select></label>{% endif %}</div>
+    <div class="panel-header"><h2 class="mono">{{ path }}</h2>{% if path != "scenario.yaml" %}<button class="text-btn" type="button" data-action="remove-file">{{ t("edit.remove_file") }}</button>{% elif not text.lstrip("\ufeff \t\r\n").startswith("{") %}<label class="snippet-insert" title="{{ t('edit.insert_snippet_hint') }}">{{ t("edit.insert_snippet") }} <select data-action="insert-snippet"><option value="">{{ t("edit.insert_snippet_choose") }}</option>{% for snippet in flow_snippets() %}<option value="{{ snippet.key }}" data-snippet="{{ snippet.text }}">{{ snippet.label }}</option>{% endfor %}</select></label>{% endif %}</div>
     <div class="panel-body">
       <textarea class="code-editor" name="{{ path }}" rows="28" spellcheck="false" aria-label="{{ path }}">
 {{ text }}</textarea>
