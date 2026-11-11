@@ -11,4 +11,5 @@
 <li>本次四個 Python 檔的 Pyright：0 錯誤；全量 <code>pyright --pythonplatform Linux</code>：0 錯誤、3 個既有 pystray 警告。原生 macOS 全量 Pyright 仍有既有 recorder_gui.py:130 缺 Foundation stub 的錯誤，沒有修改桌面端或放寬設定。</li>
 <li>三語 stamp／sync／check：通過；<code>pytest -q tests/docs tests/i18n</code>：368 通過。</li>
 </ul><p>本地實作完成，待 PR／CI；使用者人工驗收、外部審閱與接收尚未執行。下一步：推送本分支、建立 PR，核對最新 head 的 CI；合併由使用者決定。沒有執行引擎、資料模型或依賴套件變更。</p></section>
+<section class="panel panel-body"><h2>發布與追加紀錄</h2><p>2026-11-11 Asia/Shanghai：功能提交 <code>edbf403</code> 已推送；建立 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/18">PR #18</a>，狀態為待審閱，未合併。最新 head 的 CI 及完成結果回填 PR 說明與 Checks；本次追加僅交接文字，不改程式。</p><p>提交環境：前置 PATH 改用 uv 0.12.24；因既有 macOS Foundation stub 錯誤，提交僅 SKIP=pyright，其餘 hooks 全過；修改檔案及 Linux target 的 Pyright 已獨立通過，證據見上節。GitHub 連接器建立 PR 回覆 integration 403，改用本機已授權的 gh 完成。人工驗收／接收未確認。</p></section>
 </main></body></html>
