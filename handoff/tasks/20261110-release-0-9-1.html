@@ -15,13 +15,13 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261110-release-0-9-1；2026-11-10 16:05 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261110-release-0-9-1；2026-11-10 16:10 America/Los_Angeles（PST，UTC−08:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-10 15:57 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話：「幫我打一個0.9.1的小版本出來」。版本號由使用者指定。驗收條件：版本一致、版本 PR 的 CI 通過、標籤 <code>v0.9.1</code> 位於 <code>main</code>、發布流程通過、分發檔與 <code>SHA256SUMS.txt</code> 齊全；草稿 Release 經使用者驗收後才發布。</dd>
         <dt>範圍／不包含</dt><dd>範圍：版本號（<code>tools/release_version.py bump 0.9.1</code>）、本紀錄與任務索引；回填 <a href="20261110-login-locator-guide.html">20261110-login-locator-guide</a>、<a href="20261110-json-scene-sections.html">20261110-json-scene-sections</a> 的合併狀態，以及 <a href="20261110-release-0-9-0.html">v0.9.0</a> 的標籤與草稿狀態。不包含：功能修改（已在 PR #12、#13）；推標籤、發布 Release（使用者）。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude 準備版本差異與本紀錄、開版本 PR；使用者合併 PR、在自己的電腦推標籤（Claude 的雲端環境推不了標籤）、驗收草稿、按 Publish。本任務不代表線上環境已升級。</dd>
         <dt>修改檔案／整合者</dt><dd>九個套件的 <code>pyproject.toml</code>、<code>uv.lock</code>；本紀錄、任務索引與上面三份任務紀錄。Claude 整合。</dd>
-        <dt>狀態</dt><dd>待審閱：本地驗證通過，隨本提交推送並建立版本 PR；CI、合併、標籤、草稿 Release、驗收與發布仍待完成。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>chore/release-0.9.1</code>，從 <code>origin/main@d560996</code>（PR #12 合併後）建立；版本 PR 隨本提交建立。</dd>
+        <dt>狀態</dt><dd>待審閱：版本 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/14">PR #14</a> 在 f7ded08 的 CI 全部通過，等使用者合併；標籤、草稿 Release、驗收與發布仍待完成。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>chore/release-0.9.1</code>，從 <code>origin/main@d560996</code>（PR #12 合併後）建立；<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/14">PR #14</a>。</dd>
         <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64、系統 Python 3.13.18）做版本差異與文件檢查；不能下載套件，沒有 OpenCC。跨平台安裝包由 GitHub Actions 建置。</dd>
       </dl></div>
@@ -54,7 +54,7 @@
           <tr><td>同上</td><td><code>git diff --check</code>；改過的五個 handoff HTML 用標準函式庫檢查標籤成對、相對連結與錨點</td><td>通過</td><td>無</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：未執行（隨本提交推送後觸發）。發布流程、人工驗收：未執行。審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI（PR #14，head f7ded08，2026-11-10 16:07 America/Los_Angeles（PST，UTC−08:00）結束）：<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/42928193050">CI</a> 的靜態檢查、測試（Python 3.12、3.13）通過；桌面端建置、伺服器分發包、一鍵安裝腳本、RPA Python 運行環境與 Worker 測試（Windows）依共用流程的輸入指紋<strong>沿用</strong>之前通過的運行（版本號不算改動；推標籤時發布流程一律完整建置）。之後只改本紀錄的推送照共用流程沿用這次的重工作。發布流程、人工驗收：未執行。審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -64,6 +64,7 @@
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-11-10 16:05 America/Los_Angeles（PST，UTC−08:00），Claude：PR #12 已在 15:55 合併（d560996）；從 main 開 <code>chore/release-0.9.1</code>，bump 0.9.1，寫本紀錄。回填：PR #13（07:44，3df0f0c）、PR #12（15:55，d560996）的任務紀錄改為已合併待驗收；v0.9.0 的標籤、發布流程與草稿狀態寫進 <a href="20261110-release-0-9-0.html">v0.9.0 的紀錄</a>。另外，15:58 有人以使用者的帳號重新執行 v0.9.0 的發布流程（run 42786155487 第 2 次，仍是 <code>9ad7df4</code>，會換掉 v0.9.0 草稿的檔案，不含 PR #12、#13），16:05 時還在執行；已在對話告訴使用者。</li>
+        <li>2026-11-10 16:10 America/Los_Angeles（PST，UTC−08:00），Claude：開 PR #14；f7ded08 的 CI 全部通過（見驗證）。v0.9.0 發布流程的第 2 次在 16:06 通過，v0.9.0 草稿的檔案已換成這次的建置（版本仍是 0.9.0）。等使用者合併 PR #14 並決定 v0.9.0 的草稿。</li>
       </ul></div>
     </section>
   </div>
