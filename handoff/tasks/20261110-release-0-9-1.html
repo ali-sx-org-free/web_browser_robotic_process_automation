@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261110-release-0-9-1 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261110-release-0-9-1：發布 v0.9.1</h1><p>把 v0.9.0 標籤之後合併的兩項調優發布為 v0.9.1：登入角色表單引導取得「已登入時看得到的元素」（PR #13），以及 JSON 寫法的場景檔可以顯示與編輯腳本、入參與出參（PR #12）。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261110-release-0-9-1；2026-11-10 16:05 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-10 15:57 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話：「幫我打一個0.9.1的小版本出來」。版本號由使用者指定。驗收條件：版本一致、版本 PR 的 CI 通過、標籤 <code>v0.9.1</code> 位於 <code>main</code>、發布流程通過、分發檔與 <code>SHA256SUMS.txt</code> 齊全；草稿 Release 經使用者驗收後才發布。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：版本號（<code>tools/release_version.py bump 0.9.1</code>）、本紀錄與任務索引；回填 <a href="20261110-login-locator-guide.html">20261110-login-locator-guide</a>、<a href="20261110-json-scene-sections.html">20261110-json-scene-sections</a> 的合併狀態，以及 <a href="20261110-release-0-9-0.html">v0.9.0</a> 的標籤與草稿狀態。不包含：功能修改（已在 PR #12、#13）；推標籤、發布 Release（使用者）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude 準備版本差異與本紀錄、開版本 PR；使用者合併 PR、在自己的電腦推標籤（Claude 的雲端環境推不了標籤）、驗收草稿、按 Publish。本任務不代表線上環境已升級。</dd>
+        <dt>修改檔案／整合者</dt><dd>九個套件的 <code>pyproject.toml</code>、<code>uv.lock</code>；本紀錄、任務索引與上面三份任務紀錄。Claude 整合。</dd>
+        <dt>狀態</dt><dd>待審閱：本地驗證通過，隨本提交推送並建立版本 PR；CI、合併、標籤、草稿 Release、驗收與發布仍待完成。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>chore/release-0.9.1</code>，從 <code>origin/main@d560996</code>（PR #12 合併後）建立；版本 PR 隨本提交建立。</dd>
+        <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64、系統 Python 3.13.18）做版本差異與文件檢查；不能下載套件，沒有 OpenCC。跨平台安裝包由 GitHub Actions 建置。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="changes">
+      <div class="panel-header"><h2>發布內容與升級</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><a href="20261110-login-locator-guide.html">PR #13：登入角色的引導</a>：角色表單在「已登入時看得到的元素」下面加引導。可以在瀏覽器裡點選一個登入後才看得到的元素，從列出的寫法選「使用這個」；也可以選種類（文字、按鈕、連結、測試代號、CSS）自己填，產生一行定位器。錄製端多回報能力 <code>loginPick</code>：透過錄製端點選時，錄製端要是 v0.9.1；舊的錄製端會提示要更新（預期的行為）。</li>
+        <li><a href="20261110-json-scene-sections.html">PR #12：JSON 寫法的場景檔</a>：整份是一個 JSON 物件的場景檔，場景頁的自動化腳本、斷言腳本、入參、出參以 JSON 顯示與編輯，存檔後整份照原本的寫法寫回 JSON。以前這四段是空的，存入參會報 YAML 語法錯誤。</li>
+        <li>和 v0.9.0（<code>9ad7df4</code>）的差異只有上面兩個 PR；<code>uv.lock</code> 的第三方依賴不變，只改自己九個套件的版本。</li>
+        <li><strong>升級方式</strong>：從 v0.8.0（正式伺服器目前的版本）升級和 v0.9.0 相同，RPA Worker 與伺服器分發包要用<strong>完整的安裝包</strong>（v0.9.0 起多了 RPA Python 運行環境，ADR 0020）。從 v0.9.0 升級時第三方依賴不變，預期只用更新檔就夠，以發布流程比較環境代號的結果為準。發布流程是和<strong>最近一次已發布</strong>的 Release 比較；新倉庫到現在還沒有已發布的 Release（v0.9.0 還是草稿），所以 v0.9.0 沒有先發布的話，「從上一版升級」那段不會自動產生，要手寫。簽章私鑰沿用 2026-10-25 那把，<code>keys.py</code> 不變。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong><code>python3 tools/release_version.py bump 0.9.1</code>（九個套件與 <code>uv.lock</code>），<code>check v0.9.1</code> 一致；回填三份任務紀錄（見追加紀錄）。</li>
+        <li><strong>待定（使用者）：v0.9.0 的草稿怎麼處理。</strong>建議：v0.9.0 不發布，人工驗收六（Windows、macOS Worker App 與 Linux 分發包的結果一致）改在 v0.9.1 的草稿做，v0.9.1 的說明手寫「從 v0.8.0 升級：Worker 與伺服器要完整的安裝包」；v0.9.0 的草稿留著不發或刪掉，標籤保留。理由：還沒有機器裝 v0.9.0，正式伺服器仍是 v0.8.0；兩版都發要驗收兩次。另一個做法：先完成 v0.9.0 的驗收六並發布，<strong>之後</strong>才推 <code>v0.9.1</code> 標籤，發布流程就會自動寫出「從 v0.9.0 升級」那段。這只是建議，還沒有決定。</li>
+        <li><strong>下一個具體動作（使用者）：</strong>版本 PR 的 CI 通過後合併 → 決定 v0.9.0 的草稿（上一項）→ 在自己的電腦 <code>git pull</code> 後 <code>git tag v0.9.1 &amp;&amp; git push origin v0.9.1</code>（只推這一個標籤）→ 發布流程建草稿 Release → 用草稿的安裝檔做驗收（驗收六，以及 PR #12、#13 各自的人工驗收）→ 補上升級說明後按 Publish → 正式伺服器與各台電腦升級。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>d560996＋本分支的修改；雲端容器、系統 Python 3.13.18</td><td><code>python3 tools/release_version.py check v0.9.1</code></td><td>版本一致</td><td>CI、發布流程</td></tr>
+          <tr><td>同上</td><td><code>pytest tests/ci/test_release_version.py tests/docs tests/i18n</code></td><td>372 passed、1 failed：<code>test_simplified_chinese_is_generated</code> 需要 OpenCC，這個環境沒有（和 v0.9.0 的版本 PR 相同）</td><td>簡中檢查交給 CI</td></tr>
+          <tr><td>同上</td><td><code>git diff --check</code>；改過的五個 handoff HTML 用標準函式庫檢查標籤成對、相對連結與錨點</td><td>通過</td><td>無</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：未執行（隨本提交推送後觸發）。發布流程、人工驗收：未執行。審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-11-10 16:05 America/Los_Angeles（PST，UTC−08:00），Claude：PR #12 已在 15:55 合併（d560996）；從 main 開 <code>chore/release-0.9.1</code>，bump 0.9.1，寫本紀錄。回填：PR #13（07:44，3df0f0c）、PR #12（15:55，d560996）的任務紀錄改為已合併待驗收；v0.9.0 的標籤、發布流程與草稿狀態寫進 <a href="20261110-release-0-9-0.html">v0.9.0 的紀錄</a>。另外，15:58 有人以使用者的帳號重新執行 v0.9.0 的發布流程（run 42786155487 第 2 次，仍是 <code>9ad7df4</code>，會換掉 v0.9.0 草稿的檔案，不含 PR #12、#13），16:05 時還在執行；已在對話告訴使用者。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

@@ -19,8 +19,8 @@
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-10 00:13 America/Los_Angeles（PST，UTC−08:00）在 Claude 對話確認 Python 節點的人工驗收一～五完成，版本號照建議用 0.9.0（新功能，升次版本）。驗收條件：版本一致、版本 PR 的 CI 通過、標籤位於 <code>main</code>、發布流程通過、分發檔與 <code>SHA256SUMS.txt</code> 齊全；<strong>草稿 Release 先做人工驗收六（三個系統一致）</strong>，通過才發布。</dd>
         <dt>主責／授權</dt><dd>Claude 準備版本差異與本紀錄、開版本 PR；使用者合併 PR、在自己的電腦推標籤（Claude 的雲端環境推不了標籤）、做驗收六、按 Publish。本任務不代表線上環境已升級。</dd>
         <dt>修改檔案／整合者</dt><dd>九個套件的 <code>pyproject.toml</code>（多了 <code>packages/rpa_script</code>）、<code>uv.lock</code>、本任務紀錄與索引，以及 <a href="20261024-python-scripts.html">Python 節點任務</a>的人工驗收結果；Claude 整合。</dd>
-        <dt>分支／基準</dt><dd><code>chore/release-0.9.0</code>，從 <code>origin/main@d4f4aff</code> 建立。</dd>
-        <dt>狀態／同步</dt><dd>本地驗證通過；隨本提交推送並建立版本 PR，CI、標籤、草稿 Release、驗收六與發布仍待完成。</dd>
+        <dt>分支／基準</dt><dd><code>chore/release-0.9.0</code>，從 <code>origin/main@d4f4aff</code> 建立；<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/11">PR #11</a>，merge 9ad7df4；標籤 <code>v0.9.0</code> 指向 9ad7df4。</dd>
+        <dt>狀態／同步</dt><dd>草稿未發布：PR #11 於 2026-11-10 00:28 America/Los_Angeles（PST，UTC−08:00）由使用者合併；使用者推送標籤，發布流程（run 42786155487 第 1 次，00:53～01:01 PST）通過，草稿 Release（id 440134295）有 7 個分發檔與 <code>SHA256SUMS.txt</code>。到 16:05 PST 仍是草稿；驗收六在倉庫裡沒有紀錄（未知）。之後合併的修正改隨 <a href="20261110-release-0-9-1.html">v0.9.1</a> 發布，v0.9.0 草稿怎麼處理待使用者決定（見該紀錄）。</dd>
         <dt>環境</dt><dd>Claude 雲端環境（Linux x86_64、Python 3.13）做版本差異與文件檢查；跨平台安裝包由 GitHub Actions 建置。</dd>
       </dl></div>
     </section>
@@ -40,6 +40,7 @@
       <div class="panel-body"><ul class="points">
         <li>2026-11-10 00:20 America/Los_Angeles（PST，UTC−08:00），Claude：從 <code>d4f4aff</code> 開 <code>chore/release-0.9.0</code>，bump 0.9.0，回填 Python 節點的驗收一～五，寫本紀錄；本地檢查見提交說明，推送並開版本 PR。</li>
         <li><strong>下一步（使用者）</strong>：版本 PR 的 CI 通過後合併 → 在自己的電腦 <code>git pull</code> 後 <code>git tag v0.9.0 &amp;&amp; git push origin v0.9.0</code>（只推這一個標籤）→ 發布流程建草稿 Release → 用草稿的安裝檔做驗收六 → 補上升級說明後按 Publish → 正式伺服器與各台電腦用完整的安裝包升級。</li>
+        <li>2026-11-10 16:05 America/Los_Angeles（PST，UTC−08:00），Claude（<a href="20261110-release-0-9-1.html">v0.9.1 版本任務</a>）：依 GitHub 回填狀態（見上面「狀態／同步」）。15:58 有人以使用者的帳號重新執行同一個發布流程（run 42786155487 第 2 次，仍是 9ad7df4，會換掉草稿的檔案），16:05 時還在執行。使用者要求出 v0.9.1，包含之後合併的 PR #12、#13；v0.9.0 草稿的處理見 v0.9.1 的紀錄。</li>
       </ul></div>
     </section>
   </div>
