@@ -200,7 +200,7 @@
             <tr><td><code>POST /debug/{sid}/snapshot</code></td><td>目前页面的结构：无障碍树、表单字段、iframe 与标签页清单</td><td>debug＋回传页面内容</td><td>新（录制端 App 要更新）</td></tr>
             <tr><td><code>POST /debug/{sid}/screenshot</code></td><td>截目前页面，回传图片的下载路径</td><td>debug＋回传页面内容</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/locate</code></td><td>测试定位器：找到几个、前几个的文字</td><td>debug</td><td>沿用</td></tr>
-            <tr><td><code>POST /debug/{sid}/steps/{index}</code></td><td>运行一步；有副作用而且跑过的要带 <code>force</code></td><td>debug</td><td>沿用</td></tr>
+            <tr><td><code>POST /debug/{sid}/steps/{index}</code></td><td>运行一步；有副作用而且跑过的要带 <code>force</code>。区块步骤（M7.1）整块运行；<code>path</code>（例如 <code>["steps", 2, "steps", 0]</code>）单独运行第 index 步里面的一步，<code>choices</code>（循环的路径 <code>steps/2</code> → 第几项，从 0 起）是循环的目前项；回复的 <code>steps</code> 是树（<code>children</code>）</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/run-to/{index}</code></td><td>从下一个还没运行的步骤运行到第几步，失败就停</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/reload</code></td><td>换到刚存的新版本，浏览器与已运行的步骤保留（命令带场景内容；录制端的 App 要支持 <code>debugInlineLoad</code>，v0.6.3）</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/reset</code>、<code>DELETE /debug/{sid}</code></td><td>从头开始、结束</td><td>debug</td><td>沿用</td></tr>
