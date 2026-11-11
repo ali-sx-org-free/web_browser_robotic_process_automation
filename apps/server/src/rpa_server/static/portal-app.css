@@ -29,6 +29,11 @@ h2 a:hover{color:var(--blue-strong)}
 .disabled-hint{display:inline-flex;cursor:not-allowed}
 .disabled-hint>:disabled,.disabled-hint>.is-disabled{pointer-events:none}
 .scene-card{display:flex;flex-direction:column;gap:10px}
+.scene-card-corners{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+.scene-ordinal{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;background:#edf2f8;color:#53677f;font-size:11px;font-weight:650;font-variant-numeric:tabular-nums;flex:none}
+.scene-type{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;border-radius:5px;padding:2px 6px;background:#edf5ff;color:#315b89;font-size:10px;line-height:18px;font-weight:500;flex:none}
+.scene-type.script{background:#f2eefb;color:#70519b}
+.scene-type svg{width:14px;height:14px;flex:none}
 .scene-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 .scene-card-head h2{margin:0;font-size:14px;line-height:1.45;font-weight:650;color:#315b89;min-width:0;overflow-wrap:anywhere}
 .chip{flex:none;max-width:50%;overflow:hidden;text-overflow:ellipsis;font-size:11px;line-height:1.5;padding:2px 7px;border-radius:4px;background:#f3f5f8;color:#8592a3;border:1px solid var(--line);white-space:nowrap}
@@ -142,11 +147,14 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .workflow-editor .panel-header h2{font-size:13px}
 .flow-library>.panel-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px;padding:8px}
 .library-list{flex:1;min-height:0;overflow:auto;scrollbar-gutter:stable}
-.library-group{font-size:10px;color:var(--muted);margin:4px 4px 6px;font-weight:500}
-.workflow-editor .library-item{display:grid;width:100%;gap:3px;padding:8px;margin-bottom:6px;text-align:left;border:1px solid var(--line);border-radius:6px;background:white;cursor:grab}
+.library-group{font-size:11px;color:var(--muted);margin:14px 4px 8px;font-weight:600}
+.library-group:first-child{margin-top:4px}
+.workflow-editor .library-item{display:grid;grid-template-columns:minmax(0,1fr);width:100%;gap:3px;padding:8px;margin-bottom:6px;text-align:left;border:1px solid var(--line);border-radius:6px;background:white;cursor:grab}
 .workflow-editor .library-item:hover{background:#f4f8fd;border-color:#b6d2ee}
-.workflow-editor .library-item strong{font-size:11px;color:#315b89}
-.workflow-editor .library-item span{font-size:12px;line-height:1.5}
+.workflow-editor .library-item strong{font-size:12px;line-height:18px;color:#315b89;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:36px;margin-top:4px;overflow-wrap:anywhere}
+.workflow-editor .library-item .library-code{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--muted)}
+.workflow-editor .library-item .scene-ordinal{min-width:20px;height:20px;font-size:10px}
+.workflow-editor .library-item .scene-type{font-size:10px;padding:1px 4px}
 .workflow-editor .library-item small{font-size:10px;color:var(--blue-strong)}
 #library-search{width:100%;min-width:0;flex-shrink:0}
 .flow-center{display:grid;grid-template-rows:minmax(240px,1fr) 230px;min-width:0;min-height:0;gap:10px}
@@ -160,20 +168,23 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 #canvas-viewport.is-drop-target{box-shadow:inset 0 0 0 2px var(--blue)}
 #canvas-spacer{position:relative}
 .workflow-editor .flow-stage{position:relative;display:block;padding:0;margin:0;transform-origin:0 0;min-height:0}
-.workflow-editor .flow-node{position:absolute;width:200px;height:96px;max-width:none;margin:0;padding:8px 10px;text-align:left;cursor:grab;touch-action:none;user-select:none;box-sizing:border-box;box-shadow:0 2px 5px #253b5c08}
-.workflow-editor .flow-node.selected{border:1px solid var(--blue);padding:8px 10px;background:white;box-shadow:0 0 0 2px #2f8ae51c}
+.workflow-editor .flow-node{position:absolute;width:240px;height:128px;max-width:none;margin:0;padding:10px 12px;text-align:left;cursor:grab;touch-action:none;user-select:none;box-sizing:border-box;border:1px solid #cbd8e7;border-radius:8px;background:white;box-shadow:0 3px 10px #253b5c0a}
+.workflow-editor .flow-node.selected{border:1px solid var(--blue);padding:10px 12px;background:white;box-shadow:0 0 0 3px #2f8ae51c}
 .workflow-editor .flow-node.has-problems{border-color:var(--danger)}
 .workflow-editor .flow-node:active{cursor:grabbing}
 .workflow-editor .flow-node:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
-.workflow-editor .flow-node strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:12px;line-height:16px;max-height:32px;margin:5px 0 3px}
+.workflow-editor .flow-node strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;font-size:13px;line-height:18px;height:36px;margin:6px 0 4px}
 .flow-node-head{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px}
 .flow-node-head .tag{font-size:10px;padding:1px 5px}
-.flow-node small{font-size:10px;color:var(--muted);margin:0}
-.dag-port{position:absolute;top:40px;width:16px;height:16px;border:2px solid var(--blue);background:white;border-radius:50%;padding:0;cursor:crosshair;z-index:2}
+.flow-node small,.flow-node-code{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px;line-height:16px;color:var(--muted);margin:0}
+.flow-node small{color:#53677f}
+.dag-port{position:absolute;top:56px;width:16px;height:16px;border:2px solid var(--blue);background:white;border-radius:50%;padding:0;cursor:crosshair;z-index:2}
 .dag-port:hover,.dag-port:focus-visible{background:var(--blue);outline:3px solid #c7e3ff}
 .dag-port.in{left:-8px}.dag-port.out{right:-8px}
 .dag-links{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;color:var(--blue)}
-.dag-edge{stroke:var(--blue);stroke-width:2;fill:none}
+.dag-edge{stroke:#91a7bf;stroke-width:1.5;fill:none}
+.dag-edge.is-related{stroke:var(--blue);stroke-width:2}
+.dag-edge.is-selected{stroke:var(--blue-strong);stroke-width:2.5}
 .dag-edge-hit{stroke:transparent;stroke-width:16;fill:none;pointer-events:stroke;cursor:pointer}
 .dag-edge-hit:hover,.dag-edge-hit:focus{stroke:#147fe630;outline:none}
 .flow-parameters{min-height:0;display:flex;flex-direction:column}

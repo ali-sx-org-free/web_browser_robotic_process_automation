@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>場景排序與 DAG 視覺整理</title><link rel="stylesheet" href="../../docs/design-system/assets/portal.css"><link rel="stylesheet" href="../handoff.css"></head>
+<body><main id="main"><nav class="handoff-nav"><a href="index.html">任務索引</a></nav><h1>場景排序與 DAG 視覺整理</h1>
+<section class="panel panel-body"><h2>任務與責任</h2><p>使用者於 2026-11-11 Asia/Shanghai 本次對話要求：領域場景按建立時間排列，左上序號、右上瀏覽器／Python 角標；DAG 畫布整齊且能讀出依賴。僅改展示與位置，不改執行、依賴、版本或入參。</p><p>主責：Codex；審閱／接收未指定。分支：fix/scene-dag-visual-order；基準：ab15ce6（origin/main）。開工時工作區乾淨；PR #15 為流程控制，#16 為 M6 文件，無同任務。狀態：本地實作中。</p><p>責任範圍：Portal 頁面、場景庫展示欄位、靜態資源、三語訊息、相關測試與設計文件。沿用現有 checkout。環境：macOS，uv 0.7.6，Node 16.13.0。</p></section>
+<section class="panel panel-body"><h2>實作選擇</h2><ul><li>建立時間由早到晚，同時刻以代號穩定排序；搜尋不改序號。類型以圖示加文字呈現。</li><li>依完整依賴（含出參綁定）分層排列，長連線避開節點。提供一鍵整理；保留人工座標，僅無座標／舊自動網格初始轉為分層顯示。</li><li>版面整理只改 position，節點陣列與依賴保持原樣；不引入第三方依賴。</li></ul></section>
+<section class="panel panel-body" id="validation"><h2>驗證與交付</h2><p>2026-11-11 Asia/Shanghai，基準 ab15ce6＋本任務差異。macOS 26.3.1 arm64、Python 3.13.16、uv 0.12.24、Playwright 1.64.0；使用 ~/.local/bin/uv，PATH 原有的 uv 0.7.6 不符合工程要求。</p><ul>
+<li><code>uv sync --locked</code>、Ruff check／format check、<code>node --check apps/server/src/rpa_server/static/portal.js</code>、<code>git diff --check</code>：通過。</li>
+<li><code>uv run pytest -q -m 'not browser' -n 4</code>：2198 通過、6 略過（Windows 平台與真實 Python runtime 限制）。</li>
+<li><code>uv run pytest -q apps/server/tests/test_portal.py apps/server/tests/test_workflow_flow.py</code>：22 通過（含 Chromium／Firefox 的實際流程）。最後的 CSS 對齊及補充案例後，單獨重跑 <code>-k scene_order_badges</code>：1 通過。</li>
+<li>新增回歸：建立順序、Python／瀏覽器標記、搜尋保留序號、逆序節點的分叉匯合、隱式出參依賴、整理／還原、保存前後除 position 外完全相同、保存後重載、舊網格、孤立節點與循環安全。1440×900、1280×720、390×844 無頁面水平溢出；Codex 已檢視實際截圖。證據在本機 /tmp/rpa-visual-order，可用 RPA_PORTAL_ARTIFACTS 重現，不提交業務截圖。</li>
+<li>本次四個 Python 檔的 Pyright：0 錯誤；全量 <code>pyright --pythonplatform Linux</code>：0 錯誤、3 個既有 pystray 警告。原生 macOS 全量 Pyright 仍有既有 recorder_gui.py:130 缺 Foundation stub 的錯誤，沒有修改桌面端或放寬設定。</li>
+<li>三語 stamp／sync／check：通過；<code>pytest -q tests/docs tests/i18n</code>：368 通過。</li>
+</ul><p>本地實作完成，待 PR／CI；使用者人工驗收、外部審閱與接收尚未執行。下一步：推送本分支、建立 PR，核對最新 head 的 CI；合併由使用者決定。沒有執行引擎、資料模型或依賴套件變更。</p></section>
+</main></body></html>

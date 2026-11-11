@@ -201,6 +201,7 @@ class WorkflowService:
                     "id": scene.id,
                     "name": scene.name,
                     "category": scene.category,
+                    "createdAt": scene.created_at.isoformat(),
                     "domainId": scene.domain_id,
                     "domainName": names.get(scene.domain_id or ""),
                     "publishedRevision": scene.published_number,
@@ -215,6 +216,7 @@ class WorkflowService:
                 {
                     "number": revision.number,
                     "name": scenario.name,
+                    "kind": revision.kind,
                     "inputs": _specs(scenario, "inputs"),
                     "outputs": _specs(scenario, "outputs"),
                     "role": scenario.login.role if scenario.login is not None else None,

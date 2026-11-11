@@ -193,6 +193,8 @@ def test_save_check_and_version_conflict(app: FastAPI, client: Client) -> None:
     assert [scene["id"] for scene in library] == ["ba-001", "ba-002"]  # 只有發布過的
     first = cast("list[JsonObject]", library[0]["revisions"])[0]
     assert first["number"] == 1
+    assert first["kind"] == "dsl"
+    assert library[0]["createdAt"] == services(app).get_scene("ba-001").created_at.isoformat()
     assert [name for name, _ in cast("list[list[object]]", first["inputs"])] == [
         "title",
         "quantity",
