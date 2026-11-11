@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Final, Literal
 
-from rpa_core.dsl import Issue, format_issue
+from rpa_core.dsl import Issue, Scenario, format_issue
 from rpa_core.workflow import Workflow, WorkflowProblem
 
 __all__ = [
@@ -52,6 +52,7 @@ __all__ = [
     "RunRecord",
     "RunStatus",
     "SceneCard",
+    "SceneDisplayKind",
     "SceneRecord",
     "Target",
     "VerificationRecord",
@@ -63,6 +64,7 @@ __all__ = [
     "WorkflowRunStatus",
     "issue_json",
     "now",
+    "scene_display_kind",
 ]
 
 RevisionStatus = Literal["draft", "validating", "passed", "failed"]
@@ -383,6 +385,16 @@ class RunRecord:
         }
 
 
+SceneDisplayKind = Literal["dsl", "script", "browser_script"]
+
+
+def scene_display_kind(scenario: Scenario) -> SceneDisplayKind:
+    """僅供角標：依版本設定區分瀏覽器、純 Python 與 Python 瀏覽器相容模式。"""
+    if scenario.script is None:
+        return "dsl"
+    return "script" if scenario.script.uses_runtime else "browser_script"
+
+
 @dataclass(frozen=True, slots=True)
 class SceneCard:
     """領域頁的一張場景卡片：場景、最近一次執行、最近一張執行截圖。"""
@@ -391,6 +403,8 @@ class SceneCard:
     last_run: RunRecord | None
     screenshot_run: str | None
     """有 screenshot.png 的最近一次執行的編號。"""
+    display_kind: SceneDisplayKind | None = None
+    """最新版本的展示種類；版本讀不到時不猜測 Python 的模式。"""
 
     def to_json(self) -> dict[str, object]:
         return {

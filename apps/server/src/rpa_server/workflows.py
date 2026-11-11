@@ -79,6 +79,7 @@ from rpa_server.domain import (
     WorkflowRunRecord,
     WorkflowRunStatus,
     now,
+    scene_display_kind,
 )
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import t
@@ -217,6 +218,7 @@ class WorkflowService:
                     "number": revision.number,
                     "name": scenario.name,
                     "kind": revision.kind,
+                    "displayKind": scene_display_kind(scenario),
                     "inputs": _specs(scenario, "inputs"),
                     "outputs": _specs(scenario, "outputs"),
                     "role": scenario.login.role if scenario.login is not None else None,

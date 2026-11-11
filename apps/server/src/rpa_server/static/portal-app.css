@@ -33,6 +33,7 @@ h2 a:hover{color:var(--blue-strong)}
 .scene-ordinal{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 6px;border-radius:6px;background:#edf2f8;color:#53677f;font-size:11px;font-weight:650;font-variant-numeric:tabular-nums;flex:none}
 .scene-type{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;border-radius:5px;padding:2px 6px;background:#edf5ff;color:#315b89;font-size:10px;line-height:18px;font-weight:500;flex:none}
 .scene-type.script{background:#f2eefb;color:#70519b}
+.scene-type.browser_script{background:#e8f5f2;color:#277568}
 .scene-type svg{width:14px;height:14px;flex:none}
 .scene-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 .scene-card-head h2{margin:0;font-size:14px;line-height:1.45;font-weight:650;color:#315b89;min-width:0;overflow-wrap:anywhere}
@@ -155,6 +156,7 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .workflow-editor .library-item .library-code{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--muted)}
 .workflow-editor .library-item .scene-ordinal{min-width:20px;height:20px;font-size:10px}
 .workflow-editor .library-item .scene-type{font-size:10px;padding:1px 4px}
+.workflow-editor .library-item .scene-card-corners{gap:4px}
 .workflow-editor .library-item small{font-size:10px;color:var(--blue-strong)}
 #library-search{width:100%;min-width:0;flex-shrink:0}
 .flow-center{display:grid;grid-template-rows:minmax(240px,1fr) 230px;min-width:0;min-height:0;gap:10px}
@@ -221,8 +223,8 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .workflow-history{padding:0}
 .workflow-history>summary{padding:8px 12px;font-size:12px;color:#315b89}
 .workflow-history[open]>summary{border-bottom:1px solid var(--line)}
-@media(max-width:1250px){.flow-layout.workflow-editor{grid-template-columns:150px minmax(0,1fr) 200px}.workflow-toolbar h1{max-width:200px}.input-columns,.input-source{grid-template-columns:minmax(85px,.8fr) minmax(100px,1fr) minmax(80px,.9fr);gap:6px}}
-@media(max-width:1100px){.flow-layout.workflow-editor{height:auto;grid-template-columns:150px minmax(0,1fr)}.workflow-editor>.flow-library,.flow-center{height:var(--workspace-height)}.workflow-editor>.flow-settings{grid-column:1/-1;max-height:260px}.workflow-toolbar>.actions{margin-left:0}.workflow-toolbar h1{max-width:none}}
+@media(max-width:1250px){.flow-layout.workflow-editor{grid-template-columns:180px minmax(0,1fr) 200px}.workflow-toolbar h1{max-width:200px}.input-columns,.input-source{grid-template-columns:minmax(85px,.8fr) minmax(100px,1fr) minmax(80px,.9fr);gap:6px}}
+@media(max-width:1100px){.flow-layout.workflow-editor{height:auto;grid-template-columns:180px minmax(0,1fr)}.workflow-editor>.flow-library,.flow-center{height:var(--workspace-height)}.workflow-editor>.flow-settings{grid-column:1/-1;max-height:260px}.workflow-toolbar>.actions{margin-left:0}.workflow-toolbar h1{max-width:none}}
 @media(max-width:700px){.flow-layout.workflow-editor{grid-template-columns:minmax(0,1fr)}.workflow-editor>.flow-library{height:200px}.flow-center{height:580px;grid-template-rows:minmax(240px,1fr) 250px}.workflow-toolbar h1{font-size:15px;max-width:100%}.workflow-toolbar>.actions{width:100%;gap:5px}.workflow-toolbar .button{font-size:11px;padding:4px 7px}.workflow-help{position:static}.workflow-help>.panel{left:0;right:auto;top:100%;max-width:100%}.input-columns,.input-source{grid-template-columns:95px minmax(100px,1fr) minmax(90px,1fr);gap:6px}#node-inputs{overflow:auto}.input-source,.input-columns{min-width:320px}}
 
 .input-name,.binding-value{min-width:0;font-size:11px;overflow-wrap:anywhere}.binding-value input+span,.binding-value select+span{display:block;margin-top:3px}
@@ -291,7 +293,7 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .source-picker select{min-width:0;max-width:180px;font-size:11px;padding:2px 4px;flex:1}
 .parameter-head .text-btn{font-size:11px;padding:2px 0;min-height:0;display:inline-block}
 .dag-edge.is-selected{stroke-width:3;stroke:#257fdb}
-@media(max-width:1100px){.flow-layout.workflow-editor{grid-template-columns:150px minmax(0,1fr)}.workflow-editor>.flow-library,.flow-center{height:360px}.workflow-editor>.flow-settings{height:auto;max-height:220px}.contract-editors{grid-template-columns:minmax(0,1fr)}.contract-toolbar #contract-state{margin-left:0}}
+@media(max-width:1100px){.flow-layout.workflow-editor{grid-template-columns:180px minmax(0,1fr)}.workflow-editor>.flow-library,.flow-center{height:360px}.workflow-editor>.flow-settings{height:auto;max-height:220px}.contract-editors{grid-template-columns:minmax(0,1fr)}.contract-toolbar #contract-state{margin-left:0}}
 @media(max-width:700px){.flow-layout.workflow-editor{grid-template-columns:minmax(0,1fr)}.workflow-editor>.flow-library{height:170px}.flow-center{height:340px;grid-template-rows:minmax(0,1fr)}.flow-parameters{height:320px}.contract-toolbar .segmented{max-width:100%;overflow:auto}.contract-next{align-items:flex-start;flex-direction:column}.contract-editor .header-main{flex-wrap:wrap}.contract-note{align-items:stretch;flex-direction:column}.flow-parameters .actions{flex-wrap:wrap}.parameter-hint{font-size:10px}}
 .binding-modes button{font-family:inherit;font-size:11px;line-height:1.4}
 .workflow-live .panel-header{padding:7px 12px;gap:10px;flex-wrap:wrap}

@@ -177,6 +177,43 @@ def get(client: Client, run_id: object) -> JsonObject:
 # ---------------------------------------------------------------- 序列
 
 
+def test_display_kind_uses_each_revision_script_mode(app: FastAPI, client: Client) -> None:
+    """相同 script 種類的兩個版本依 runtime 區分；既有 kind 與固定版本不變。"""
+    service = services(app)
+    service.seed_examples_domain()
+    publish(app, "ba-001-script")
+    example = Path(__file__).resolve().parents[3] / "scenarios" / "examples" / "python-node"
+    files = {file.name: file.read_text(encoding="utf-8") for file in example.iterdir()}
+    files["scenario.yaml"] = files["scenario.yaml"].replace("python-node-report", "ba-001-script")
+    body(
+        client.post(
+            "/api/scenes/ba-001-script/revisions", json={"baseRevision": 1, "files": files}
+        ),
+        201,
+    )
+    publish(app, "ba-001-script", 2)
+    entries = cast("list[JsonObject]", body(client.get("/api/workflows/library"))["scenes"])
+    entry = next(item for item in entries if item["id"] == "ba-001-script")
+    revisions = cast("list[JsonObject]", entry["revisions"])
+    assert [(item["number"], item["kind"], item["displayKind"]) for item in revisions] == [
+        (2, "script", "script"),
+        (1, "script", "browser_script"),
+    ]
+    card = next(
+        item for item in service.scene_cards("testsite") if item.scene.id == "ba-001-script"
+    )
+    assert card.scene.kind == "script"
+    assert card.display_kind == "script"
+
+    # 遺失版本內容時不能把純 Python 誤標成 Python 瀏覽器，領域頁仍須可用。
+    service.storage.scenario_path("ba-001-script", 2).unlink()
+    card = next(
+        item for item in service.scene_cards("testsite") if item.scene.id == "ba-001-script"
+    )
+    assert card.display_kind is None
+    assert client.get("/domains/testsite").status_code == 200
+
+
 def test_save_check_and_version_conflict(app: FastAPI, client: Client) -> None:
     services(app).seed_examples_domain()  # 「測試網站自動化」領域與範例
     publish(app, "ba-001")
@@ -194,6 +231,7 @@ def test_save_check_and_version_conflict(app: FastAPI, client: Client) -> None:
     first = cast("list[JsonObject]", library[0]["revisions"])[0]
     assert first["number"] == 1
     assert first["kind"] == "dsl"
+    assert first["displayKind"] == "dsl"
     assert library[0]["createdAt"] == services(app).get_scene("ba-001").created_at.isoformat()
     assert [name for name, _ in cast("list[list[object]]", first["inputs"])] == [
         "title",

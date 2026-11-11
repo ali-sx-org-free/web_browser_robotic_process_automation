@@ -2611,9 +2611,14 @@
 
     function typeBadge(kind) {
       if (!kind) return '';
-      const python = kind === 'script', label = python ? text.type_script : text.type_dsl;
-      const icon = python ? '<path d="m6 5-4 5 4 5m8-10 4 5-4 5m-3-12-2 14"/>' : '<rect x="2" y="3" width="16" height="14" rx="2"/><path d="M2 7h16M5 5h1m2 0h1"/>';
-      return '<span class="scene-type ' + (python ? 'script' : 'dsl') + '" title="' + esc(label) + '"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">' + icon + '</svg>' + esc(label) + '</span>';
+      const icons = {
+        dsl: '<rect x="2" y="3" width="16" height="14" rx="2"/><path d="M2 7h16M5 5h1m2 0h1"/>',
+        script: '<path d="m6 5-4 5 4 5m8-10 4 5-4 5m-3-12-2 14"/>',
+        browser_script: '<rect x="2" y="3" width="16" height="14" rx="2"/><path d="M2 7h16M7 9l-2 3 2 3m6-6 2 3-2 3"/>'
+      };
+      if (!Object.hasOwn(icons, kind)) return '';
+      const label = text['type_' + kind];
+      return '<span class="scene-type ' + kind + '" title="' + esc(label) + '"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">' + icons[kind] + '</svg>' + esc(label) + '</span>';
     }
 
     function canConnect(source, target) {
@@ -2702,7 +2707,7 @@
         const number = scene.publishedRevision || scene.revisions[0].number;
         const revision = scene.revisions.find(item => item.number === number);
         return '<button type="button" class="library-item" draggable="true" title="' + esc(text.library_hint) + '" data-add="' + esc(scene.id) + '">' +
-          '<span class="scene-card-corners"><span class="scene-ordinal" title="' + esc(text.creation_order) + '">' + ordinals.get(scene.id) + '</span>' + typeBadge(revision?.kind) + '</span>' +
+          '<span class="scene-card-corners"><span class="scene-ordinal" title="' + esc(text.creation_order) + '">' + ordinals.get(scene.id) + '</span>' + typeBadge(revision?.displayKind) + '</span>' +
           '<strong title="' + esc(scene.name) + '">' + esc(scene.name) + '</strong><span class="library-code mono" title="' + esc(scene.id) + '">' + esc(scene.id) + '</span>' +
           '<small>' + esc(fill(text.add, {number})) + '</small></button>';
       }).join('')).join('');
@@ -2769,7 +2774,7 @@
           const title = revision ? revision.name : (scene ? scene.name : node.sceneId);
           const count = problems.filter(item => item.node === node.id).length;
           return '<div class="flow-node' + (index === selected ? ' selected' : '') + (count ? ' has-problems' : '') + '" data-index="' + index + '" data-node="' + esc(node.id) + '" role="button" tabindex="0" aria-pressed="' + (index === selected) + '" style="left:' + node.position.x + 'px;top:' + node.position.y + 'px">' +
-            '<span class="flow-node-head">' + typeBadge(revision?.kind) + '<span class="muted">v' + node.revision + '</span></span>' +
+            '<span class="flow-node-head">' + typeBadge(revision?.displayKind) + '<span class="muted">v' + node.revision + '</span></span>' +
             '<strong title="' + esc(title) + '">' + esc(title) + '</strong><span class="flow-node-code mono" title="' + esc(node.sceneId) + '">' + esc(node.sceneId) + '</span><small title="' + esc(node.id) + '">' + esc(node.id) + (count ? ' · ' + esc(fill(text.problem_count, {count})) : '') + '</small>' +
             '<button class="dag-port in" data-in="' + esc(node.id) + '" aria-label="' + esc(fill(text.connect_to, {node: node.id})) + '"></button>' +
             '<button class="dag-port out" data-out="' + esc(node.id) + '" aria-label="' + esc(fill(text.connect_from, {node: node.id})) + '"></button></div>';

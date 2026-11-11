@@ -135,6 +135,13 @@ def test_scene_order_badges_and_dag_layout(
     """真實頁面整理分叉、匯合與跨層依賴；儲存前後只有座標不同。"""
     services = cast("Services", app.state.services)
     services.seed_examples_domain()
+    python_example = ROOT / "scenarios" / "examples" / "python-node"
+    services.add_scene(
+        "python-node-report",
+        {file.name: file.read_text(encoding="utf-8") for file in python_example.iterdir()},
+        note=None,
+        domain_id="testsite",
+    )
     moment = datetime(2026, 1, 1, tzinfo=UTC)
     with services.sessions() as session:
         scenes = list(session.scalars(select(Scene).order_by(Scene.id.desc())))
@@ -176,7 +183,8 @@ def test_scene_order_badges_and_dag_layout(
         [str(i + 1) for i in range(len(expected_order))]
     )
     expect(page.locator('[data-scene="ba-001"] .scene-type')).to_have_text("瀏覽器")
-    expect(page.locator('[data-scene="ba-001-script"] .scene-type')).to_have_text("Python")
+    expect(page.locator('[data-scene="ba-001-script"] .scene-type')).to_have_text("Python 瀏覽器")
+    expect(page.locator('[data-scene="python-node-report"] .scene-type')).to_have_text("Python")
     artifacts = Path(os.environ.get("RPA_PORTAL_ARTIFACTS", str(tmp_path)))
     artifacts.mkdir(parents=True, exist_ok=True)
     page.screenshot(path=artifacts / "scene-order.png", full_page=True, animations="disabled")
@@ -218,6 +226,8 @@ def test_scene_order_badges_and_dag_layout(
     expect(page.locator("#library-list .scene-ordinal")).to_have_text(
         str(expected_order.index("ba-001-script") + 1)
     )
+    expect(page.locator("#library-list .scene-type")).to_have_text("Python 瀏覽器")
+    page.locator("#library-search").fill("python-node-report")
     expect(page.locator("#library-list .scene-type")).to_have_text("Python")
     page.locator("#library-search").fill("")
 
@@ -289,6 +299,36 @@ def test_scene_order_badges_and_dag_layout(
     page.locator("[data-arrange]").click()
     assert positions() == before_arrange
     expect(page.locator("[data-undo-arrange]")).to_be_hidden()
+    # 三類節點在同一畫布正確標示；中等寬度的場景庫角標保持在卡片內。
+    kinds = [
+        ("ba-001", "瀏覽器"),
+        ("ba-001-script", "Python 瀏覽器"),
+        ("python-node-report", "Python"),
+    ]
+    three_types = client.post(
+        "/api/workflows",
+        json={
+            "name": "三種節點角標",
+            "definition": {
+                "version": 2,
+                "mode": "dag",
+                "nodes": [{"id": scene, "sceneId": scene, "revision": 1} for scene, _ in kinds],
+                "edges": [],
+            },
+        },
+    ).json()
+    page.goto(f"http://visual.test/playground/{three_types['id']}")
+    for scene, label in kinds:
+        expect(page.locator(f'[data-node="{scene}"] .scene-type')).to_have_text(label)
+        expect(page.locator(f'[data-add="{scene}"] .scene-type')).to_have_text(label)
+    for width in [1440, 1200, 1000, 390]:
+        page.set_viewport_size({"width": width, "height": 900})
+        assert page.locator(".library-item .scene-type").evaluate_all(
+            "els => els.every(el => el.getBoundingClientRect().right <= "
+            "el.closest('.library-item').getBoundingClientRect().right - 4)"
+        )
+    page.set_viewport_size({"width": 1440, "height": 900})
+    page.screenshot(path=artifacts / "three-types.png", full_page=True, animations="disabled")
     assert errors == []
 
 

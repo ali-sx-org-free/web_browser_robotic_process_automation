@@ -25,7 +25,7 @@
   {% set scene = card.scene %}
   {% set last = card.last_run %}
   <article class="panel panel-body scene-card" data-scene="{{ scene.id }}">
-    <div class="scene-card-corners"><span class="scene-ordinal" title="{{ t('card.creation_order') }}">{{ loop.index }}</span>{{ m.scene_type(scene.kind) }}</div>
+    <div class="scene-card-corners"><span class="scene-ordinal" title="{{ t('card.creation_order') }}">{{ loop.index }}</span>{% if card.display_kind %}{{ m.scene_type(card.display_kind) }}{% endif %}</div>
     <div class="scene-card-head">
       <h2><a href="/scenes/{{ scene.id }}">{{ scene.name }}</a></h2>
       <span class="chip" data-tag title="{{ t('card.tag_title') }}">{{ scene.category or t("card.tag_" + scene.kind) }}</span>
