@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261111-nightly-firefox-video · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261111-nightly-firefox-video：每晚完整測試的 Firefox 錄影對時偶發失敗</h1><p>issue #17：<code>packages/rpa_runner/tests/test_video_browser.py::test_video_lines_up_with_the_steps[firefox]</code> 在 Linux 上點「變紅」結束後 0.3 秒，錄影讀到的還是白色。原因是錄影丟掉了記到變紅的那一格，而測試頁之後 1.5 秒都不重畫。改的是測試頁與測試的診斷訊息，產品程式沒有改。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261111-nightly-firefox-video；2026-11-11 17:15 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-11 16:52 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話要求修復新的 issue。2026-11-10 的對話已處理 issue #7、#8（<a href="20261109-windows-colon-test.html">任務紀錄</a>），開啟中的只剩 issue #17。驗收：本 PR 的 CI 通過（Windows 的 Worker 測試含 Firefox 錄影）；合併後的每晚完整測試不再因這個測試失敗。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：<code>apps/testsite/src/testsite/video.py</code> 的純色測試頁加一個一直閃的小方塊；<code>test_video_lines_up_with_the_steps</code> 失敗時寫出影片實際變紅的時間；本紀錄、任務索引、<a href="../open-work.html#limits">未完成工作</a>加一列已知限制。不包含：產品的錄影與對時（<code>rpa_runner.video</code> 不變）；ADR 0016 的正文（這次沒有改設計）；關閉 issue #17（等合併後的排程通過，由使用者決定）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱與合併：使用者；接收方未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>apps/testsite/src/testsite/video.py</code>、<code>packages/rpa_runner/tests/test_video_browser.py</code>、<code>handoff/open-work.html</code>、本紀錄、任務索引。Claude 整合。開工時開啟中的 PR 只有 #15（M7.1 流程控制），沒有修改這些檔案。</dd>
+        <dt>狀態</dt><dd>實作完成，待推送與開 PR。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-0k55i9</code>（本次雲端會話指定的分支名稱，不是 <code>fix/</code> 慣例），從 main 554fe2f（PR #18 合併後）開；PR 待建立。</dd>
+        <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64，4 核）、Python 3.13.18、uv 0.11.32、Playwright 1.64.0；<code>uv sync --locked</code> 可用。容器只有 Chromium 1243（Playwright 1.64 要 1248），用 <code>PLAYWRIGHT_BROWSERS_PATH</code> 指向會話暫存區裡的別名目錄執行（Chromium 1248 → 預裝的 1243；ffmpeg 1013 → 系統的 ffmpeg 6.1.1，預裝的 ffmpeg 1011 不認得 1.64 的參數）。沒有 Firefox，Firefox 的結果看 CI。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="cause">
+      <div class="panel-header"><h2>原因</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>失敗的運行：</strong>每晚完整測試 run 42933251106（排程，2026-11-10 16:40 America/Los_Angeles（PST，UTC−08:00）開始，main ab15ce6），只有「完整測試（ubuntu-latest，Python 3.13）」第 1 遍失敗（1 failed、2371 passed、6 skipped），同一台機器的瀏覽器測試第 2、3 遍與 Python 3.12、macOS、Windows 都通過。失敗的是 <code>test_video_lines_up_with_the_steps[firefox]</code>：點擊開始前 0.3 秒是白色（對），點擊結束後 0.3 秒還是白色 <code>[255, 255, 255]</code>（應該是紅色）。</li>
+        <li><strong>錄影怎麼拿到畫面（Playwright 1.64 的原始碼）：</strong>Firefox 的 Juggler（<code>nsScreencastService.cpp</code>）在每次合成畫面時截一格；已經有 1 格送出、還沒收到 Playwright 的確認時，這次的畫面直接丟掉（<code>kMaxFramesInFlight = 1</code>），不會補送。無頭模式只有頁面重畫才有新的一格。Chromium 由 Playwright 設 <code>maxFramesInFlight: 5</code>，比較不容易丟。</li>
+        <li><strong>測試頁為什麼容易中：</strong>本機用第二個 screencast 訂閱記下每一格的時間（Chromium，原本的測試頁）：點擊前後只有 3 格（點擊結束前 13 毫秒、2 毫秒，第二格才是紅的），下一格要到 1.49 秒後 <code>#done</code> 出現。也就是整個「變紅」只靠一格；Firefox 那一格在途時剛好遇到點擊造成的重畫（滑鼠移入、按下、變紅相隔十幾毫秒），或主執行緒忙（例如每一步做完的截圖）而晚確認，就會被丟掉，影片一直是白的到 1.5 秒後。和 <a href="20261029-replay-chapters.html">20261029-replay-chapters</a> 在本機看到的偶發失敗（Chromium 的分頁測試，點 main-red 後 0.3 秒還是白的，約 86 次 2 次）是同一個情境。</li>
+        <li><strong>另一個可能的因素（未證實、這次沒有改）：</strong>Firefox 每一格的時間是「Firefox 程序啟動後幾秒」，Playwright 用第一格送到 Node 的時間換算成實際時間（<code>_screencastClockOffset</code>），第一格送得晚，整段影片的時間就偏後同樣多。這會讓變紅稍微晚於 0.3 秒，不會晚到 1.5 秒。新的失敗訊息會寫出實際晚了幾秒，可以分辨是哪一種。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>測試頁（<code>page.html</code>，以及由它衍生的 <code>main.html</code>、<code>child.html</code>）右上角加 4×4 的灰色小方塊，CSS 動畫每 50 毫秒換一次透明度，頁面一直有重畫：丟掉的那一格會在約 50 毫秒後被下一格補上。小方塊在取樣的右下角（64×36 縮圖的 (56, 30)）之外。改了之後同樣的量測：點擊後每 50 毫秒都有一格。<code>test_video_lines_up_with_the_steps</code> 點擊後不是紅色時，從點擊結束前 0.3 秒起每 0.1 秒取樣 30 個點，失敗訊息寫出影片裡實際變紅的時間、完整的 video.json 與那一步的紀錄（以前的訊息被 pytest 截斷，看不到 <code>startedAtSource</code> 等欄位）。</li>
+        <li><strong>未完成／阻礙：</strong>推送、PR 與 CI；合併後的排程結果。</li>
+        <li><strong>決定：</strong>實作選擇：改測試頁，不改產品、不放寬 0.3 秒的容許誤差、不重跑。這個測試要驗證的是「影片時間和步驟時間對得上」；一般網頁有游標閃爍、動畫等持續重畫，測試頁完全靜止反而是少見的情況。產品的限制（頁面之後不再重畫時，最後一個變化可能晚出現）記在<a href="../open-work.html#limits">未完成工作</a>，步驟縮圖本來就用每一步做完的截圖，不受影響。</li>
+        <li><strong>下一個具體動作：</strong>推送並開 PR，確認 CI（Windows 的 Worker 測試跑 Chromium 與 Firefox 的錄影測試）。使用者審閱並合併後，看下一次每晚完整測試；通過時由使用者決定是否關閉 issue #17。若同一個測試再失敗，看失敗訊息裡「點擊結束後幾秒才變紅」：約 1.5 秒表示仍有整段不重畫的空檔；略大於 0.3 秒表示是 Firefox 第一格的時間換算。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。實驗腳本與錄影只在會話暫存區，不進倉庫。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>554fe2f＋本分支的修改；雲端容器（Linux、Python 3.13.18）</td><td><code>uv run ruff check .</code>；<code>uv run ruff format --check .</code>；<code>uv run pyright</code></td><td>通過；354 個檔案已格式化；0 errors（11 個既有的 warning，桌面端的 <code>pystray</code> 等）</td><td>無</td></tr>
+          <tr><td>同上</td><td><code>uv run pytest -q -n 4 -m "not browser"</code>；<code>uv run python tools/i18n.py check</code>；<code>git diff --check</code></td><td>2198 通過、7 略過；結束碼 0；通過</td><td>沒有改正式文檔與多語言目錄</td></tr>
+          <tr><td>同上，Chromium 別名（見「工作區／環境」）</td><td><code>xvfb-run -a uv run pytest -q packages/rpa_runner/tests/test_video_browser.py packages/rpa_runner/tests/test_stepshots.py apps/server/tests/test_replay_flow.py apps/server/tests/test_composite_replay_flow.py apps/server/tests/test_replay_media.py apps/server/tests/test_replay.py</code></td><td>38 通過、5 略過（Firefox 未安裝），有頭與無頭的分頁錄影測試都在內</td><td>Firefox、Windows、macOS：看 CI</td></tr>
+          <tr><td>同上</td><td>會話暫存區的實驗腳本：錄影時另外訂閱 screencast，記下點擊前後每一格的時間（原本的測試頁與加了小方塊的測試頁）；另用新的 <code>_first_red</code> 找一次正常錄影變紅的時間</td><td>原本：點擊後下一格在 1.49 秒；加了小方塊：點擊後每 50 毫秒一格。正常錄影在點擊結束後 0.0 秒就是紅色（取樣間隔 0.1 秒）</td><td>Firefox 的丟格沒有在本機重現（沒有 Firefox）；原本的測試頁在 CPU 負載下用 Chromium 跑 25 次也都通過（Chromium 可以有 5 格在途）</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：待推送。人工驗收：不需要（只改測試頁與測試）；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-11-11 17:15 America/Los_Angeles（PST，UTC−08:00），Claude：讀 issue #17 與 run 42933251106 的失敗 job 日誌、Playwright 1.64 錄影的原始碼（Firefox 的 Juggler、Chromium 的 DevTools screencast），在本機量測測試頁的畫面格；從 main 554fe2f 在 <code>claude/project-thread-0k55i9</code> 修改測試頁與測試，寫本紀錄、任務索引與未完成工作的一列；本地檢查見上。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
