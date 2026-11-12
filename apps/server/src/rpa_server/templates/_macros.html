@@ -247,3 +247,6 @@
 {% macro worker_text(target, worker_id, workers) -%}
 {% if worker_id %}{{ workers.get(worker_id, worker_id) }}{% else %}{{ t("target." + target) }}{% endif %}
 {%- endmacro %}
+{% macro scene_type(kind) -%}
+<span class="scene-type {{ kind }}" title="{{ t('card.type_' + kind) }}"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">{% if kind == 'script' %}<path d="m6 5-4 5 4 5m8-10 4 5-4 5m-3-12-2 14"/>{% else %}<rect x="2" y="3" width="16" height="14" rx="2"/>{% if kind == 'browser_script' %}<path d="M2 7h16M7 9l-2 3 2 3m6-6 2 3-2 3"/>{% else %}<path d="M2 7h16M5 5h1m2 0h1"/>{% endif %}{% endif %}</svg>{{ t('card.type_' + kind) }}</span>
+{%- endmacro %}

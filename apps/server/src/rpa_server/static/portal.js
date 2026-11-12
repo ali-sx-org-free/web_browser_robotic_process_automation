@@ -2516,7 +2516,10 @@
       definition.mode = 'dag';
     }
     definition.edges ||= [];
-    definition.nodes.forEach((node, i) => { node.position ||= {x: 40 + (i % 3) * 280, y: 40 + Math.floor(i / 3) * 160}; });
+    const nodeWidth = 240, nodeHeight = 128, columnGap = 104, rowGap = 64;
+    const initialLayout = definition.nodes.every((node, i) => !node.position ||
+      (node.position.x === 40 + (i % 3) * 280 && node.position.y === 40 + Math.floor(i / 3) * 160));
+    let previousPositions = null;
     let zoom = 1, picked = null, dragging = false, editVersion = 0, saving = false;
     let selectedSource = null, parameterPicked = null;
     const wirePending = new Set();
@@ -2551,6 +2554,71 @@
         if (binding.node) edges.set(binding.node + ':' + node.id, {source: binding.node, target: node.id});
       }));
       return [...edges.values()];
+    }
+
+    // 最長路徑分層＋相鄰層重心排序；只產生座標，不重排定義或更動依賴。
+    function layoutPositions() {
+      const nodes = definition.nodes;
+      const incoming = new Map(nodes.map(node => [node.id, []]));
+      const outgoing = new Map(nodes.map(node => [node.id, []]));
+      const edges = allEdges().filter(edge => incoming.has(edge.source) && incoming.has(edge.target));
+      edges.forEach(edge => { incoming.get(edge.target).push(edge.source); outgoing.get(edge.source).push(edge.target); });
+      const degree = new Map(nodes.map(node => [node.id, incoming.get(node.id).length]));
+      const rank = new Map(nodes.map(node => [node.id, 0]));
+      const queue = nodes.filter(node => !degree.get(node.id)).map(node => node.id);
+      for (let i = 0; i < queue.length; i++) {
+        const id = queue[i];
+        outgoing.get(id).forEach(target => {
+          rank.set(target, Math.max(rank.get(target), rank.get(id) + 1));
+          degree.set(target, degree.get(target) - 1);
+          if (!degree.get(target)) queue.push(target);
+        });
+      }
+      // 無效循環仍可檢視及修正，不讓整理造成無限迴圈。
+      if (queue.length !== nodes.length) return null;
+      const layers = [];
+      nodes.forEach(node => { (layers[rank.get(node.id)] ||= []).push(node.id); });
+      const order = new Map();
+      const remember = layer => layer.forEach((id, i) => order.set(id, i));
+      layers.forEach(remember);
+      for (let pass = 0; pass < 4; pass++) {
+        const forward = pass % 2 === 0;
+        const neighbors = forward ? incoming : outgoing;
+        (forward ? layers : [...layers].reverse()).forEach(layer => {
+          const center = id => {
+            const adjacent = neighbors.get(id);
+            return adjacent.length ? adjacent.reduce((sum, other) => sum + order.get(other), 0) / adjacent.length : order.get(id);
+          };
+          layer.sort((a, b) => center(a) - center(b) || order.get(a) - order.get(b));
+          remember(layer);
+        });
+      }
+      const longEdges = edges.filter(edge => rank.get(edge.target) - rank.get(edge.source) > 1).length;
+      const top = 40 + longEdges * 16;
+      const rows = Math.max(1, ...layers.map(layer => layer.length));
+      const positions = new Map();
+      layers.forEach((layer, column) => layer.forEach((id, row) => positions.set(id, {
+        x: 40 + column * (nodeWidth + columnGap),
+        y: top + ((rows - layer.length) / 2 + row) * (nodeHeight + rowGap)
+      })));
+      return positions;
+    }
+
+    const defaults = layoutPositions();
+    definition.nodes.forEach((node, i) => {
+      if (initialLayout || !node.position) node.position = defaults?.get(node.id) || {x: 40, y: 40 + i * (nodeHeight + rowGap)};
+    });
+
+    function typeBadge(kind) {
+      if (!kind) return '';
+      const icons = {
+        dsl: '<rect x="2" y="3" width="16" height="14" rx="2"/><path d="M2 7h16M5 5h1m2 0h1"/>',
+        script: '<path d="m6 5-4 5 4 5m8-10 4 5-4 5m-3-12-2 14"/>',
+        browser_script: '<rect x="2" y="3" width="16" height="14" rx="2"/><path d="M2 7h16M7 9l-2 3 2 3m6-6 2 3-2 3"/>'
+      };
+      if (!Object.hasOwn(icons, kind)) return '';
+      const label = text['type_' + kind];
+      return '<span class="scene-type ' + kind + '" title="' + esc(label) + '"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">' + icons[kind] + '</svg>' + esc(label) + '</span>';
     }
 
     function canConnect(source, target) {
@@ -2612,14 +2680,21 @@
 
     function renderLibrary() {
       const words = qs('#library-search').value.trim().toLowerCase();
-      const scenes = data.library.filter(scene => !scene.archived && scene.revisions.length);
+      const scenes = data.library.filter(scene => !scene.archived && scene.revisions.length)
+        .sort((a, b) => (Date.parse(a.createdAt) || 0) - (Date.parse(b.createdAt) || 0) || a.id.localeCompare(b.id));
+      const counts = new Map(), ordinals = new Map();
+      scenes.forEach(scene => {
+        const key = scene.domainId || '';
+        counts.set(key, (counts.get(key) || 0) + 1);
+        ordinals.set(scene.id, counts.get(key));
+      });
       const shown = scenes.filter(scene => {
         const haystack = [scene.id, scene.name, scene.domainName || '', scene.category || ''].join(' ').toLowerCase();
         return !words || haystack.includes(words);
       });
       const groups = new Map();
       shown.forEach(scene => {
-        const key = scene.domainName || text.no_domain;
+        const key = scene.domainId || '';
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(scene);
       });
@@ -2628,15 +2703,20 @@
         list.innerHTML = '<div class="empty">' + esc(scenes.length ? text.no_match : text.library_empty) + '</div>';
         return;
       }
-      list.innerHTML = [...groups].map(([group, items]) => '<h3 class="library-group">' + esc(group) + '</h3>' + items.map(scene =>
-        '<button type="button" class="library-item" draggable="true" title="' + esc(text.library_hint) + '" data-add="' + esc(scene.id) + '"><strong>' + esc(scene.id) + '</strong>' +
-        '<span>' + esc(scene.name) + '</span><small>' + esc(fill(text.add, {number: scene.publishedRevision || scene.revisions[0].number})) + '</small></button>').join('')).join('');
+      list.innerHTML = [...groups.values()].map(items => '<h3 class="library-group">' + esc(items[0].domainName || text.no_domain) + '</h3>' + items.map(scene => {
+        const number = scene.publishedRevision || scene.revisions[0].number;
+        const revision = scene.revisions.find(item => item.number === number);
+        return '<button type="button" class="library-item" draggable="true" title="' + esc(text.library_hint) + '" data-add="' + esc(scene.id) + '">' +
+          '<span class="scene-card-corners"><span class="scene-ordinal" title="' + esc(text.creation_order) + '">' + ordinals.get(scene.id) + '</span>' + typeBadge(revision?.displayKind) + '</span>' +
+          '<strong title="' + esc(scene.name) + '">' + esc(scene.name) + '</strong><span class="library-code mono" title="' + esc(scene.id) + '">' + esc(scene.id) + '</span>' +
+          '<small>' + esc(fill(text.add, {number})) + '</small></button>';
+      }).join('')).join('');
     }
 
     function scale() {
       const stage = qs('#flow-stage');
-      const width = Math.max(800, ...definition.nodes.map(node => node.position.x + 260));
-      const height = Math.max(400, ...definition.nodes.map(node => node.position.y + 160));
+      const width = Math.max(320, ...definition.nodes.map(node => node.position.x + nodeWidth + 64));
+      const height = Math.max(240, ...definition.nodes.map(node => node.position.y + nodeHeight + 64));
       stage.style.width = width + 'px'; stage.style.height = height + 'px';
       stage.style.transform = 'scale(' + zoom + ')';
       qs('#canvas-spacer').style.width = width * zoom + 'px';
@@ -2647,12 +2727,34 @@
     function drawEdges() {
       const stage = qs('#flow-stage');
       const nodes = new Map(definition.nodes.map(node => [node.id, node]));
+      const routes = new Map();
+      let detour = 0;
       qsa('[data-edge-line]', stage).forEach(line => {
         const a = nodes.get(line.dataset.source), b = nodes.get(line.dataset.target);
         if (!a || !b) return;
-        const x = a.position.x + 200, y = a.position.y + 48, xx = b.position.x, yy = b.position.y + 48;
-        const bend = Math.max(50, Math.abs(xx - x) / 2);
-        line.setAttribute('d', `M ${x} ${y} C ${x + bend} ${y}, ${xx - bend} ${yy}, ${xx} ${yy}`);
+        const key = a.id + ':' + b.id;
+        if (!routes.has(key)) {
+          const x = a.position.x + nodeWidth, y = a.position.y + nodeHeight / 2, xx = b.position.x, yy = b.position.y + nodeHeight / 2;
+          let points;
+          if (xx > x && xx - x <= columnGap + 1) {
+            const middle = (x + xx) / 2;
+            points = [[x, y], [middle, y], [middle, yy], [xx, yy]];
+          } else {
+            // 跨層與人工反向連線走節點上方；各自獨立走線，避開中間卡片。
+            const top = Math.max(12, Math.min(...definition.nodes.map(node => node.position.y)) - 24 - detour++ * 16);
+            points = [[x, y], [x + 28, y], [x + 28, top], [xx - 28, top], [xx - 28, yy], [xx, yy]];
+          }
+          let d = 'M ' + points[0].join(' ');
+          for (let i = 1; i < points.length - 1; i++) {
+            const [px, py] = points[i - 1], [cx, cy] = points[i], [nx, ny] = points[i + 1];
+            const before = Math.hypot(cx - px, cy - py), after = Math.hypot(nx - cx, ny - cy);
+            const radius = Math.min(8, before / 2, after / 2);
+            if (!radius) { d += ` L ${cx} ${cy}`; continue; }
+            d += ` L ${cx + (px - cx) * radius / before} ${cy + (py - cy) * radius / before} Q ${cx} ${cy} ${cx + (nx - cx) * radius / after} ${cy + (ny - cy) * radius / after}`;
+          }
+          routes.set(key, d + ' L ' + points[points.length - 1].join(' '));
+        }
+        line.setAttribute('d', routes.get(key));
       });
     }
 
@@ -2661,18 +2763,19 @@
       const stage = qs('#flow-stage');
       const edges = allEdges().map(edge => {
         const attrs = ' data-edge-line data-source="' + esc(edge.source) + '" data-target="' + esc(edge.target) + '"';
-        return '<path class="dag-edge' + (edge.source === selectedSource && edge.target === definition.nodes[selected]?.id ? ' is-selected' : '') + '"' + attrs + ' marker-end="url(#dag-arrow)"/>' +
+        const related = edge.source === definition.nodes[selected]?.id || edge.target === definition.nodes[selected]?.id;
+        return '<path class="dag-edge' + (related ? ' is-related' : '') + (edge.source === selectedSource && edge.target === definition.nodes[selected]?.id ? ' is-selected' : '') + '"' + attrs + ' marker-end="url(#dag-arrow' + (related ? '-active' : '') + ')"/>' +
           '<path class="dag-edge-hit"' + attrs + ' data-edge tabindex="0" role="button" aria-label="' + esc(fill(text.edge_label, edge)) + '"/>';
       }).join('');
-      stage.innerHTML = '<svg class="dag-links"><defs><marker id="dag-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/></marker></defs>' + edges + '</svg>' +
+      stage.innerHTML = '<svg class="dag-links"><defs>' + ['', '-active'].map(suffix => '<marker id="dag-arrow' + suffix + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="' + (suffix ? 'var(--blue)' : '#91a7bf') + '"/></marker>').join('') + '</defs>' + edges + '</svg>' +
         (!definition.nodes.length ? '<div class="empty">' + esc(text.board_empty) + '</div>' : '') +
         definition.nodes.map((node, index) => {
           const revision = revisionOf(node), scene = sceneOf(node);
           const title = revision ? revision.name : (scene ? scene.name : node.sceneId);
           const count = problems.filter(item => item.node === node.id).length;
           return '<div class="flow-node' + (index === selected ? ' selected' : '') + (count ? ' has-problems' : '') + '" data-index="' + index + '" data-node="' + esc(node.id) + '" role="button" tabindex="0" aria-pressed="' + (index === selected) + '" style="left:' + node.position.x + 'px;top:' + node.position.y + 'px">' +
-            '<span class="flow-node-head"><span class="tag mono">' + esc(node.sceneId) + '</span> <span class="muted">v' + node.revision + '</span></span>' +
-            '<strong title="' + esc(title) + '">' + esc(title) + '</strong><small>' + esc(node.id) + (count ? ' · ' + esc(fill(text.problem_count, {count})) : '') + '</small>' +
+            '<span class="flow-node-head">' + typeBadge(revision?.displayKind) + '<span class="muted">v' + node.revision + '</span></span>' +
+            '<strong title="' + esc(title) + '">' + esc(title) + '</strong><span class="flow-node-code mono" title="' + esc(node.sceneId) + '">' + esc(node.sceneId) + '</span><small title="' + esc(node.id) + '">' + esc(node.id) + (count ? ' · ' + esc(fill(text.problem_count, {count})) : '') + '</small>' +
             '<button class="dag-port in" data-in="' + esc(node.id) + '" aria-label="' + esc(fill(text.connect_to, {node: node.id})) + '"></button>' +
             '<button class="dag-port out" data-out="' + esc(node.id) + '" aria-label="' + esc(fill(text.connect_from, {node: node.id})) + '"></button></div>';
         }).join('');
@@ -2982,7 +3085,7 @@
       if (!scene || scene.archived || !scene.revisions.length) return;
       const node = {id: newNodeId(), sceneId: scene.id, revision: scene.publishedRevision || scene.revisions[0].number, inputs: {}};
       resetInputs(node);
-      node.position = position || {x: 40 + (definition.nodes.length % 3) * 280, y: 40 + Math.floor(definition.nodes.length / 3) * 160};
+      node.position = position || {x: 40, y: Math.max(40, ...definition.nodes.map(item => item.position.y + nodeHeight + rowGap))};
       definition.nodes.push(node);
       selected = definition.nodes.length - 1;
       changed();
@@ -3014,7 +3117,7 @@
       event.preventDefault();
       viewport.classList.remove('is-drop-target');
       const bounds = stage.getBoundingClientRect();
-      addNode(sceneId, {x: Math.max(0, Math.min(100000, (event.clientX - bounds.left) / zoom - 100)), y: Math.max(0, Math.min(100000, (event.clientY - bounds.top) / zoom - 48))});
+      addNode(sceneId, {x: Math.max(0, Math.min(100000, (event.clientX - bounds.left) / zoom - nodeWidth / 2)), y: Math.max(0, Math.min(100000, (event.clientY - bounds.top) / zoom - nodeHeight / 2))});
     });
     qs('#library-list').addEventListener('dragend', () => viewport.classList.remove('is-drop-target'));
     function pick(target) {
@@ -3065,6 +3168,21 @@
       card.onpointerup = end; card.onpointercancel = end;
     });
     qsa('[data-zoom]').forEach(button => button.addEventListener('click', () => { zoom = Math.max(.2, Math.min(2, zoom + Number(button.dataset.zoom) * .1)); scale(); }));
+    qs('[data-arrange]').addEventListener('click', () => {
+      const positions = layoutPositions();
+      if (!positions) { toast(text.cycle); return; }
+      previousPositions = new Map(definition.nodes.map(node => [node.id, {...node.position}]));
+      definition.nodes.forEach(node => { node.position = positions.get(node.id); });
+      qs('[data-undo-arrange]').hidden = false;
+      changed({settings: false});
+      viewport.scrollTo(0, 0);
+    });
+    qs('[data-undo-arrange]').addEventListener('click', () => {
+      definition.nodes.forEach(node => { if (previousPositions?.has(node.id)) node.position = previousPositions.get(node.id); });
+      previousPositions = null;
+      qs('[data-undo-arrange]').hidden = true;
+      changed({settings: false});
+    });
     qs('[data-fit]').addEventListener('click', () => {
       const viewport = qs('#canvas-viewport');
       zoom = Math.max(.001, Math.min(1, viewport.clientWidth / parseFloat(stage.style.width), viewport.clientHeight / parseFloat(stage.style.height)));

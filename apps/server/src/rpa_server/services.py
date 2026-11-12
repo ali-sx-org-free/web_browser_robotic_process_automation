@@ -20,6 +20,7 @@ import logging
 import os
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
@@ -71,11 +72,13 @@ from rpa_server.domain import (
     RunRecord,
     RunStatus,
     SceneCard,
+    SceneDisplayKind,
     SceneRecord,
     Target,
     VerificationRecord,
     issue_json,
     now,
+    scene_display_kind,
 )
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.gitsync import GitSource, GitSync
@@ -787,7 +790,18 @@ class Services:
                     None,
                 )
                 last = run_record(recent[0]) if recent else None
-                cards.append(SceneCard(scene=scene, last_run=last, screenshot_run=shot))
+                display_kind: SceneDisplayKind | None = "dsl" if scene.kind == "dsl" else None
+                if scene.kind == "script":
+                    # 不可讀版本仍顯示卡片，但不誤標腳本模式。
+                    with suppress(ServiceError, OSError):
+                        display_kind = scene_display_kind(
+                            self._load_scenario(scene.id, scene.latest_number)
+                        )
+                cards.append(
+                    SceneCard(
+                        scene=scene, last_run=last, screenshot_run=shot, display_kind=display_kind
+                    )
+                )
         return cards
 
     def unassigned_scenes(self) -> list[SceneRecord]:

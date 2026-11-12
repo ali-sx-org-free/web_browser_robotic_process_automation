@@ -506,7 +506,10 @@ def page_router(services: Services) -> APIRouter:
             page=domain_page(domain_id),
             title=record.name,
             domain=record,
-            cards=services.scene_cards(domain_id),
+            cards=sorted(
+                services.scene_cards(domain_id),
+                key=lambda card: (card.scene.created_at, card.scene.id),
+            ),
             sync=services.git.status(domain_id),
             can_import=domain_id == EXAMPLES_DOMAIN and examples is not None and examples.is_dir(),
         )
