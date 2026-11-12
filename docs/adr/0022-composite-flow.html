@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0022 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0022" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0022：組合場景的條件寫在連線上、同時執行分給不同的 worker、重複是固定次數</h1>
+      <p>組合場景（DAG）節點之間的流程：連線看來源節點的出參決定走不走，沒走到的節點略過；同時就緒的節點可以一起排入佇列，由空著的 worker 各自領取；節點可以固定重複幾次，下游用最後一次的出參。排程每次都從節點的結果重新算，不另外存略過與次數。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-11-11</dd>
+        <dt>狀態</dt><dd>2026-11-11 約 17:08 America/Los_Angeles（PST，UTC−08:00）使用者決定：平行分給不同的 worker、條件寫在連線上、重複是固定次數並用最後一次的出參（最多 20 次）、從 M7.1 的分支另開分支（見<a href="../../handoff/decisions.html#decisions">決定紀錄</a>）。</dd>
+        <dt>影響範圍</dt><dd>rpa-core（組合場景的定義、檢查、排程）、rpa-server（組合場景的執行、運行頁、匯總報告、回看、畫布、發布門檻）；不改 Runner、Worker 與桌面 App</dd>
+        <dt>相關</dt><dd><a href="0015-domain-folders-and-git.html">ADR 0015</a>（領域資料夾與發布門檻）、<a href="0019-composite-report-replay.html">ADR 0019</a>（組合運行的匯總報告與回看）、<a href="0020-python-nodes.html">ADR 0020</a>（共用工作資料夾）、<a href="0021-flow-control.html">ADR 0021</a>（場景內的流程控制）；<a href="../design/portal.html#composite-flow">管理 Portal › 條件連線、同時執行與重複次數</a>；<a href="../../handoff/tasks/20261111-composite-flow.html">任務紀錄</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>M6 的組合場景是 DAG：可分叉、可匯合，依拓撲順序一個接一個執行，失敗即停。MVP 原型另外展示了平行節點、條件分支與重複次數，當時刻意不做，列在未完成工作。場景內的條件與迴圈已由 M7.1 做成 DSL 的區塊（ADR 0021），節點之間的流程是另一組問題：判斷的依據是上游節點發布的出參，而不是頁面。</p>
+          <p>一次組合場景執行的節點原本都交給第一個節點領取的 worker，而且每台 worker 一次只跑一個瀏覽器，所以同時就緒也只能逐個執行。</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>條件寫在連線上。</strong>連線多 <code>when</code>（看來源節點的一個出參：<code>equals</code>、<code>notEquals</code>、<code>in</code>、<code>empty</code>）或 <code>otherwise</code>（來源的其他條件連線都不成立）。節點的上游都結束後，有一條連線走到就執行，一條都沒有就略過，略過往下傳。出參綁定也算一條無條件的連線；同一對節點有畫出的連線時依那條連線的條件。</li>
+            <li><strong>同時執行分給不同的 worker。</strong>定義的 <code>concurrency</code>（1～10，預設 1）是同時就緒的節點最多幾個一起排入佇列。大於 1 時節點不再固定給第一台 worker；指定了 worker、從失敗的節點繼續、或用到上游檔案出參時才固定。Worker 與桌面 App 不改，一台 worker 仍一次跑一個瀏覽器。</li>
+            <li><strong>重複是固定次數。</strong>節點的 <code>repeat</code>（1～20）一次接一次跑，每次都是一個執行、都要通過；下游用最後一次的出參。從失敗的節點繼續時，重複到一半的節點從沒通過的那一次接著跑。</li>
+            <li><strong>排程從結果算。</strong><code>rpa_core.workflow.advance</code> 從每個節點的狀態與出參算出可以開始的、略過的與是否結束；伺服器每次通知都重新算，重複通知不會排兩次，重啟時照樣能接著走。</li>
+            <li><strong>失敗即停照舊。</strong>有節點沒通過就不再排新的節點；同時在跑的節點跑完才停下。條件略過不算失敗；發布門檻不比對沒有跑的略過節點。</li>
+            <li><strong>只有第 2 版。</strong>三個欄位只能用在第 2 版（DAG）；沒用到的定義 JSON 與雜湊不變。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>要真的同時跑，需要多台 worker（同一台電腦開兩個 <code>rpa worker</code> 也算兩台）。只有一台時行為和以前一樣。</li>
+            <li>分到不同 worker 的節點不共用工作資料夾；靠檔案出參交接的節點會留在同一台，其他方式共用的檔案不保證拿得到。</li>
+            <li>回看照節點順序接起來，同時跑的節點不是多軌同時播；重複的節點播最後一次，其他次數從節點明細打開。</li>
+            <li>驗證紀錄只證明這次走到的分支；沒走到的分支要用會走到它的資料另外驗證。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="panel-body">
+          <table class="table">
+            <thead><tr><th>方案</th><th>沒有選的原因</th></tr></thead>
+            <tbody>
+              <tr><td>一台 worker 同時開多個瀏覽器</td><td>要改 Worker、協定與桌面 App，舊 App 要更新，電腦負載高；使用者選了分給不同的 worker。</td></tr>
+              <tr><td>條件寫在節點上（<code>{{ }}</code> 運算式）</td><td>條件和分支的關係在畫布上看不出來；「其他情況」也難表達。</td></tr>
+              <tr><td>重複的出參收成清單</td><td>下游入參要是陣列，只有 Python 節點接得了；大量資料改用 M7.3 的批次執行。</td></tr>
+              <tr><td>略過與次數存進資料庫</td><td>要資料庫遷移，也可能和實際的執行結果不一致；從結果算就夠了。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

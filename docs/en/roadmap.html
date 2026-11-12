@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:9db2bb48db2fec27">
+<meta name="translation-source" content="sha256:6af05d14c43fca05">
 <title>Roadmap · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../design-system/assets/portal.css">
 <link rel="stylesheet" href="../assets/docs.css">
@@ -83,6 +83,7 @@
             <tr><td>Replay chapters and a screenshot of each step</td><td>The timeline shows one cell per step by default, folds idle gaps and plays them at 4×, and zooms into a chapter on click; the executor takes a small screenshot after each step for the thumbnails; step details slide in above the list (<a href="adr/0016-run-replay.html">ADR 0016</a>)</td><td>#106, 10-29</td><td>v0.8.0</td></tr>
             <tr><td>Windows ports in the nightly tests</td><td>A larger dynamic port range and connection-state notes; jobs cancelled because no runner was assigned also open an issue (<a href="develop/ci.html#triggers">CI and pipelines</a>)</td><td>#105, 10-29</td><td>v0.8.0 (CI only)</td></tr>
             <tr><td>Python nodes</td><td>The existing Python script scenarios evolve into one Python node that runs alongside browser scenarios in composite scenarios: a dedicated RPA Python runtime (shipped with RPA Worker and the Linux package), a shared workspace folder, array and object inputs, file outputs, a download step, and a step timeline replay with the console mapped to steps. Decided on 2026-10-29; P0–P2 implemented in #109; in runtime mode it cannot use login roles in this version (D5, 2026-11-05); manual acceptance: not run; the model package layer, the script workbench and fan-out (P3) come later (<a href="adr/0020-python-nodes.html">ADR 0020</a>, <a href="design/dsl.html#python">Scenario DSL</a>, <a href="../../handoff/tasks/20261024-python-scripts.html">task record</a>)</td><td>#109, 11-06</td><td>main, not yet released</td></tr>
+            <tr><td>Conditional connections, running at once and repeats in composite scenarios</td><td>A connection checks an upstream output to decide whether it is followed, and nodes no connection leads to are skipped; ready nodes can be queued together and go to free workers; a node can repeat 1–20 times (<a href="adr/0022-composite-flow.html">ADR 0022</a>)</td><td>Not merged (<code>feat/composite-flow</code>)</td><td>—</td></tr>
           </tbody>
         </table>
       </div>

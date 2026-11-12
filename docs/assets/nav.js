@@ -202,6 +202,11 @@ window.DOCS_NAV = {
           "id": "adr-0021",
           "href": "adr/0021-flow-control.html",
           "name": {"zh-Hant": "0021 場景內的流程控制", "zh-Hans": "0021 场景内的流程控制", "en": "0021 Flow control in scenarios"}
+        },
+        {
+          "id": "adr-0022",
+          "href": "adr/0022-composite-flow.html",
+          "name": {"zh-Hant": "0022 組合場景的流程", "zh-Hans": "0022 组合场景的流程", "en": "0022 Flow in composite scenarios"}
         }
       ]
     },

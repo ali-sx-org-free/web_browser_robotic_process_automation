@@ -82,6 +82,7 @@
             <tr><td>回看章節軸與每一步的截圖</td><td>時間軸預設一格一步、沒有動作的空檔折疊並 4× 快轉、點章放大；執行端在每一步做完拍縮小的截圖當縮圖；步驟詳情從清單上方滑出（<a href="adr/0016-run-replay.html">ADR 0016</a>）</td><td>#106，10-29</td><td>v0.8.0</td></tr>
             <tr><td>每晚測試的 Windows 連接埠</td><td>放大動態連接埠並記錄連線狀態；排不到機器而取消的工作也開 issue（<a href="develop/ci.html#triggers">CI 與流水線</a>）</td><td>#105，10-29</td><td>v0.8.0（只影響 CI）</td></tr>
             <tr><td>Python 節點</td><td>現有的 Python 腳本場景演進成統一的 Python 節點，和瀏覽器場景串在組合場景裡：專用的 RPA Python 運行環境（隨 RPA Worker 與 Linux 分發包附帶）、共用工作資料夾、array／object 入參、file 出參、download 步驟、步驟時間軸的回看與主控台逐步對應。2026-10-29 決定；P0～P2 在 #109 實作；運行環境模式這一版不能用登入角色（D5，2026-11-05）；人工驗收：未執行；模型套件層、腳本工作台、扇出（P3）之後做（<a href="adr/0020-python-nodes.html">ADR 0020</a>、<a href="design/dsl.html#python">場景 DSL</a>、<a href="../handoff/tasks/20261024-python-scripts.html">任務紀錄</a>）</td><td>#109，11-06</td><td>main，尚未發布</td></tr>
+            <tr><td>組合場景的條件連線、同時執行與重複次數</td><td>連線看上游的出參決定走不走，沒走到的節點略過；同時就緒的節點可以一起排入，分給空著的 worker；節點可以重複 1～20 次（<a href="adr/0022-composite-flow.html">ADR 0022</a>）</td><td>未合併（<code>feat/composite-flow</code>）</td><td>—</td></tr>
           </tbody>
         </table>
       </div>
