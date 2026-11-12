@@ -126,6 +126,12 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .dag-thumbnail{background:radial-gradient(#d5dfeb 1px,transparent 1px) 0 0/10px 10px #f8fafc}
 .dag-thumbnail svg{display:block;width:100%;height:100%;padding:3px}
 .dag-thumbnail .preview-edge{fill:none;stroke:#5c83b8;stroke-width:3}
+.dag-thumbnail .preview-edge.conditional{stroke-dasharray:10 6}
+.dag-thumbnail .preview-edge[data-link="not_taken"]{stroke:#c3ccd8;stroke-dasharray:8 6}
+.dag-thumbnail .preview-edge[data-link="taken"]{stroke:#4fae86}
+.dag-thumbnail .preview-edge-label{font-size:18px;fill:#3d5a80;paint-order:stroke;stroke:#fff;stroke-width:6px}
+.dag-thumbnail .preview-edge-label[data-link="not_taken"]{fill:#8a98ab}
+.dag-thumbnail .preview-repeat{font-size:22px;font-weight:600;fill:#3d5a80}
 .dag-thumbnail rect{fill:white;stroke:#81afe0;stroke-width:3}
 .dag-thumbnail text{fill:#315b89;font:600 25px system-ui,sans-serif}
 .dag-thumbnail .preview-scene{fill:#718197;font-size:20px;font-weight:400}
@@ -189,6 +195,8 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .dag-edge{stroke:#91a7bf;stroke-width:1.5;fill:none}
 .dag-edge.is-related{stroke:var(--blue);stroke-width:2}
 .dag-edge.is-selected{stroke:var(--blue-strong);stroke-width:2.5}
+.dag-edge.is-conditional{stroke-dasharray:6 4}
+.dag-edge-label{font-size:11px;fill:#3d5a80;paint-order:stroke;stroke:#fff;stroke-width:4px;pointer-events:none}
 .dag-edge-hit{stroke:transparent;stroke-width:16;fill:none;pointer-events:stroke;cursor:pointer}
 .dag-edge-hit:hover,.dag-edge-hit:focus{stroke:#147fe630;outline:none}
 .flow-parameters{min-height:0;display:flex;flex-direction:column}
@@ -213,6 +221,12 @@ fieldset.choice.inline{display:flex;flex-wrap:wrap;gap:4px 20px}
 .io-list li{border:1px solid var(--line);border-radius:4px;padding:3px 5px;background:#f8fafc}
 .io-list code{white-space:normal;overflow-wrap:anywhere}
 .edge-row{display:flex;justify-content:space-between;align-items:center;gap:5px;font-size:11px}
+.edge-condition-kind{margin:2px 0 4px}
+.edge-condition{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:0 0 8px}
+.edge-condition input{grid-column:1 / -1}
+.concurrency-field{display:inline-flex;align-items:center;gap:4px;font-size:12px;margin-right:6px}
+.concurrency-field input{width:52px}
+.flow-node-repeat{font-weight:700;color:var(--blue-strong);font-size:11px}
 .workflow-issues{border-color:#edc6c4;background:#fffaf9}
 .workflow-issues .panel-header{padding:5px 10px;border-color:#f2dfdb;flex-wrap:wrap}
 .workflow-issues h2{font-size:12px;color:var(--danger)}

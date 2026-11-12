@@ -214,6 +214,16 @@ def _node(
         "reusedUrl": f"/playground/runs/{run.workflow_run_id}"
         if reused and run is not None and run.workflow_run_id
         else None,
+        # 組合場景的流程（2026-11-11）：重複次數與條件略過
+        "skippedBy": state.skipped_by,
+        "repeat": state.repeat,
+        "iterations": state.iterations,
+        "iterationRuns": [
+            {"number": number, "runId": run_id, "runUrl": f"/runs/{run_id}"}
+            for number, run_id in enumerate(state.runs, start=1)
+        ]
+        if state.repeat > 1
+        else [],
     }
 
 
@@ -311,7 +321,12 @@ def build_composite_report(
         "durationSeconds": _seconds(record.created_at, end),
         "busySeconds": sum(busy) if busy else None,
         "failure": _failure(record, nodes),
-        "skipped": [node["id"] for node in nodes if node["status"] == "skipped"],
+        "skipped": [
+            node["id"]
+            for node in nodes
+            if node["status"] == "skipped" and node["skippedBy"] is None
+        ],
+        "branchSkipped": [node["id"] for node in nodes if node["skippedBy"] == "condition"],
         "active": [node["id"] for node in nodes if node["status"] in _ACTIVE_NODES],
         "nodes": nodes,
         "statuses": {str(node["id"]): node["status"] for node in nodes},

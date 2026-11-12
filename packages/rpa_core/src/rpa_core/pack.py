@@ -391,7 +391,8 @@ class VerificationEntry:
     def proves(self, digest: str, requires: Sequence[SceneRequirement] | None = None) -> bool:
         """是不是一份雜湊相符的通過紀錄（發布的依據）。
 
-        組合場景（requires 不是 None）另外要每個節點跑的場景版本與雜湊都在 requires 裡。
+        組合場景（requires 不是 None）另外要每個跑過的節點的場景版本與雜湊都在 requires 裡；
+        條件連線沒走到而略過的節點沒有跑，不比對（2026-11-11）。
         """
         if self.record.status != "passed" or self.record.hash != digest:
             return False
@@ -399,7 +400,11 @@ class VerificationEntry:
             return True
         pinned = {(item.scene, item.revision, item.hash) for item in requires}
         nodes = self.record.nodes if isinstance(self.record, CompositeVerification) else []
-        return all((node.scene, node.revision, node.hash) in pinned for node in nodes)
+        return all(
+            (node.scene, node.revision, node.hash) in pinned
+            for node in nodes
+            if node.status != "skipped"
+        )
 
 
 @dataclass(slots=True)

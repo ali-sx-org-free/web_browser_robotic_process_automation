@@ -16,8 +16,8 @@
         {% if preview.nodes %}
           <svg viewBox="{{ preview.viewbox }}" role="img" aria-label="{{ t('composites.preview', name=item.name) }}">
             <defs><marker id="preview-arrow-{{ item.id }}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#5c83b8"/></marker></defs>
-            {% for edge in preview.edges %}<path class="preview-edge" d="{{ edge.path }}" data-source="{{ edge.source }}" data-target="{{ edge.target }}" marker-end="url(#preview-arrow-{{ item.id }})"/>{% endfor %}
-            {% for node in preview.nodes %}<g data-preview-node="{{ node.id }}" transform="translate({{ node.x }} {{ node.y }})"><title>{{ node.id }} · {{ node.scene }} · v{{ node.revision }}</title><rect width="200" height="96" rx="8"/><text x="12" y="38">{{ node.id }}</text><text x="12" y="70" class="preview-scene">{{ node.scene | truncate(14, true) }}</text></g>{% endfor %}
+            {% for edge in preview.edges %}<path class="preview-edge{% if edge.label %} conditional{% endif %}" d="{{ edge.path }}" data-source="{{ edge.source }}" data-target="{{ edge.target }}" marker-end="url(#preview-arrow-{{ item.id }})"/>{% endfor %}
+            {% for node in preview.nodes %}<g data-preview-node="{{ node.id }}" transform="translate({{ node.x }} {{ node.y }})"><title>{{ node.id }} · {{ node.scene }} · v{{ node.revision }}</title><rect width="200" height="96" rx="8"/><text x="12" y="38">{{ node.id }}</text><text x="12" y="70" class="preview-scene">{{ node.scene | truncate(14, true) }}</text>{% if node.repeat > 1 %}<text x="188" y="38" text-anchor="end" class="preview-repeat">×{{ node.repeat }}</text>{% endif %}</g>{% endfor %}
           </svg>
         {% else %}<span>{{ t("playground.no_nodes") }}</span>{% endif %}
         </a>

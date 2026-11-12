@@ -4,6 +4,7 @@
 真實瀏覽器的串接在 test_workflow_flow.py。
 """
 
+import json
 import threading
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -20,7 +21,7 @@ from rpa_runner.login import LoginSettings
 from rpa_runner.run import RunResult, RunStatus, StageName
 from rpa_server.domain import now
 from rpa_server.errors import ServiceError
-from rpa_server.models import Revision, Scene
+from rpa_server.models import Revision, Run, Scene
 from rpa_server.services import Services
 from rpa_worker import Worker
 
@@ -657,3 +658,229 @@ def test_composite_management_and_navigation(client: Client, chain: int) -> None
     assert production.index("/recording") < production.index("/playground")
     assert "/runs" not in production  # 運行報告在「場景運行」
     assert 'data-action="delete-workflow"' not in client.get("/playground").text
+
+
+# ---------------------------------------------------------------- 組合場景的流程（2026-11-11）
+
+
+def branch_definition(quantity: int) -> JsonObject:
+    """n1 建立紀錄 → quantity 等於 12 走 n2（查詢那筆），其他情況走 n3（查詢不存在的紀錄）。"""
+    return {
+        "version": 2,
+        "mode": "dag",
+        "nodes": [
+            {
+                "id": "n1",
+                "sceneId": "ba-001",
+                "revision": 1,
+                "inputs": {"title": {"value": "分支"}, "quantity": {"value": quantity}},
+            },
+            {
+                "id": "n2",
+                "sceneId": "ba-002",
+                "revision": 1,
+                "inputs": {"recordId": {"node": "n1", "output": "recordId"}},
+            },
+            {"id": "n3", "sceneId": "ba-003", "revision": 1},
+        ],
+        "edges": [
+            {"source": "n1", "target": "n2", "when": {"output": "quantity", "equals": 12}},
+            {"source": "n1", "target": "n3", "otherwise": True},
+        ],
+    }
+
+
+def links(run: JsonObject) -> dict[str, object]:
+    return {
+        f"{item['source']}>{item['target']}": item["state"]
+        for item in cast("list[JsonObject]", run["links"])
+    }
+
+
+@pytest.mark.parametrize(("quantity", "taken", "skipped"), [(12, "n2", "n3"), (5, "n3", "n2")])
+def test_condition_takes_one_branch_and_can_publish(
+    app: FastAPI,
+    client: Client,
+    chain: int,
+    worker: Worker,
+    executor: FakeExecutor,
+    quantity: int,
+    taken: str,
+    skipped: str,
+) -> None:
+    publish(app, "ba-003")
+    saved = body(
+        client.put(
+            f"/api/workflows/{chain}",
+            json={"baseVersion": 1, "definition": branch_definition(quantity)},
+        )
+    )
+    assert saved["problems"] == []
+    run = start(client, chain, headless=True)
+    assert worker.run_once()
+    assert worker.run_once()
+    assert not worker.run_once()
+    finished = get(client, run["id"])
+    assert finished["status"] == "passed"
+    by_id = {str(node["id"]): node for node in nodes(finished)}
+    assert by_id[taken]["status"] == "passed"
+    assert by_id[skipped]["status"] == "skipped"
+    assert by_id[skipped]["skippedBy"] == "condition"
+    assert by_id[skipped]["run"] is None
+    assert links(finished)[f"n1>{skipped}"] == "not_taken"
+    assert links(finished)[f"n1>{taken}"] == "taken"
+    assert [scene for scene, _ in executor.calls] == [
+        "ba-001",
+        "ba-002" if taken == "n2" else "ba-003",
+    ]
+
+    page = client.get(f"/playground/runs/{run['id']}").text
+    assert "data-branch-skipped" in page
+    assert 'data-link="not_taken"' in page
+    # 略過的節點沒有跑，不影響發布：驗證通過就能發布
+    published = body(client.post(f"/api/workflows/{chain}/revisions/2/publish"))
+    assert published["publishedRevision"] == 2
+
+
+def test_condition_problems_block_the_run(client: Client, chain: int) -> None:
+    definition = branch_definition(12)
+    edges = cast("list[JsonObject]", definition["edges"])
+    edges[0]["when"] = {"output": "quantity", "equals": "12"}
+    saved = body(
+        client.put(f"/api/workflows/{chain}", json={"baseVersion": 1, "definition": definition})
+    )
+    codes = [problem["code"] for problem in cast("list[JsonObject]", saved["problems"])]
+    assert "workflow.condition_value_type" in codes
+    refused = client.post(f"/api/workflows/{chain}/runs", json={"headless": True})
+    assert error(refused, 422)["code"] == "workflow_invalid"
+
+
+def repeat_definition(times: int) -> JsonObject:
+    definition = cast("JsonObject", json_copy(CHAIN))
+    definition.update({"version": 2, "mode": "dag", "edges": [{"source": "n1", "target": "n2"}]})
+    cast("list[JsonObject]", definition["nodes"])[0]["repeat"] = times
+    return definition
+
+
+def json_copy(value: object) -> object:
+    return json.loads(json.dumps(value))
+
+
+def test_repeat_runs_again_and_resume_continues_the_count(
+    client: Client, chain: int, worker: Worker, executor: FakeExecutor
+) -> None:
+    body(
+        client.put(
+            f"/api/workflows/{chain}", json={"baseVersion": 1, "definition": repeat_definition(3)}
+        )
+    )
+    run = start(client, chain, headless=True)
+    assert worker.run_once()
+    assert worker.run_once()
+    middle = get(client, run["id"])
+    first = nodes(middle)[0]
+    assert (first["repeat"], first["iterations"], len(cast("list[object]", first["runs"]))) == (
+        3,
+        2,
+        3,
+    )
+    assert nodes(middle)[1]["status"] == "pending"
+
+    executor.fail["ba-001"] = "failed"
+    assert worker.run_once()
+    stopped = get(client, run["id"])
+    assert (stopped["status"], stopped["failedNode"]) == ("failed", "n1")
+    assert nodes(stopped)[0]["iterations"] == 2
+
+    # 從失敗的節點繼續：前兩次不重跑，只補第三次，再跑下游
+    executor.fail.clear()
+    resumed = body(client.post(f"/api/workflow-runs/{run['id']}/rerun", json={"resume": True}), 202)
+    assert nodes(resumed)[0]["status"] == "queued"
+    assert nodes(resumed)[0]["iterations"] == 2
+    assert worker.run_once()
+    assert worker.run_once()
+    assert not worker.run_once()
+    done = get(client, resumed["id"])
+    assert done["status"] == "passed"
+    assert nodes(done)[0]["iterations"] == 3
+    assert [scene for scene, _ in executor.calls].count("ba-001") == 4
+    assert [scene for scene, _ in executor.calls][-1] == "ba-002"
+    report = client.get(f"/playground/runs/{resumed['id']}").text
+    assert "data-iterations" in report
+
+
+def parallel_definition() -> JsonObject:
+    return {
+        "version": 2,
+        "mode": "dag",
+        "concurrency": 2,
+        "nodes": [
+            {"id": "root", "sceneId": "ba-001", "revision": 1},
+            {
+                "id": "left",
+                "sceneId": "ba-002",
+                "revision": 1,
+                "inputs": {"recordId": {"node": "root", "output": "recordId"}},
+            },
+            {
+                "id": "right",
+                "sceneId": "ba-002",
+                "revision": 1,
+                "inputs": {"recordId": {"node": "root", "output": "recordId"}},
+            },
+            {"id": "join", "sceneId": "ba-001", "revision": 1},
+        ],
+        "edges": [
+            {"source": "root", "target": "left"},
+            {"source": "root", "target": "right"},
+            {"source": "left", "target": "join"},
+            {"source": "right", "target": "join"},
+        ],
+    }
+
+
+def test_concurrency_queues_ready_nodes_together_without_pinning(
+    app: FastAPI, client: Client, chain: int, worker: Worker
+) -> None:
+    body(
+        client.put(
+            f"/api/workflows/{chain}", json={"baseVersion": 1, "definition": parallel_definition()}
+        )
+    )
+    run = start(client, chain, headless=True)
+    assert run["concurrency"] == 2
+    assert worker.run_once()
+    both = get(client, run["id"])
+    assert statuses(both) == ["passed", "queued", "queued", "pending"]
+    with services(app).sessions() as session:
+        queued = session.scalars(
+            select(Run).where(Run.workflow_run_id == run["id"], Run.status == "queued")
+        ).all()
+        assert {item.node_id for item in queued} == {"left", "right"}
+        assert all(item.required_worker is None for item in queued)
+    assert worker.run_once()
+    assert worker.run_once()
+    assert worker.run_once()
+    assert get(client, run["id"])["status"] == "passed"
+
+
+def test_parallel_failure_waits_for_running_siblings(
+    client: Client, chain: int, worker: Worker, executor: FakeExecutor
+) -> None:
+    body(
+        client.put(
+            f"/api/workflows/{chain}", json={"baseVersion": 1, "definition": parallel_definition()}
+        )
+    )
+    executor.fail["ba-002"] = "failed"
+    run = start(client, chain, headless=True)
+    assert worker.run_once()
+    assert worker.run_once()
+    waiting = get(client, run["id"])
+    assert waiting["status"] == "running"  # 另一個分支還在排隊，跑完才停
+    assert worker.run_once()
+    stopped = get(client, run["id"])
+    assert stopped["status"] == "failed"
+    assert stopped["failedNode"] in ("left", "right")
+    assert statuses(stopped)[3] == "skipped"
+    assert not worker.run_once()

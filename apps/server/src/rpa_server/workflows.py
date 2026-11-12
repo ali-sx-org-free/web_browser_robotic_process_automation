@@ -1,12 +1,19 @@
-"""自由試驗場：組合場景以 DAG 表達依賴，依拓撲順序逐個執行。
+"""自由試驗場：組合場景以 DAG 表達依賴，依依賴排程執行。
 
-第 1 版保留原有順序；第 2 版先固定同名匹配，再依依賴拓撲排序。畫布位置不影響執行。
+第 1 版保留原有順序；第 2 版先固定同名匹配，再依依賴排程。畫布位置不影響執行。
+
+組合場景的流程（2026-11-11）：排程由 :func:`rpa_core.workflow.advance` 從每個節點的結果算出，
+同時就緒的節點最多 ``concurrency`` 個一起排入佇列；條件連線沒走到的節點略過；重複的節點
+一次通過就排下一次，全部次數通過才算通過。``concurrency`` 大於 1 時節點不再全部給同一台
+worker，由空著的 worker 各自領取；只有用到上游檔案出參的節點留在跑那個上游的 worker
+（共用工作資料夾，ADR 0020），指定了 worker 或從失敗的節點繼續時仍全部給它。
 
 - **組合場景**（workflows）：名稱、說明與 rpa_core.workflow 的定義；每次存檔 version 加一，
   存檔要帶目前的 version，不一致就回 409。定義有問題也可以存（編輯到一半），但不能執行。
-- **組合場景的執行**（workflow_runs）：開始時存一份定義的快照；第一個節點排入佇列，
-  worker 每執行完一個節點就呼叫 :meth:`WorkflowService.node_finished`：通過就取出參、排下一個節點，
-  沒有通過（失敗、逾時、取消、需要登入）就停在那個節點，後面的節點略過。
+- **組合場景的執行**（workflow_runs）：開始時存一份定義的快照；可以開始的節點排入佇列，
+  worker 每執行完一個節點就呼叫 :meth:`WorkflowService.node_finished`：通過就取出參、排接下來
+  的節點，沒有通過（失敗、逾時、取消、需要登入）就停在那個節點：不再排新的節點，已經在跑的
+  跑完。
 - **節點的執行**就是一般的執行（runs，目的 workflow）：有自己的執行目錄、報告，也出現在執行報告。
 - **重新執行**用同一份快照從頭開始；**從失敗的節點繼續**沿用前面已通過節點的出參，
   不重複前面的操作（例如建立紀錄），適合登入之後接著跑。
@@ -34,6 +41,7 @@ import os
 import re
 import threading
 from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Final, Literal, cast
 
@@ -52,9 +60,13 @@ from rpa_core.pack import (
     workflow_text,
 )
 from rpa_core.workflow import (
+    NodeState,
+    OutputBinding,
+    Progress,
     Workflow,
     WorkflowNode,
     WorkflowProblem,
+    advance,
     check_workflow,
     input_sources,
     parse_workflow,
@@ -101,6 +113,26 @@ _NAME_LIMIT: Final = 200
 _CODE: Final = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 """組合場景代號的規則（和場景 id 相同）。"""
 Purpose = Literal["validation", "execution"]
+
+
+@dataclass(frozen=True, slots=True)
+class _RunStatus:
+    """:meth:`WorkflowService._status` 的結果。"""
+
+    states: Mapping[str, NodeState]
+    """有結果或在跑的節點；沒列的是還沒開始。"""
+    outputs: Mapping[str, Mapping[str, object] | None]
+    iterations: Mapping[str, int]
+    """節點 → 已經通過幾次。"""
+    runs: Mapping[str, list[Run]]
+    """節點 → 這次組合場景執行裡的每一次執行。"""
+    again: tuple[str, ...]
+    """這次通過了、還要再跑的節點。"""
+    failed: Run | None
+    """最早沒有通過的那次執行。"""
+    active: int
+    """排隊或執行中的節點數。"""
+    progress: Progress
 
 
 def _run_record(run: Run) -> RunRecord:
@@ -693,7 +725,6 @@ class WorkflowService:
             headless=headless,
             key=key,
             reused={},
-            start_index=0,
             target=target,
             worker_id=worker_id,
             purpose=purpose,
@@ -769,10 +800,9 @@ class WorkflowService:
             engine, headless = row.engine, row.headless
             target = cast("Target", row.target)
             reused: dict[str, str] = {}
-            start_index = 0
             pinned: str | None = None
             if resume:
-                start_index, reused = self._resume_point(session, row, workflow)
+                reused = self._resume_point(session, row, workflow)
                 # 沿用的節點在哪台 worker 執行，接下來的節點也給它（M9a）
                 pinned = row.worker_id if target != "local" and reused else None
         self._ensure_runnable(workflow, self.check(workflow))
@@ -787,7 +817,6 @@ class WorkflowService:
             headless=headless if headless or self.services.can_display(target) else True,
             key=key,
             reused=reused,
-            start_index=start_index,
             resumed_from=run_id if resume else None,
             target=target,
             worker_id=pinned,
@@ -799,26 +828,20 @@ class WorkflowService:
 
     def _resume_point(
         self, session: Session, row: WorkflowRunRow, workflow: Workflow
-    ) -> tuple[int, dict[str, str]]:
-        """從停下的節點繼續：(從第幾個節點開始, 沿用的節點 → 那次通過的執行編號)。"""
-        ordered = workflow.execution_nodes()
-        index = next((i for i, node in enumerate(ordered) if node.id == row.failed_node), -1)
-        if row.status == "passed" or index < 0:
+    ) -> dict[str, str]:
+        """從停下的節點繼續：沿用的節點 → 那次通過的執行編號（每個全部次數都通過的節點）。
+
+        重複到一半的節點不沿用，新的執行從它沒通過的那一次接著跑（:meth:`_carried`）。
+        """
+        if row.status == "passed" or row.failed_node is None:
             raise conflict("workflow_not_resumable", t("error.workflow_not_resumable", id=row.id))
-        passed = self._latest_runs(session, row.id)
-        reused: dict[str, str] = {}
-        for node in ordered[:index]:
-            previous = cast("dict[str, str]", row.reused).get(node.id)
-            run = passed.get(node.id)
-            if run is not None and run.status == "passed":
-                reused[node.id] = run.id
-            elif previous is not None:
-                reused[node.id] = previous
-            else:
-                raise conflict(
-                    "workflow_not_resumable", t("error.workflow_not_resumable", id=row.id)
-                )
-        return index, reused
+        status = self._status(session, row, workflow)
+        reused = dict(cast("dict[str, str]", row.reused))
+        for node in workflow.nodes:
+            latest = status.runs.get(node.id)
+            if node.id not in reused and status.states.get(node.id) == "passed" and latest:
+                reused[node.id] = latest[-1].id
+        return reused
 
     @staticmethod
     def _ensure_runnable(workflow: Workflow, problems: Sequence[WorkflowProblem]) -> None:
@@ -853,7 +876,6 @@ class WorkflowService:
         headless: bool,
         key: str | None,
         reused: Mapping[str, str],
-        start_index: int,
         resumed_from: str | None = None,
         target: Target = "local",
         worker_id: str | None = None,
@@ -901,24 +923,200 @@ class WorkflowService:
                     if existing is None:
                         raise
                     return existing
-            self._start_node(run_id, start_index)
+            self._advance(run_id)
         self.services.packs.record_workflow_run(run_id)  # run.json（M11 PR 2）
         return self.get_run(run_id)
 
-    def _start_node(self, run_id: str, index: int) -> None:
-        """排入第 index 個節點；取值或排入失敗時，組合場景的執行停在這個節點。"""
+    def _node_runs(self, session: Session, run_id: str) -> dict[str, list[Run]]:
+        """組合場景執行裡每個節點的每一次執行，依先後。"""
+        found: dict[str, list[Run]] = {}
+        for run in session.scalars(
+            select(Run).where(Run.workflow_run_id == run_id).order_by(Run.created_at, Run.id)
+        ):
+            if run.node_id is not None:
+                found.setdefault(run.node_id, []).append(run)
+        return found
+
+    @staticmethod
+    def _carried(session: Session, row: WorkflowRunRow, node_id: str) -> int:
+        """從失敗的節點繼續時，這個節點在前面幾次組合場景執行已經通過的次數。"""
+        count = 0
+        previous_id = row.resumed_from
+        seen: set[str] = set()
+        while previous_id is not None and previous_id not in seen:
+            seen.add(previous_id)
+            previous = session.get(WorkflowRunRow, previous_id)
+            if previous is None or node_id in cast("dict[str, str]", previous.reused):
+                break
+            count += (
+                session.scalar(
+                    select(func.count())
+                    .select_from(Run)
+                    .where(
+                        Run.workflow_run_id == previous.id,
+                        Run.node_id == node_id,
+                        Run.status == "passed",
+                    )
+                )
+                or 0
+            )
+            previous_id = previous.resumed_from
+        return count
+
+    def _status(self, session: Session, row: WorkflowRunRow, workflow: Workflow) -> "_RunStatus":
+        """組合場景執行目前的樣子：每個節點的狀態、次數與出參，以及排程的結果。"""
+        runs = self._node_runs(session, row.id)
+        reused = cast("dict[str, str]", row.reused)
+        states: dict[str, NodeState] = {}
+        outputs: dict[str, Mapping[str, object] | None] = {}
+        iterations: dict[str, int] = {}
+        again: list[str] = []
+        failed: Run | None = None
+        active = 0
+        for node in workflow.nodes:
+            if node.id in reused:
+                previous = session.get(Run, reused[node.id])
+                states[node.id] = "passed"
+                iterations[node.id] = node.times
+                outputs[node.id] = (
+                    dict(previous.output or {})
+                    if previous is not None and previous.status == "passed"
+                    else None
+                )
+                continue
+            items = runs.get(node.id, [])
+            done = sum(item.status == "passed" for item in items)
+            if node.times > 1:
+                done += self._carried(session, row, node.id)
+            iterations[node.id] = done
+            if not items:
+                continue
+            latest = items[-1]
+            if latest.status in ("queued", "running"):
+                states[node.id] = "running"
+                active += 1
+            elif latest.status == "passed":
+                outputs[node.id] = dict(latest.output or {})
+                if done >= node.times:
+                    states[node.id] = "passed"
+                else:
+                    states[node.id] = "running"
+                    again.append(node.id)
+            else:
+                states[node.id] = "failed"
+                if failed is None or (latest.created_at, latest.id) < (
+                    failed.created_at,
+                    failed.id,
+                ):
+                    failed = latest
+        return _RunStatus(
+            states=states,
+            outputs=outputs,
+            iterations=iterations,
+            runs=runs,
+            again=tuple(again),
+            failed=failed,
+            active=active,
+            progress=advance(workflow, states, outputs),
+        )
+
+    def _advance(self, run_id: str) -> None:
+        """依目前的結果往下走：停下、全部完成，或排入可以開始的節點（不超過同時執行的上限）。
+
+        呼叫端持有鎖。有節點沒有通過時不再排新的節點，已經在跑的跑完才停下。
+        """
+        with self.sessions() as session:
+            row = self._run_row(session, run_id)
+            if row.status != "running":
+                return
+            workflow = Workflow.model_validate(row.definition)
+            status = self._status(session, row, workflow)
+        if status.failed is not None:
+            if status.active == 0:
+                failed = status.failed
+                message = t(
+                    "workflow_run.node_stopped",
+                    node=failed.node_id,
+                    scene=failed.scene_id,
+                    status=t(f"status.{failed.status}"),
+                )
+                self._finish(
+                    run_id, cast("WorkflowRunStatus", failed.status), failed.node_id, message
+                )
+            return
+        if status.progress.finished and status.active == 0 and not status.again:
+            self._finish(run_id, "passed", None, None)
+            return
+        slots = workflow.parallel - status.active
+        for node_id in (*status.again, *status.progress.ready)[: max(0, slots)]:
+            if not self._start_node(run_id, node_id):
+                return
+
+    def _pin(
+        self, session: Session, row: WorkflowRunRow, workflow: Workflow, node: WorkflowNode
+    ) -> str | None:
+        """這個節點只能給哪台 worker（None 是哪台空著都可以）。
+
+        同時執行是 1 時和以前一樣：第一個節點由哪台領取，後面都給它。大於 1 時只有指定了
+        worker（或從失敗的節點繼續）才全部給它；否則只有用到上游檔案出參的節點留在跑那個上游的
+        worker，因為檔案在那台的共用工作資料夾。
+        """
+        if workflow.parallel == 1:
+            return row.worker_id
+        first = session.scalars(
+            select(Run)
+            .where(Run.workflow_run_id == row.id)
+            .order_by(Run.created_at, Run.id)
+            .limit(1)
+        ).first()
+        explicit = row.worker_id if first is None else first.required_worker
+        if explicit is not None:
+            return explicit
+        for binding in node.inputs.values():
+            if not isinstance(binding, OutputBinding):
+                continue
+            upstream = workflow.node(binding.node)
+            scenario = (
+                self._scenario(upstream.scene_id, upstream.revision)
+                if upstream is not None
+                else None
+            )
+            spec = scenario.outputs.get(binding.output) if scenario is not None else None
+            if spec is None or spec.type != "file":
+                continue
+            reused = cast("dict[str, str]", row.reused).get(binding.node)
+            source = (
+                session.get(Run, reused)
+                if reused is not None
+                else session.scalars(
+                    select(Run)
+                    .where(Run.workflow_run_id == row.id, Run.node_id == binding.node)
+                    .order_by(Run.created_at.desc(), Run.id.desc())
+                    .limit(1)
+                ).first()
+            )
+            if source is not None and source.worker_id is not None:
+                return source.worker_id
+        return None
+
+    def _start_node(self, run_id: str, node_id: str) -> bool:
+        """排入一個節點（重複的節點是下一次）；取值或排入失敗時組合場景停在這個節點，回傳 False。"""
         with self.sessions() as session:
             row = self._run_row(session, run_id)
             workflow = Workflow.model_validate(row.definition)
             outputs = self._outputs(session, row)
             engine, headless = row.engine, row.headless
-            target, pinned = cast("Target", row.target), row.worker_id
+            target = cast("Target", row.target)
             client_id = row.client_id
-        node = workflow.execution_nodes()[index]
+            node = workflow.node(node_id)
+            pinned = self._pin(session, row, workflow, node) if node is not None else None
+        if node is None:
+            self._finish(run_id, "failed", node_id, None)
+            return False
         values, problems = resolve_inputs(node, outputs)
         if problems:
             self._finish(run_id, "failed", node.id, problems[0].message)
-            return
+            return False
         try:
             self.services.request_run(
                 node.scene_id,
@@ -948,6 +1146,8 @@ class WorkflowService:
             else:
                 message = t("workflow_run.node_not_started", node=node.id, detail=error.message)
             self._finish(run_id, "failed", node.id, message)
+            return False
+        return True
 
     def _finish(
         self, run_id: str, status: WorkflowRunStatus, node: str | None, error: str | None
@@ -960,19 +1160,23 @@ class WorkflowService:
             row.failed_node = node
             row.error = error
             row.finished_at = now()
-            worker = row.worker_id
+            workers = {row.worker_id} | set(
+                session.scalars(
+                    select(Run.worker_id).where(Run.workflow_run_id == run_id).distinct()
+                )
+            )
             session.commit()
-        # 共用工作資料夾（ADR 0020）：本機的直接刪；遠端的請那台 worker 下次領取或心跳時刪
+        # 共用工作資料夾（ADR 0020）：本機的直接刪；遠端的請跑過節點的每台 worker 下次領取或心跳時刪
         self.services.storage.drop_workspace(run_id)
-        if worker is not None and worker != LOCAL_WORKER:
+        for worker in sorted(item for item in workers if item and item != LOCAL_WORKER):
             self.services.workers.queue_cleanup(worker, run_id)
         # run.json；驗證另外寫進領域資料夾的驗證紀錄（M11 PR 2）
         self.services.packs.record_workflow_run(run_id)
 
     def node_finished(self, run_id: str) -> None:
-        """一個節點的執行結束：通過就排下一個節點，沒有通過就停在這個節點。
+        """一個節點的執行結束：依目前的結果排接下來的節點、停下或完成。
 
-        只處理組合場景執行裡最新的那一次節點執行，同一個通知來兩次（例如重啟時的回復）也不會排兩次。
+        結果每次都從資料庫重新算，同一個通知來兩次（例如重啟時的回復）也不會排兩次。
         """
         with self._lock:
             with self.sessions() as session:
@@ -982,33 +1186,8 @@ class WorkflowService:
                 row = session.get(WorkflowRunRow, run.workflow_run_id)
                 if row is None or row.status != "running":
                     return
-                latest = session.scalars(
-                    select(Run)
-                    .where(Run.workflow_run_id == row.id)
-                    .order_by(Run.created_at.desc(), Run.id.desc())
-                    .limit(1)
-                ).first()
-                if latest is None or latest.id != run.id:
-                    return
-                workflow = Workflow.model_validate(row.definition)
-                ordered = workflow.execution_nodes()
-                index = next((i for i, item in enumerate(ordered) if item.id == run.node_id), -1)
-                status, node, scene = run.status, run.node_id, run.scene_id
                 workflow_run = row.id
-            if index < 0:
-                self._finish(workflow_run, "failed", node, None)
-            elif status != "passed":
-                message = t(
-                    "workflow_run.node_stopped",
-                    node=node,
-                    scene=scene,
-                    status=t(f"status.{status}"),
-                )
-                self._finish(workflow_run, cast("WorkflowRunStatus", status), node, message)
-            elif index + 1 < len(workflow.nodes):
-                self._start_node(workflow_run, index + 1)
-            else:
-                self._finish(workflow_run, "passed", None, None)
+            self._advance(workflow_run)
 
     def cancel(self, run_id: str) -> WorkflowRunRecord:
         """取消組合場景的執行：停止目前的節點，後面的節點不執行。已經發生的外部動作不會復原。"""
@@ -1034,23 +1213,21 @@ class WorkflowService:
         return self.get_run(run_id)
 
     def recover(self) -> int:
-        """伺服器啟動時：還在執行中的組合場景，依最新節點的狀態接著處理（排下一個或停下）。"""
+        """伺服器啟動時：還在執行中的組合場景，依各節點的結果接著處理（排接下來的節點或停下）。"""
         with self.sessions() as session:
             rows = list(
                 session.scalars(select(WorkflowRunRow).where(WorkflowRunRow.status == "running"))
             )
-            pending: list[tuple[str, str | None]] = []
+            pending: list[tuple[str, bool]] = []
             for row in rows:
-                latest = session.scalars(
-                    select(Run)
-                    .where(Run.workflow_run_id == row.id)
-                    .order_by(Run.created_at.desc(), Run.id.desc())
-                    .limit(1)
+                started = session.scalars(
+                    select(Run.id).where(Run.workflow_run_id == row.id).limit(1)
                 ).first()
-                pending.append((row.id, latest.id if latest is not None else None))
-        for workflow_run, latest in pending:
-            if latest is not None:
-                self.node_finished(latest)  # 還在排隊的節點不受影響，worker 會照常執行
+                pending.append((row.id, started is not None))
+        for workflow_run, started in pending:
+            if started:
+                with self._lock:
+                    self._advance(workflow_run)  # 還在排隊的節點不受影響，worker 會照常執行
             else:
                 self._finish(workflow_run, "failed", None, t("run.interrupted"))
         return len(pending)
@@ -1341,11 +1518,18 @@ class WorkflowService:
     def _run_record(self, session: Session, row: WorkflowRunRow) -> WorkflowRunRecord:
         workflow, _ = parse_workflow(row.definition)
         nodes: list[WorkflowNodeState] = []
+        links: tuple[tuple[str, str, str], ...] = ()
+        concurrency = 1
         if workflow is not None:
-            latest = self._latest_runs(session, row.id)
+            status = self._status(session, row, workflow)
             reused = cast("dict[str, str]", row.reused)
             for index, node in enumerate(workflow.execution_nodes()):
-                nodes.append(self._node_state(session, row, index, node, latest, reused))
+                nodes.append(self._node_state(session, row, index, node, status, reused))
+            links = tuple(
+                (source, target, state)
+                for (source, target), state in sorted(status.progress.links.items())
+            )
+            concurrency = workflow.parallel
         return WorkflowRunRecord(
             id=row.id,
             workflow_id=row.workflow_id,
@@ -1366,6 +1550,8 @@ class WorkflowService:
             purpose=row.purpose,
             workflow_code=row.workflow_code,
             client_id=row.client_id,
+            concurrency=concurrency,
+            links=links,
         )
 
     def _node_state(
@@ -1374,7 +1560,7 @@ class WorkflowService:
         row: WorkflowRunRow,
         index: int,
         node: WorkflowNode,
-        latest: Mapping[str, Run],
+        status: _RunStatus,
         reused: Mapping[str, str],
     ) -> WorkflowNodeState:
         scenario = self._scenario(node.scene_id, node.revision)
@@ -1383,22 +1569,26 @@ class WorkflowService:
             if scenario is not None
             else {}
         )
+        runs = status.runs.get(node.id, [])
         run: Run | None = None
         error: str | None = None
-        status: NodeStatus
+        skipped_by: Literal["condition"] | None = None
+        state: NodeStatus
         if node.id in reused:
             run = session.get(Run, reused[node.id])
-            status = "reused"
-        elif node.id in latest:
-            run = latest[node.id]
-            status = cast("NodeStatus", run.status)
+            state = "reused"
+        elif runs:
+            run = runs[-1]
+            state = cast("NodeStatus", run.status)
+        elif node.id in status.progress.skipped:
+            state, skipped_by = "skipped", "condition"
         elif row.status == "running":
-            status = "pending"
+            state = "pending"
         elif row.failed_node == node.id:
-            status = "failed"  # 沒有開始執行就停下（例如綁定的值不符合入參規則）
+            state = "failed"  # 沒有開始執行就停下（例如綁定的值不符合入參規則）
             error = row.error
         else:
-            status = "skipped"
+            state = "skipped"
         name = run.scene_name if run is not None else (scenario.name if scenario else node.scene_id)
         return WorkflowNodeState(
             index=index,
@@ -1406,10 +1596,14 @@ class WorkflowService:
             scene_id=node.scene_id,
             scene_name=name,
             revision=node.revision,
-            status=status,
+            status=state,
             sources=sources,
             run=_run_record(run) if run is not None else None,
             error=error,
+            repeat=node.times,
+            iterations=status.iterations.get(node.id, 0),
+            runs=tuple(item.id for item in runs),
+            skipped_by=skipped_by,
         )
 
     def get_run(self, run_id: str) -> WorkflowRunRecord:

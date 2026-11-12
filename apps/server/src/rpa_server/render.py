@@ -23,7 +23,7 @@ from markupsafe import Markup, escape
 
 from rpa_core.dsl.files import format_size
 from rpa_core.i18n import LOCALES, NATIVE_NAMES, get_locale
-from rpa_core.workflow import Workflow
+from rpa_core.workflow import Workflow, condition_text
 from rpa_runner.files import STEP_SHOTS, STEPS
 from rpa_server import __version__
 from rpa_server.config import COMPOSITES_DOMAIN, RECORDER_MENUS
@@ -583,7 +583,10 @@ def js_messages() -> dict[str, str]:
 
 
 def workflow_preview(workflow: Workflow) -> dict[str, object]:
-    """以實際座標與依賴產生卡片縮圖；只計算呈現，不修改或執行定義。"""
+    """以實際座標與依賴產生卡片縮圖；只計算呈現，不修改或執行定義。
+
+    條件連線另外帶條件的說明與放文字的位置（連線的中點）；重複的節點帶次數（2026-11-11）。
+    """
     positions = {
         node.id: (node.position.x, node.position.y)
         if node.position
@@ -597,19 +600,21 @@ def workflow_preview(workflow: Workflow) -> dict[str, object]:
             "revision": node.revision,
             "x": positions[node.id][0],
             "y": positions[node.id][1],
+            "repeat": node.times,
         }
         for node in workflow.nodes
     ]
-    edges: list[dict[str, str]] = []
+    edges: list[dict[str, object]] = []
     xs: list[float] = []
     ys: list[float] = []
     for x, y in positions.values():
         xs.extend((x, x + 200))
         ys.extend((y, y + 96))
-    for target, sources in workflow.dependencies().items():
-        for source in sorted(sources):
+    for target, incoming in workflow.links().items():
+        for source in sorted(incoming):
             if source not in positions:
                 continue
+            edge = incoming[source]
             ax, ay = positions[source]
             bx, by = positions[target]
             x, y, xx, yy = ax + 200, ay + 48, bx, by + 48
@@ -620,6 +625,9 @@ def workflow_preview(workflow: Workflow) -> dict[str, object]:
                     "source": source,
                     "target": target,
                     "path": f"M {x} {y} C {x + bend} {y}, {xx - bend} {yy}, {xx} {yy}",
+                    "label": condition_text(edge) if edge is not None else None,
+                    "labelX": (x + xx) / 2,
+                    "labelY": (y + yy) / 2 - 6,
                 }
             )
     left, top = min(xs, default=0) - 24, min(ys, default=0) - 24

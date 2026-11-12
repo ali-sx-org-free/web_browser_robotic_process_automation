@@ -2569,10 +2569,50 @@
       return 'n' + number;
     }
 
+    // 組合場景的流程（2026-11-11）：條件連線、重複次數、同時執行
+    const explicitEdge = (source, target) => definition.edges.find(edge => edge.source === source && edge.target === target) || null;
+    function ensureEdge(source, target) {
+      let edge = explicitEdge(source, target);
+      if (!edge) { edge = {source, target}; definition.edges.push(edge); }
+      return edge;
+    }
+    function conditionOperator(when) {
+      if ('equals' in when) return 'equals';
+      if ('notEquals' in when) return 'notEquals';
+      if ('in' in when) return 'in';
+      return when.empty ? 'empty' : 'present';
+    }
+    const shownValue = value => typeof value === 'string' ? value : JSON.stringify(value);
+    function conditionValueText(when, operator) {
+      if (operator === 'in') return (when.in || []).map(shownValue).join(', ');
+      if (operator === 'equals' || operator === 'notEquals') return shownValue(when[operator]);
+      return '';
+    }
+    function parseConditionValue(raw, type) {
+      const value = raw.trim();
+      if (type === 'integer' && /^-?\d+$/.test(value)) return parseInt(value, 10);
+      if (type === 'number' && value !== '' && !Number.isNaN(Number(value))) return Number(value);
+      if (type === 'boolean' && (value === 'true' || value === 'false')) return value === 'true';
+      return type === 'string' ? raw : value;
+    }
+    const outputType = (source, name) => new Map(revisionOf(definition.nodes.find(item => item.id === source))?.outputs || []).get(name)?.type || 'string';
+    function conditionLabel(edge) {
+      if (edge.otherwise) return text.edge_label_otherwise;
+      if (!edge.when) return '';
+      const operator = conditionOperator(edge.when);
+      return fill(text['edge_label_' + operator], {output: edge.when.output, value: conditionValueText(edge.when, operator)});
+    }
+    function setCondition(edge, operator, values) {
+      const output = edge.when?.output || '';
+      if (operator === 'empty' || operator === 'present') edge.when = {output, empty: operator === 'empty'};
+      else if (operator === 'in') edge.when = {output, in: values.length ? values : ['']};
+      else edge.when = {output, [operator]: values.length ? values[0] : ''};
+    }
+
     function allEdges() {
       const edges = new Map(definition.edges.map(edge => [edge.source + ':' + edge.target, edge]));
       definition.nodes.forEach(node => Object.values(node.inputs).forEach(binding => {
-        if (binding.node) edges.set(binding.node + ':' + node.id, {source: binding.node, target: node.id});
+        if (binding.node && !edges.has(binding.node + ':' + node.id)) edges.set(binding.node + ':' + node.id, {source: binding.node, target: node.id});
       }));
       return [...edges.values()];
     }
@@ -2748,7 +2788,7 @@
     function drawEdges() {
       const stage = qs('#flow-stage');
       const nodes = new Map(definition.nodes.map(node => [node.id, node]));
-      const routes = new Map();
+      const routes = new Map(), middles = new Map();
       let detour = 0;
       qsa('[data-edge-line]', stage).forEach(line => {
         const a = nodes.get(line.dataset.source), b = nodes.get(line.dataset.target);
@@ -2760,10 +2800,12 @@
           if (xx > x && xx - x <= columnGap + 1) {
             const middle = (x + xx) / 2;
             points = [[x, y], [middle, y], [middle, yy], [xx, yy]];
+            middles.set(key, [middle, (y + yy) / 2 - 8]);
           } else {
             // 跨層與人工反向連線走節點上方；各自獨立走線，避開中間卡片。
             const top = Math.max(12, Math.min(...definition.nodes.map(node => node.position.y)) - 24 - detour++ * 16);
             points = [[x, y], [x + 28, y], [x + 28, top], [xx - 28, top], [xx - 28, yy], [xx, yy]];
+            middles.set(key, [(x + xx) / 2, top - 6]);
           }
           let d = 'M ' + points[0].join(' ');
           for (let i = 1; i < points.length - 1; i++) {
@@ -2777,6 +2819,10 @@
         }
         line.setAttribute('d', routes.get(key));
       });
+      qsa('[data-edge-label]', stage).forEach(label => {
+        const middle = middles.get(label.dataset.source + ':' + label.dataset.target);
+        if (middle) { label.setAttribute('x', middle[0]); label.setAttribute('y', middle[1]); }
+      });
     }
 
     function renderBoard() {
@@ -2785,7 +2831,9 @@
       const edges = allEdges().map(edge => {
         const attrs = ' data-edge-line data-source="' + esc(edge.source) + '" data-target="' + esc(edge.target) + '"';
         const related = edge.source === definition.nodes[selected]?.id || edge.target === definition.nodes[selected]?.id;
-        return '<path class="dag-edge' + (related ? ' is-related' : '') + (edge.source === selectedSource && edge.target === definition.nodes[selected]?.id ? ' is-selected' : '') + '"' + attrs + ' marker-end="url(#dag-arrow' + (related ? '-active' : '') + ')"/>' +
+        const explicit = explicitEdge(edge.source, edge.target), label = explicit ? conditionLabel(explicit) : '';
+        return (label ? '<text class="dag-edge-label" data-edge-label data-source="' + esc(edge.source) + '" data-target="' + esc(edge.target) + '" text-anchor="middle">' + esc(label) + '</text>' : '') +
+          '<path class="dag-edge' + (label ? ' is-conditional' : '') + (related ? ' is-related' : '') + (edge.source === selectedSource && edge.target === definition.nodes[selected]?.id ? ' is-selected' : '') + '"' + attrs + ' marker-end="url(#dag-arrow' + (related ? '-active' : '') + ')"/>' +
           '<path class="dag-edge-hit"' + attrs + ' data-edge tabindex="0" role="button" aria-label="' + esc(fill(text.edge_label, edge)) + '"/>';
       }).join('');
       stage.innerHTML = '<svg class="dag-links"><defs>' + ['', '-active'].map(suffix => '<marker id="dag-arrow' + suffix + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="' + (suffix ? 'var(--blue)' : '#91a7bf') + '"/></marker>').join('') + '</defs>' + edges + '</svg>' +
@@ -2795,7 +2843,7 @@
           const title = revision ? revision.name : (scene ? scene.name : node.sceneId);
           const count = problems.filter(item => item.node === node.id).length;
           return '<div class="flow-node' + (index === selected ? ' selected' : '') + (count ? ' has-problems' : '') + '" data-index="' + index + '" data-node="' + esc(node.id) + '" role="button" tabindex="0" aria-pressed="' + (index === selected) + '" style="left:' + node.position.x + 'px;top:' + node.position.y + 'px">' +
-            '<span class="flow-node-head">' + typeBadge(revision?.displayKind) + '<span class="muted">v' + node.revision + '</span></span>' +
+            '<span class="flow-node-head">' + typeBadge(revision?.displayKind) + '<span class="muted">v' + node.revision + '</span>' + (node.repeat > 1 ? '<span class="flow-node-repeat" title="' + esc(fill(text.repeat_badge, {count: node.repeat})) + '">×' + node.repeat + '</span>' : '') + '</span>' +
             '<strong title="' + esc(title) + '">' + esc(title) + '</strong><span class="flow-node-code mono" title="' + esc(node.sceneId) + '">' + esc(node.sceneId) + '</span><small title="' + esc(node.id) + '">' + esc(node.id) + (count ? ' · ' + esc(fill(text.problem_count, {count})) : '') + '</small>' +
             '<button class="dag-port in" data-in="' + esc(node.id) + '" aria-label="' + esc(fill(text.connect_to, {node: node.id})) + '"></button>' +
             '<button class="dag-port out" data-out="' + esc(node.id) + '" aria-label="' + esc(fill(text.connect_from, {node: node.id})) + '"></button></div>';
@@ -2937,6 +2985,8 @@
         html += '<p class="cell-sub">' + esc(fill(text.newer_revision, {number: scene.publishedRevision, current: node.revision})) + '</p>';
       }
       if (revision && revision.role) html += '<p class="cell-sub">' + esc(fill(text.role, {role: revision.role})) + '</p>';
+      html += '<label class="field">' + esc(text.repeat) + '<input type="number" min="1" max="20" step="1" data-field="repeat" value="' + (node.repeat || 1) + '"></label>' +
+        '<p class="cell-sub">' + esc(text.repeat_hint) + '</p>';
       inputsBox.innerHTML = !revision ? '<p class="muted">' + esc(text.no_contract) + '</p>'
         : !revision.inputs.length ? '<p class="muted">' + esc(text.no_inputs) + '</p>'
         : revision.inputs.map(([name, spec]) => inputRow(node, name, spec)).join('');
@@ -2949,10 +2999,33 @@
       const candidates = definition.nodes.filter(upstream => canConnect(upstream.id, node.id) && !allEdges().some(edge => edge.source === upstream.id && edge.target === node.id));
       html += '<h3 class="section-title">' + esc(text.dependencies) + '</h3><label class="field">' + esc(text.connect_source) + '<select data-connect-source>' + candidates.map(upstream => '<option value="' + esc(upstream.id) + '">' + esc(upstream.id + ' · ' + upstream.sceneId) + '</option>').join('') + '</select></label>' +
         '<button class="button" data-connect' + (!candidates.length ? ' disabled' : '') + '>' + esc(text.connect) + '</button>';
-      html += allEdges().filter(edge => edge.target === node.id).map(edge => '<div class="edge-row"><code>' + esc(edge.source) + ' → ' + esc(edge.target) + '</code><button class="text-btn" data-unlink="' + esc(edge.source) + '">' + esc(text.unlink) + '</button></div>').join('');
+      html += allEdges().filter(edge => edge.target === node.id).map(edge => edgeRow(edge)).join('');
       html += '<p class="cell-sub">' + esc(text.unlink_hint) + '</p><button type="button" class="button danger" data-remove>' + esc(text.remove) + '</button>';
       box.innerHTML = html + '</div>';
       renderFieldProblems();
+    }
+
+    function edgeRow(edge) {
+      const explicit = explicitEdge(edge.source, edge.target);
+      const when = explicit?.when, kind = when ? 'when' : explicit?.otherwise ? 'otherwise' : 'always';
+      const source = esc(edge.source);
+      let html = '<div class="edge-row" data-edge-row="' + source + '"><code>' + source + ' → ' + esc(edge.target) + '</code><button class="text-btn" data-unlink="' + source + '">' + esc(text.unlink) + '</button></div>' +
+        '<label class="field edge-condition-kind">' + esc(text.edge_condition) + '<select data-edge-kind="' + source + '">' +
+        ['always', 'when', 'otherwise'].map(value => '<option value="' + value + '"' + (value === kind ? ' selected' : '') + '>' + esc(text['edge_' + value]) + '</option>').join('') + '</select></label>';
+      if (when) {
+        const outputs = revisionOf(definition.nodes.find(item => item.id === edge.source))?.outputs || [];
+        const operator = conditionOperator(when);
+        const known = outputs.some(([name]) => name === when.output);
+        html += '<div class="edge-condition">' +
+          '<select data-edge-output="' + source + '" aria-label="' + esc(text.edge_output) + '">' +
+          (known ? '' : '<option value="' + esc(when.output) + '" selected>' + esc(when.output || '—') + '</option>') +
+          outputs.map(([name, spec]) => '<option value="' + esc(name) + '"' + (name === when.output ? ' selected' : '') + '>' + esc(name + ' (' + spec.type + ')') + '</option>').join('') + '</select>' +
+          '<select data-edge-operator="' + source + '" aria-label="' + esc(text.edge_operator) + '">' +
+          ['equals', 'notEquals', 'in', 'empty', 'present'].map(value => '<option value="' + value + '"' + (value === operator ? ' selected' : '') + '>' + esc(text['edge_op_' + value]) + '</option>').join('') + '</select>' +
+          (operator === 'empty' || operator === 'present' ? '' : '<input type="text" data-edge-value="' + source + '" aria-label="' + esc(text.edge_value) + '" placeholder="' + esc(operator === 'in' ? text.edge_value_list : text.edge_value_one) + '" value="' + esc(conditionValueText(when, operator)) + '">') +
+          '</div>';
+      }
+      return html;
     }
 
     function renderFieldProblems() {
@@ -3265,7 +3338,30 @@
         return;
       }
       if (target.hasAttribute('data-parameter-source')) { selectedSource = target.value; render(); }
-      else if (target.dataset.field === 'revision') {
+      else if (target.dataset.field === 'repeat') {
+        const count = Math.max(1, Math.min(20, parseInt(target.value, 10) || 1));
+        target.value = count;
+        if (count === 1) delete node.repeat; else node.repeat = count;
+        changed({settings: false});
+      } else if (target.dataset.edgeKind !== undefined) {
+        const edge = ensureEdge(target.dataset.edgeKind, node.id);
+        delete edge.when; delete edge.otherwise;
+        if (target.value === 'when') {
+          const outputs = revisionOf(definition.nodes.find(item => item.id === edge.source))?.outputs || [];
+          edge.when = {output: outputs[0]?.[0] || '', empty: false};
+        } else if (target.value === 'otherwise') edge.otherwise = true;
+        changed();
+      } else if (target.dataset.edgeOutput !== undefined) {
+        const edge = explicitEdge(target.dataset.edgeOutput, node.id);
+        if (edge?.when) { edge.when = {...edge.when, output: target.value}; changed(); }
+      } else if (target.dataset.edgeOperator !== undefined) {
+        const edge = explicitEdge(target.dataset.edgeOperator, node.id);
+        if (!edge?.when) return;
+        const before = conditionOperator(edge.when);
+        const values = before === 'in' ? edge.when.in : before === 'equals' || before === 'notEquals' ? [edge.when[before]] : [];
+        setCondition(edge, target.value, target.value === 'in' ? values : values.slice(0, 1));
+        changed();
+      } else if (target.dataset.field === 'revision') {
         node.revision = Number(target.value);
         const revision = revisionOf(node);
         if (revision) {
@@ -3287,6 +3383,15 @@
     settings.addEventListener('input', event => {
       const target = event.target;
       const node = definition.nodes[selected];
+      if (node && target.dataset.edgeValue !== undefined) {
+        const edge = explicitEdge(target.dataset.edgeValue, node.id);
+        if (!edge?.when) return;
+        const operator = conditionOperator(edge.when), type = outputType(edge.source, edge.when.output);
+        const parts = operator === 'in' ? target.value.split(/[,，、]/).map(item => item.trim()).filter(Boolean) : [target.value];
+        setCondition(edge, operator, parts.map(item => parseConditionValue(item, type)));
+        changed({settings: false});
+        return;
+      }
       if (!node || target.dataset.value === undefined || target.tagName !== 'INPUT') return;
       const name = target.dataset.value;
       const spec = new Map(revisionOf(node).inputs).get(name);
@@ -3376,6 +3481,17 @@
     });
 
     saveButton.addEventListener('click', save);
+
+    const concurrency = qs('[data-concurrency]');
+    if (concurrency) {
+      concurrency.value = definition.concurrency || 1;
+      concurrency.addEventListener('change', () => {
+        const count = Math.max(1, Math.min(10, parseInt(concurrency.value, 10) || 1));
+        concurrency.value = count;
+        if (count === 1) delete definition.concurrency; else definition.concurrency = count;
+        changed({settings: false});
+      });
+    }
 
     qs('[data-action="workflow-rename"]').addEventListener('click', () => {
       const dialog = workflowDialog(text.rename_title, {name: data.name, description: data.description}, messages.save, async () => {
@@ -3547,7 +3663,7 @@
     bindCompositeReport(root, run);
     if (root.hasAttribute('data-poll')) {
       pollUntilChanged('/api/workflow-runs/' + path(run), root.dataset.signature,
-        data => data.status + '|' + data.nodes.map(node => node.status).join(','));
+        data => data.status + '|' + data.nodes.map(node => node.status + ':' + node.iterations).join(','));
     }
   }
 
