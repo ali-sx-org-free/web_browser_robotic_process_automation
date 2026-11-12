@@ -14,16 +14,23 @@ import socket
 import threading
 import time
 from collections.abc import Callable, Iterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import cast
 
 import click
 import pytest
 import uvicorn
+from fastapi import FastAPI
+from httpx2 import Client
 from playwright.sync_api import Locator, Page, Route, expect, sync_playwright
+from sqlalchemy import select
 
 from rpa_cli.serve import open_listener
 from rpa_server.app import create_app
 from rpa_server.config import Settings, sqlite_url
+from rpa_server.models import Revision, Scene
+from rpa_server.services import Services
 from testsite.browsers import ENGINES, require_engine
 from testsite.server import running
 
@@ -120,6 +127,209 @@ def drag_to(
                 target.hover(position={"x": position[0], "y": position[1]})
     finally:
         source.page.mouse.up()
+
+
+def test_scene_order_badges_and_dag_layout(
+    app: FastAPI, client: Client, page: Page, tmp_path: Path
+) -> None:
+    """真實頁面整理分叉、匯合與跨層依賴；儲存前後只有座標不同。"""
+    services = cast("Services", app.state.services)
+    services.seed_examples_domain()
+    python_example = ROOT / "scenarios" / "examples" / "python-node"
+    services.add_scene(
+        "python-node-report",
+        {file.name: file.read_text(encoding="utf-8") for file in python_example.iterdir()},
+        note=None,
+        domain_id="testsite",
+    )
+    moment = datetime(2026, 1, 1, tzinfo=UTC)
+    with services.sessions() as session:
+        scenes = list(session.scalars(select(Scene).order_by(Scene.id.desc())))
+        expected_order = [scene.id for scene in scenes]
+        for index, scene in enumerate(scenes):
+            scene.created_at = moment + timedelta(days=index)
+            scene.published_number = 1
+        for revision in session.scalars(select(Revision)):
+            revision.published_at = moment
+            revision.status = "passed"
+        session.commit()
+
+    def serve(route: Route) -> None:
+        request = route.request
+        response = client.request(
+            request.method,
+            request.url.removeprefix("http://visual.test"),
+            content=request.post_data_buffer,
+            headers={"content-type": request.headers.get("content-type", "")},
+            follow_redirects=False,
+        )
+        route.fulfill(
+            status=response.status_code,
+            headers={
+                key: value
+                for key, value in response.headers.items()
+                if key not in {"content-length", "content-encoding"}
+            },
+            body=response.content,
+        )
+
+    page.route("http://visual.test/**", serve)
+    errors: list[str] = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto("http://visual.test/domains/testsite")
+    cards = page.locator("#cards article")
+    assert cards.evaluate_all("els => els.map(el => el.dataset.scene)") == expected_order
+    expect(cards.locator(".scene-ordinal")).to_have_text(
+        [str(i + 1) for i in range(len(expected_order))]
+    )
+    expect(page.locator('[data-scene="ba-001"] .scene-type')).to_have_text("瀏覽器")
+    expect(page.locator('[data-scene="ba-001-script"] .scene-type')).to_have_text("Python 瀏覽器")
+    expect(page.locator('[data-scene="python-node-report"] .scene-type')).to_have_text("Python")
+    artifacts = Path(os.environ.get("RPA_PORTAL_ARTIFACTS", str(tmp_path)))
+    artifacts.mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=artifacts / "scene-order.png", full_page=True, animations="disabled")
+
+    graph_nodes: list[dict[str, object]] = [
+        {"id": name, "sceneId": "ba-001", "revision": 1, "inputs": {}}
+        for name in ["end", "branch-b", "start", "branch-a", "merge", "step"]
+    ]
+    graph_edges = [
+        {"source": source, "target": target}
+        for source, target in [
+            ("start", "branch-a"),
+            ("start", "branch-b"),
+            ("branch-a", "merge"),
+            ("branch-b", "merge"),
+            ("merge", "step"),
+            ("step", "end"),
+        ]
+    ]
+    definition: dict[str, object] = {
+        "version": 2,
+        "mode": "dag",
+        "nodes": graph_nodes,
+        "edges": graph_edges,
+    }
+    # 最長的連線只有出參綁定，沒有顯式 edge，也必須參與分層與走線。
+    graph_nodes[0]["inputs"] = {"title": {"node": "start", "output": "title"}}
+    created = client.post(
+        "/api/workflows", json={"name": "分叉與匯合・視覺驗證", "definition": definition}
+    ).json()
+    url = f"/playground/{created['id']}"
+    page.goto("http://visual.test" + url)
+    expect(page.locator(".flow-node")).to_have_count(6)
+    expect(page.locator('[data-action="workflow-save"]')).to_be_disabled()
+    expect(page.locator("#library-list .scene-ordinal")).to_have_text(
+        [str(i + 1) for i in range(len(expected_order))]
+    )
+    page.locator("#library-search").fill("ba-001-script")
+    expect(page.locator("#library-list .scene-ordinal")).to_have_text(
+        str(expected_order.index("ba-001-script") + 1)
+    )
+    expect(page.locator("#library-list .scene-type")).to_have_text("Python 瀏覽器")
+    page.locator("#library-search").fill("python-node-report")
+    expect(page.locator("#library-list .scene-type")).to_have_text("Python")
+    page.locator("#library-search").fill("")
+
+    def positions() -> dict[str, dict[str, float]]:
+        return page.locator(".flow-node").evaluate_all(
+            "els => Object.fromEntries(els.map(el => [el.dataset.node, "
+            "{x: parseFloat(el.style.left), y: parseFloat(el.style.top)}]))"
+        )
+
+    arranged = positions()
+    for edge in [*graph_edges, {"source": "start", "target": "end"}]:
+        assert arranged[edge["source"]]["x"] + 240 < arranged[edge["target"]]["x"]
+    assert arranged["branch-a"]["x"] == arranged["branch-b"]["x"]
+    assert abs(arranged["branch-a"]["y"] - arranged["branch-b"]["y"]) >= 128
+    expect(page.locator(".dag-edge")).to_have_count(7)
+    assert all(
+        " C " not in d
+        for d in page.locator(".dag-edge").evaluate_all(
+            "els => els.map(el => el.getAttribute('d'))"
+        )
+    )
+    page.locator("[data-fit]").click()
+    node = page.locator('[data-node="start"]')
+    node.focus()
+    node.press("ArrowDown")
+    manual = positions()
+    page.locator("[data-arrange]").click()
+    assert positions() == arranged
+    page.locator("[data-undo-arrange]").click()
+    assert positions() == manual
+    page.locator("[data-arrange]").click()
+    with page.expect_response(lambda r: r.request.method == "PUT"):
+        page.locator('[data-action="workflow-save"]').click()
+    saved = client.get(f"/api/workflows/{created['id']}").json()["definition"]
+    original = created["definition"]
+    for saved_node, original_node in zip(saved["nodes"], original["nodes"], strict=True):
+        assert saved_node.pop("position") == arranged[saved_node["id"]]
+        original_node.pop("position", None)
+    assert saved == original
+    page.reload()
+    expect(page.locator(".flow-node")).to_have_count(6)
+    assert positions() == arranged
+    for width, height in [(1440, 900), (1280, 720), (390, 844)]:
+        page.set_viewport_size({"width": width, "height": height})
+        page.locator("[data-fit]").click()
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        page.screenshot(
+            path=artifacts / f"dag-layout-{width}.png", full_page=True, animations="disabled"
+        )
+    # 舊三欄座標自動整理；孤立節點保留，無效循環可開啟且不被整理改寫。
+    page.set_viewport_size({"width": 1440, "height": 900})
+    graph_nodes.append({"id": "isolated", "sceneId": "ba-001", "revision": 1, "inputs": {}})
+    for i, graph_node in enumerate(graph_nodes):
+        graph_node["position"] = {"x": 40 + (i % 3) * 280, "y": 40 + (i // 3) * 160}
+    legacy_grid = client.post(
+        "/api/workflows", json={"name": "舊網格與孤立節點", "definition": definition}
+    ).json()
+    page.goto(f"http://visual.test/playground/{legacy_grid['id']}")
+    expect(page.locator(".flow-node")).to_have_count(7)
+    assert positions()["start"]["x"] < positions()["end"]["x"]
+    assert positions()["isolated"] != positions()["start"]
+    graph_edges.append({"source": "end", "target": "start"})
+    cyclic = client.post(
+        "/api/workflows", json={"name": "循環待修正", "definition": definition}
+    ).json()
+    page.goto(f"http://visual.test/playground/{cyclic['id']}")
+    expect(page.locator(".flow-node")).to_have_count(7)
+    before_arrange = positions()
+    page.locator("[data-arrange]").click()
+    assert positions() == before_arrange
+    expect(page.locator("[data-undo-arrange]")).to_be_hidden()
+    # 三類節點在同一畫布正確標示；中等寬度的場景庫角標保持在卡片內。
+    kinds = [
+        ("ba-001", "瀏覽器"),
+        ("ba-001-script", "Python 瀏覽器"),
+        ("python-node-report", "Python"),
+    ]
+    three_types = client.post(
+        "/api/workflows",
+        json={
+            "name": "三種節點角標",
+            "definition": {
+                "version": 2,
+                "mode": "dag",
+                "nodes": [{"id": scene, "sceneId": scene, "revision": 1} for scene, _ in kinds],
+                "edges": [],
+            },
+        },
+    ).json()
+    page.goto(f"http://visual.test/playground/{three_types['id']}")
+    for scene, label in kinds:
+        expect(page.locator(f'[data-node="{scene}"] .scene-type')).to_have_text(label)
+        expect(page.locator(f'[data-add="{scene}"] .scene-type')).to_have_text(label)
+    for width in [1440, 1200, 1000, 390]:
+        page.set_viewport_size({"width": width, "height": 900})
+        assert page.locator(".library-item .scene-type").evaluate_all(
+            "els => els.every(el => el.getBoundingClientRect().right <= "
+            "el.closest('.library-item').getBoundingClientRect().right - 4)"
+        )
+    page.set_viewport_size({"width": 1440, "height": 900})
+    page.screenshot(path=artifacts / "three-types.png", full_page=True, animations="disabled")
+    assert errors == []
 
 
 def test_workflow_edits_numeric_and_enum_dynamic_values(portal: str, page: Page, site: str) -> None:
