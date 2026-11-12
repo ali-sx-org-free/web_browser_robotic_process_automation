@@ -698,7 +698,7 @@ def links(run: JsonObject) -> dict[str, object]:
 
 
 @pytest.mark.parametrize(("quantity", "taken", "skipped"), [(12, "n2", "n3"), (5, "n3", "n2")])
-def test_condition_takes_one_branch_and_can_publish(
+def test_condition_takes_one_branch(
     app: FastAPI,
     client: Client,
     chain: int,
@@ -737,9 +737,7 @@ def test_condition_takes_one_branch_and_can_publish(
     page = client.get(f"/playground/runs/{run['id']}").text
     assert "data-branch-skipped" in page
     assert 'data-link="not_taken"' in page
-    # 略過的節點沒有跑，不影響發布：驗證通過就能發布
-    published = body(client.post(f"/api/workflows/{chain}/revisions/2/publish"))
-    assert published["publishedRevision"] == 2
+    # 條件略過的節點不擋發布：test_composites.py（那裡的假執行器回報真的場景雜湊）
 
 
 def test_condition_problems_block_the_run(client: Client, chain: int) -> None:

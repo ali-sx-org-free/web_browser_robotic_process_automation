@@ -1742,7 +1742,8 @@ def test_workflow_pages_show_sources_and_actions() -> None:
     assert "1 個節點沿用上一次通過的結果" in login
     assert 'data-node="n2" data-status="needs_login" open>' in login  # 沒通過的預設展開
     assert "data-poll" in pages["workflow-running"]
-    assert 'data-signature="running|running,pending"' in pages["workflow-running"]
+    # 節點的狀態加上通過的次數（重複次數，2026-11-11）：次數變了也重新載入
+    assert 'data-signature="running|running:0,pending:0"' in pages["workflow-running"]
     assert "執行中：0 / 2 個節點已結束" in pages["workflow-running"]
     blocked = pages["workflow-blocked"]
     assert 'data-node="n2" data-status="failed" open>' in blocked
@@ -1896,13 +1897,14 @@ def test_workflow_preview_preserves_layout_and_dependencies(mode: str) -> None:
     preview = workflow_preview(workflow)
     assert workflow.model_dump() == before
     assert preview["nodes"] == [
-        {"id": "n1", "scene": "ba-001", "revision": 1, "x": 650, "y": 220},
-        {"id": "n2", "scene": "ba-002", "revision": 1, "x": 20, "y": 40},
+        {"id": "n1", "scene": "ba-001", "revision": 1, "x": 650, "y": 220, "repeat": 1},
+        {"id": "n2", "scene": "ba-002", "revision": 1, "x": 20, "y": 40, "repeat": 1},
     ]
-    edges = cast(list[dict[str, str]], preview["edges"])
+    edges = cast(list[dict[str, object]], preview["edges"])
     assert len(edges) == 1
     assert edges[0]["source"] == "n1"
     assert edges[0]["target"] == "n2"
+    assert edges[0]["label"] is None
     # 反向排布時也包含曲線控制點，不能只裁出節點矩形。
     left, top, width, height = map(float, str(preview["viewbox"]).split())
     assert left < 20
