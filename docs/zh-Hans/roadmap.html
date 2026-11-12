@@ -83,6 +83,7 @@
             <tr><td>回看章节轴与每一步的截图</td><td>时间轴默认一格一步、没有动作的空档折叠并 4× 快转、点章放大；运行端在每一步做完拍缩小的截图当缩略图；步骤详情从清单上方滑出（<a href="adr/0016-run-replay.html">ADR 0016</a>）</td><td>#106，10-29</td><td>v0.8.0</td></tr>
             <tr><td>每晚测试的 Windows 连接端口</td><td>放大动态连接端口并记录连接状态；排不到机器而取消的工作也开 issue（<a href="develop/ci.html#triggers">CI 与流水线</a>）</td><td>#105，10-29</td><td>v0.8.0（只影响 CI）</td></tr>
             <tr><td>Python 节点</td><td>现有的 Python 脚本场景演进成统一的 Python 节点，和浏览器场景串在组合场景里：专用的 RPA Python 运行环境（随 RPA Worker 与 Linux 分发包附带）、共用工作文件夹、array／object 入参、file 出参、download 步骤、步骤时间轴的回看与主控台逐步对应。2026-10-29 决定；P0～P2 在 #109 实现；运行环境模式这一版不能用登录角色（D5，2026-11-05）；人工验收：未运行；模型包层、脚本工作台、扇出（P3）之后做（<a href="adr/0020-python-nodes.html">ADR 0020</a>、<a href="design/dsl.html#python">场景 DSL</a>、<a href="../../handoff/tasks/20261024-python-scripts.html">任务记录</a>）</td><td>#109，11-06</td><td>main，尚未发布</td></tr>
+            <tr><td>组合场景的条件连接、同时运行与重复次数</td><td>连接看上游的出参决定走不走，没走到的节点略过；同时就绪的节点可以一起排入，分给空着的 worker；节点可以重复 1～20 次（<a href="adr/0022-composite-flow.html">ADR 0022</a>）</td><td>未合并（<code>feat/composite-flow</code>）</td><td>—</td></tr>
           </tbody>
         </table>
       </div>

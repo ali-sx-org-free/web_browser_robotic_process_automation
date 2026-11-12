@@ -259,5 +259,20 @@
   "dsl.location.nested_step": "步骤 {number} › {inner}（{id}）",
   "dsl.location.nested_step_without_id": "步骤 {number} › {inner}",
   "recording.step.openPage": "开新分页 {target}",
-  "recording.step.closePage": "关掉分页 {target}"
+  "recording.step.closePage": "关掉分页 {target}",
+  "dsl.workflow.condition_one": "条件要写 equals、notEquals、in、empty 其中一个",
+  "dsl.workflow.edge_condition_both": "连接不能同时写 when 和 otherwise",
+  "dsl.workflow.flow_requires_dag": "{field} 只能用在第 2 版（DAG）的组合场景",
+  "dsl.workflow.condition_output_unknown": "连接 {source} → {target} 的条件看 {source} 的出参 {output}，但那个场景版本没有这个出参",
+  "dsl.workflow.condition_type_unsupported": "连接 {source} → {target}：出参 {output} 是 {type}，只能判断有值或没值",
+  "dsl.workflow.condition_value_type": "连接 {source} → {target}：{value} 不符合出参 {output} 的类型 {type}",
+  "dsl.workflow.otherwise_alone": "连接 {source} → {target} 是「其他情况」，但 {source} 没有其他条件连接",
+  "dsl.workflow.otherwise_duplicate": "{source} 有不只一条「其他情况」连接",
+  "dsl.workflow.condition.equals": "{output} 等于 {value}",
+  "dsl.workflow.condition.notEquals": "{output} 不等于 {value}",
+  "dsl.workflow.condition.in": "{output} 是 {values} 其中之一",
+  "dsl.workflow.condition.separator": "、",
+  "dsl.workflow.condition.empty_true": "{output} 没有值",
+  "dsl.workflow.condition.empty_false": "{output} 有值",
+  "dsl.workflow.condition.otherwise": "其他情况"
 }
