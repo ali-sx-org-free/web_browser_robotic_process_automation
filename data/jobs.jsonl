@@ -587,3 +587,8 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 328.0, "job": "macOS 桌面 App（程式碼層） / RPA 錄製端（macOS）", "os": "macos", "queue_s": 3.0, "run_id": 43137742533, "workflow": "每晚完整測試"}
 {"attempt": 1, "conclusion": "success", "duration_s": 199.0, "job": "macOS 桌面 App（程式碼層） / RPA Worker（macOS）", "os": "macos", "queue_s": 3.0, "run_id": 43137742533, "workflow": "每晚完整測試"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 43137742533, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "success", "duration_s": 5.0, "job": "執行範圍", "os": "linux", "queue_s": 3.0, "run_id": 43333669594, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "從零開始（${{ matrix.os }}）", "os": "linux", "queue_s": 0.0, "run_id": 43333669594, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "專案內執行（${{ matrix.os }}）", "os": "linux", "queue_s": 0.0, "run_id": 43333669594, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "Linux 伺服器（Rocky 8，${{ matrix.mode }}）", "os": "linux", "queue_s": 0.0, "run_id": 43333669594, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 43333669594, "workflow": "一鍵安裝腳本"}
