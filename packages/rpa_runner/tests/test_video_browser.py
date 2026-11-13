@@ -9,6 +9,8 @@ CI 的 Worker 測試在 Windows 上跑這些測試（取消時要留下 ffmpeg �
 import base64
 import itertools
 import json
+import os
+import shutil
 import threading
 import time
 from collections.abc import Iterator
@@ -62,6 +64,10 @@ _SAMPLE = """async ({ data, times }) => {
   const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
   const video = document.createElement('video');
   video.muted = true;
+  // 放在頁面上：跳到某個時間後，瀏覽器真的畫出那一格時 requestVideoFrameCallback 才回呼，
+  // 回呼帶的 mediaTime 是那一格的時間（不在頁面上的 video 不一定回呼）
+  video.style.cssText = 'position:fixed;left:0;top:0;width:64px;height:36px';
+  document.body.appendChild(video);
   video.src = URL.createObjectURL(new Blob([bytes], { type: 'video/webm' }));
   await new Promise((ok, fail) => {
     video.onloadeddata = ok;
@@ -69,10 +75,24 @@ _SAMPLE = """async ({ data, times }) => {
   });
   const canvas = document.createElement('canvas');
   canvas.width = 64; canvas.height = 36;
-  const context = canvas.getContext('2d');
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  const presented = (wait) => new Promise((ok) => {
+    const timer = setTimeout(() => ok(null), wait);
+    video.requestVideoFrameCallback((now, meta) => { clearTimeout(timer); ok(meta.mediaTime); });
+  });
   const colors = [];
+  const shown = [];
   for (const time of times) {
+    let frame = presented(3000);
     await new Promise((ok) => { video.onseeked = ok; video.currentTime = time; });
+    // issue #21：seeked 之後馬上畫，可能畫到上一個時間點的那一格。等畫出來的那一格是這個時間的
+    // （格長 0.04 秒；超過影片長度時是最後一格），最多再等兩次
+    const current = (media) => media === null || media > video.currentTime - 0.1;
+    let media = await frame;
+    for (let wait = 0; wait < 2 && !current(media); wait += 1) {
+      frame = presented(1000);
+      media = await frame;
+    }
     // 跳到之後那一格可能還沒解碼好，畫出來是黑的：等到可以畫，黑色（頁面上不會有）就再畫一次
     for (let wait = 0; video.readyState < 2 && wait < 50; wait += 1) {
       await new Promise((ok) => setTimeout(ok, 20));
@@ -85,8 +105,9 @@ _SAMPLE = """async ({ data, times }) => {
       await new Promise((ok) => setTimeout(ok, 100));
     }
     colors.push(color);
+    shown.push(media);
   }
-  return { duration: video.duration, colors };
+  return { duration: video.duration, colors, shown };
 }"""
 
 
@@ -119,8 +140,8 @@ def _moment(text: object) -> float:
     return datetime.fromisoformat(str(text).replace("Z", "+00:00")).timestamp()
 
 
-def _sample(video: Path, times: list[float]) -> tuple[float, list[list[int]]]:
-    """用 Chromium 播放影片，讀出各時間點右下角的顏色。"""
+def _read(video: Path, times: list[float]) -> dict[str, object]:
+    """用 Chromium 播放影片，讀出各時間點右下角的顏色與畫出的那一格的時間（mediaTime）。"""
     require_engine("chromium")
     data = base64.b64encode(video.read_bytes()).decode("ascii")
     with sync_playwright() as playwright:
@@ -128,9 +149,14 @@ def _sample(video: Path, times: list[float]) -> tuple[float, list[list[int]]]:
         try:
             page = browser.new_page()
             values = page.evaluate(_SAMPLE, {"data": data, "times": times})
-            result = cast("dict[str, object]", values)
         finally:
             browser.close()
+    return cast("dict[str, object]", values)
+
+
+def _sample(video: Path, times: list[float]) -> tuple[float, list[list[int]]]:
+    """用 Chromium 播放影片，讀出各時間點右下角的顏色。"""
+    result = _read(video, times)
     return float(cast("float", result["duration"])), cast("list[list[int]]", result["colors"])
 
 
@@ -142,11 +168,33 @@ def _white(color: list[int]) -> bool:
     return min(color) > 200
 
 
-def _first_red(video: Path, since: float, *, step: float = 0.1, count: int = 30) -> float | None:
-    """診斷用：從影片的第 since 秒起每 step 秒取樣，回傳第一個是紅色的時間（找不到時 None）。"""
-    moments = [since + step * index for index in range(count)]
-    _, colors = _sample(video, moments)
-    return next((m for m, color in zip(moments, colors, strict=True) if _red(color)), None)
+def _timeline(video: Path, since: float, until: float, step: float = 0.1) -> str:
+    """診斷用：從影片的第 since 秒到 until 秒每 step 秒的顏色（W 白、R 紅、? 其他）。
+
+    畫出的那一格不是那個時間的（讀到別的時間點的畫面）時用小寫。
+    """
+    moments = [since + step * index for index in range(round((until - since) / step) + 1)]
+    result = _read(video, moments)
+    colors = cast("list[list[int]]", result["colors"])
+    shown = cast("list[float | None]", result["shown"])
+    letters: list[str] = []
+    for moment, color, media in zip(moments, colors, shown, strict=True):
+        letter = "W" if _white(color) else "R" if _red(color) else "?"
+        letters.append(letter if media is not None and media > moment - step else letter.lower())
+    return f"{since:.2f}～{moments[-1]:.2f} 秒：{''.join(letters)}"
+
+
+def _keep_evidence(folder: Path, name: str) -> str:
+    """失敗時把影片與對時資料複製到 ``$REPORTS``（每晚完整測試會上傳成 test-results-*）。"""
+    reports = os.environ.get("REPORTS")
+    if not reports:
+        return "沒有設定 REPORTS，影片沒有保留"
+    target = Path(reports) / "video" / f"{name}-{folder.name}"
+    target.mkdir(parents=True, exist_ok=True)
+    for file in (VIDEO, VIDEO_INFO, STEPS):
+        if (folder / file).exists():
+            shutil.copy2(folder / file, target / file)
+    return f"影片與對時資料存在 {target}"
 
 
 def test_video_lines_up_with_the_steps(site: str, engine: str, tmp_path: Path) -> None:
@@ -171,18 +219,23 @@ def test_video_lines_up_with_the_steps(site: str, engine: str, tmp_path: Path) -
     after = _moment(click["endedAt"]) - start + TOLERANCE
     assert before > 0.5, (info, click)  # 有等 #ready，點擊不會在影片一開頭
 
-    duration, colors = _sample(folder / VIDEO, [before, after])
+    sampled = _read(folder / VIDEO, [before, after])
+    duration = float(cast("float", sampled["duration"]))
+    colors = cast("list[list[int]]", sampled["colors"])
 
     assert duration >= _moment(steps[3]["endedAt"]) - start - TOLERANCE, (duration, info)
-    assert _white(colors[0]), (colors, info, click)
+    assert _white(colors[0]), (sampled, info, click)
     if not _red(colors[1]):
-        # 失敗時找出影片裡實際變紅的時間（issue #17）：約 1.5 秒（#done 出現）是變紅那一格被丟掉、
-        # 之後沒有重畫；稍微超過 0.3 秒則是整段影片的時間偏後（例如 Firefox 第一格送達得晚）
+        # 診斷（issue #17、#21）：重新讀一次那個時間點，再從點擊開始前 0.3 秒到點擊結束後
+        # 1.5 秒每 0.1 秒讀一次。重新讀是紅色、時間軸後面都是 R：上面讀到別的時間點的畫面；
+        # 紅了又變回 W：影片裡真的有一段白色；到 1.5 秒（#done 出現）才 R：變紅那一格被丟掉
         ended = _moment(click["endedAt"]) - start
-        red = _first_red(folder / VIDEO, ended - TOLERANCE)
-        late = "影片裡找不到紅色" if red is None else f"影片裡點擊結束後 {red - ended:.2f} 秒才變紅"
+        again = _read(folder / VIDEO, [after])
         pytest.fail(
-            f"點擊結束後 {TOLERANCE} 秒還不是紅色（{colors[1]}）；{late}；"
+            f"點擊結束後 {TOLERANCE} 秒（影片第 {after:.3f} 秒）還不是紅色：{sampled}；"
+            f"重新讀一次：{again}；"
+            f"點擊結束在第 {ended:.2f} 秒；{_timeline(folder / VIDEO, before, ended + 1.5)}；"
+            f"{_keep_evidence(folder, f'video-sync-{engine}')}；"
             f"video.json：{json.dumps(info, ensure_ascii=False)}；"
             f"步驟：{json.dumps(click, ensure_ascii=False)}"
         )
