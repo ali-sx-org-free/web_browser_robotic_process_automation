@@ -1,4 +1,11 @@
-"""純色錄影測試網站：白色起始頁、藍色新分頁，點擊後變紅；不含業務資料。"""
+"""純色錄影測試網站：白色起始頁、藍色新分頁，點擊後變紅；不含業務資料。
+
+右上角有一個 4×4 的小方塊一直閃（每 50 毫秒換一次透明度），讓頁面像一般網頁一樣持續有畫面更新：
+無頭瀏覽器只在重畫時送出新的一格給錄影，送出的格還沒被 Playwright 確認收到時，這段時間重畫的畫面
+直接丟掉、不補送（Playwright 1.64：Firefox 最多 1 格在途，Chromium 5 格）。頁面完全不動時，
+點「變紅」之後只有一兩次重畫，那一格被丟掉就要等 1.5 秒後出現 #done 才有下一格，對時測試在點擊後
+0.3 秒讀到白色（issue #17，Linux 的 Firefox）。小方塊在取樣的右下角之外，不影響顏色的判斷。
+"""
 
 import functools
 import http.server
@@ -7,8 +14,11 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
-PAGE = """<!doctype html><html><head><meta charset="utf-8"></head>
+PAGE = """<!doctype html><html><head><meta charset="utf-8">
+<style>@keyframes tick { to { opacity: 0.2 } }</style></head>
 <body style="margin:0;background:rgb(255,255,255);height:100vh">
+<div id="tick" style="position:fixed;right:0;top:0;width:4px;height:4px;
+background:rgb(160,160,160);animation:tick 0.1s steps(2) infinite"></div>
 <button id="go" style="position:fixed;left:16px;top:16px">變紅</button>
 <script>
 setTimeout(() => { const p = document.createElement('p'); p.id = 'ready';
