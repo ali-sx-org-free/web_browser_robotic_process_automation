@@ -2402,6 +2402,8 @@
   // 發布組合場景的版本（M11 PR 2）：和場景相同的確認對話框，發布後重新載入頁面
   function bindCompositePublish() {
     qsa('[data-action="publish-composite"]').forEach(button => {
+      if (button.dataset.bound) return;
+      button.dataset.bound = '1';
       button.addEventListener('click', () => {
         const number = button.dataset.revision;
         confirmDialog(messages.publish_title + ' v' + number, messages.publish_body, messages.publish_action, async () => {
@@ -2414,6 +2416,19 @@
         });
       });
     });
+  }
+
+  // 存檔產生新版本後，重新取一次頁面，換掉版本、依賴與頁首的版本說明；畫布不動（2026-11-13）
+  async function refreshCompositeSummary() {
+    if (!qs('#composite-revisions')) return;
+    const response = await fetch(location.pathname, {headers: {Accept: 'text/html'}});
+    if (!response.ok) return;
+    const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+    for (const id of ['workflow-revision', 'composite-dependencies', 'composite-revisions', 'composite-verifications']) {
+      const next = qs('#' + id, page), current = qs('#' + id);
+      if (next && current) current.replaceWith(next);
+    }
+    bindCompositePublish(); bindCompositeValidate(); localizeTimes();
   }
 
   // 組合場景的代號、領域、封存，以及驗證指定的版本（M11 收尾）
@@ -2437,7 +2452,14 @@
         location.reload();
       });
     }
+    bindCompositeValidate();
+  }
+
+  // 版本表裡「驗證這個版本」的按鈕；存檔後版本表會換掉，所以可以重複呼叫
+  function bindCompositeValidate() {
     qsa('[data-action="validate-composite"]').forEach(button => {
+      if (button.dataset.bound) return;
+      button.dataset.bound = '1';
       button.addEventListener('click', () => {
         const number = button.dataset.revision;
         confirmDialog(fill(messages.composite_validate_title, {number}), messages.composite_validate_body, messages.composite_validate_action, async () => {
@@ -3165,12 +3187,14 @@
         else toast(errorMessage(result));
         return false;
       }
+      const created = result.data.version !== version;
       version = result.data.version;
       dirty = savedEdit !== editVersion;
       if (!dirty) problems = result.data.problems;
       else scheduleCheck();
       render({settings: false});
       toast(text.saved);
+      if (created) refreshCompositeSummary();
       return true;
     }
 
