@@ -15,7 +15,7 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261111-composite-flow；2026-11-13 07:30 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261111-composite-flow；2026-11-13 07:21 America/Los_Angeles（PST，UTC−08:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-11 17:04 America/Los_Angeles（PST，UTC−08:00）：「把組合場景這一層的平行節點、條件分支、重複次數合併做完。結合 M7.1 給我一份人工驗收教程教我驗收。」驗收條件見<a href="#acceptance">人工驗收</a>。</dd>
         <dt>範圍／不包含</dt><dd>範圍：組合場景（第 2 版 DAG）的條件連線（<code>when</code>／<code>otherwise</code>）、同時執行（<code>concurrency</code>）、重複次數（<code>repeat</code>）的定義、檢查、排程、伺服器執行、運行頁、匯總報告、回看、畫布、發布門檻、文件。不包含：一台 worker 同時開多個瀏覽器（D1 沒選）；回看的多軌同時播；M7.2 子場景、M7.3 資料驅動；M7.1 的兩個已知缺口（流程範例自動匯入、運行頁的黃色提醒）。</dd>
         <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude（Opus 5.5）；審閱：未審閱；合併：使用者。</dd>
@@ -92,7 +92,7 @@
       <div class="panel-body"><ul class="points">
         <li>2026-11-11 17:04～17:32 America/Los_Angeles（PST，UTC−08:00），Claude：使用者要求做這三項並出驗收教程。讀了組合場景的定義、排程、派工、驗證紀錄、報告、回看與畫布；問四個設計問題（D1～D4），使用者回答。先把 main（#16、#18）合併進 <code>feat/m7-flow-control</code>（<span class="mono">b6129bd</span>，衝突兩處：任務索引兩行都留、英文 Portal 頁重新 stamp；那次的 CI 全綠，bootstrap 沒有需要更新的檔案），再開本分支實作，推送後手動觸發 CI。</li>
         <li>2026-11-11 17:32～17:50 America/Los_Angeles（PST，UTC−08:00），Claude：手動觸發的 CI 有 9 個失敗（見驗證表），修好後 17:39 開 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/20">PR #20</a>，17:44 全部流程通過。寫 Claude Doc「M7.1 與組合場景流程人工驗收教程（一台電腦）」給使用者：照使用者的一台機模式（<code>rpa serve --no-local-worker</code>、命令列的錄製端與兩個 Worker），舊版 Worker 用 main 的 worktree，取代前一份 M7.1 教程（Mac 加 Windows）。沒有合併任何 PR、沒有推標籤。</li>
-        <li>2026-11-13 07:16～07:30 America/Los_Angeles（PST，UTC−08:00），Claude：使用者驗收回報三項。(1) 新分頁查月報表的回看看不出開了新分頁：M7.1 的問題，在 #15 修（<span class="mono">948b773</span>，見 <a href="20261106-m7-flow.html#log">M7 任務紀錄</a>），合併進本分支。(2) 條件分支驗證時 n3（BA-003 查詢不存在的紀錄）失敗：條件本身走對了（兩次都走到「其他情況」的 n3），是新加入畫布的節點入參預設「同名匹配」，n3 的 recordId 接到 n1 剛建的真實紀錄，查得到資料，等不到「查無紀錄」；教程漏了「n3 的 recordId 改成預設值」，已補上，程式不改。(3) 畫布按「儲存」後版本表不更新：<span class="mono">4212c82</span> 修正（JS，沒有自動化的瀏覽器測試）。</li>
+        <li>2026-11-13 07:16～07:21 America/Los_Angeles（PST，UTC−08:00），Claude：使用者驗收回報三項。(1) 新分頁查月報表的回看看不出開了新分頁：M7.1 的問題，在 #15 修（<span class="mono">948b773</span>，見 <a href="20261106-m7-flow.html#log">M7 任務紀錄</a>），合併進本分支。(2) 條件分支驗證時 n3（BA-003 查詢不存在的紀錄）失敗：條件本身走對了（兩次都走到「其他情況」的 n3），是新加入畫布的節點入參預設「同名匹配」，n3 的 recordId 接到 n1 剛建的真實紀錄，查得到資料，等不到「查無紀錄」；教程漏了「n3 的 recordId 改成預設值」，已補上，程式不改。(3) 畫布按「儲存」後版本表不更新：<span class="mono">4212c82</span> 修正（JS，沒有自動化的瀏覽器測試）。</li>
       </ul></div>
     </section>
   </div>
