@@ -4,6 +4,7 @@
 本機沒有某種瀏覽器時略過，CI 設定 RPA_REQUIRE_BROWSER=1 時缺瀏覽器直接失敗。
 """
 
+import json
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -11,7 +12,7 @@ import pytest
 
 from rpa_core.i18n import use_locale
 from rpa_runner import browser
-from rpa_runner.files import AUTOMATION_LOG
+from rpa_runner.files import AUTOMATION_LOG, VIDEO_INFO
 from rpa_runner.run import RunResult, execute
 from testsite.browsers import ENGINES, require_engine
 from testsite.server import running
@@ -192,6 +193,32 @@ def test_open_page_and_close_page(site: str, engine: str, tmp_path: Path) -> Non
     steps = by_id(result)
     assert str(steps["read-total"][0]["url"]).endswith("/flow/report?month=2026-11")
     assert str(steps["still-here"][0]["url"]).endswith("/flow?notice=0")
+
+
+def test_open_page_is_replayed_on_the_new_tab(site: str, tmp_path: Path) -> None:
+    """openPage 這一步記在新分頁上：回看在新分頁載入時就切過去（2026-11-13）。"""
+    require_engine("chromium")
+    result = execute(
+        FLOW / "report-tab.yaml",
+        {},
+        out_root=tmp_path,
+        base_url=site,
+        engine="chromium",
+        record_video=True,
+    )
+
+    assert result.status == "passed", (result.error, result.problems)
+    steps = by_id(result)
+    opened = steps["open-report"][0]
+    assert opened["pageId"] == opened["createdPageId"] == "page-2"
+    assert [steps[name][0]["pageId"] for name in ("open", "read-total", "close-report")] == [
+        "page-1",
+        "page-2",
+        "page-2",
+    ]
+    assert steps["still-here"][0]["pageId"] == "page-1"
+    info = json.loads((result.directory / VIDEO_INFO).read_text(encoding="utf-8"))
+    assert {clip["pageId"] for clip in info["clips"]} == {"page-1", "page-2"}
 
 
 # ---------------------------------------------------------------- 邊界
