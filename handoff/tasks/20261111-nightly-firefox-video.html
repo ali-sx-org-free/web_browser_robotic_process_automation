@@ -15,13 +15,13 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261111-nightly-firefox-video；2026-11-12 18:45 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261111-nightly-firefox-video；2026-11-12 18:55 America/Los_Angeles（PST，UTC−08:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-11 16:52 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話要求修復新的 issue。2026-11-10 的對話已處理 issue #7、#8（<a href="20261109-windows-colon-test.html">任務紀錄</a>），開啟中的只剩 issue #17。驗收：本 PR 的 CI 通過（Windows 的 Worker 測試含 Firefox 錄影）；合併後的每晚完整測試不再因這個測試失敗。PR #19 合併後，2026-11-12 的一鍵安裝腳本排程（完整範圍）同一個測試又失敗，GitHub 自動開了 issue #21；同一次對話接著處理，驗收條件不變。</dd>
         <dt>範圍／不包含</dt><dd>範圍：<code>apps/testsite/src/testsite/video.py</code> 的純色測試頁加一個一直閃的小方塊；<code>test_video_lines_up_with_the_steps</code> 失敗時寫出影片實際變紅的時間；本紀錄、任務索引、<a href="../open-work.html#limits">未完成工作</a>加一列已知限制。第二次（issue #21）：只改 <code>test_video_browser.py</code> 讀影片畫面的方法與失敗時的診斷，並更正本紀錄、任務索引與未完成工作那一列對原因的說法。不包含：產品的錄影與對時（<code>rpa_runner.video</code> 不變）；ADR 0016 的正文（這次沒有改設計）；CI 設定；關閉 issue #17、#21（等合併後的排程通過，由使用者決定）。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude（本次對話）；審閱與合併：使用者；接收方未指定。</dd>
         <dt>修改檔案／整合者</dt><dd><code>apps/testsite/src/testsite/video.py</code>、<code>packages/rpa_runner/tests/test_video_browser.py</code>、<code>handoff/open-work.html</code>、本紀錄、任務索引。Claude 整合。開工時開啟中的 PR 只有 #15（M7.1 流程控制），沒有修改這些檔案。</dd>
-        <dt>狀態</dt><dd><a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/19">PR #19</a> 已合併（main 3437048），但沒有解決（issue #21）。第二次的修改待審閱：PR 見「追加紀錄」；合併由使用者決定。Linux 的 Firefox 等合併後的排程。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-0k55i9</code>（本次雲端會話指定的分支名稱，不是 <code>fix/</code> 慣例），從 main 554fe2f（PR #18 合併後）開；<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/19">PR #19</a>。第二次在同一個分支名稱上從 main 3437048（PR #19 合併後）重新開始，開新的 PR。</dd>
+        <dt>狀態</dt><dd><a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/19">PR #19</a> 已合併（main 3437048），但沒有解決（issue #21）。第二次的修改待審閱：<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/22">PR #22</a> 的 CI 通過、可以合併；合併由使用者決定。Linux 的 Firefox 等合併後的排程。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-0k55i9</code>（本次雲端會話指定的分支名稱，不是 <code>fix/</code> 慣例），從 main 554fe2f（PR #18 合併後）開；<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/19">PR #19</a>。第二次在同一個分支名稱上從 main 3437048（PR #19 合併後）重新開始，<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/22">PR #22</a>。</dd>
         <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64，4 核）、Python 3.13.18、uv 0.11.32、Playwright 1.64.0；<code>uv sync --locked</code> 可用。容器只有 Chromium 1243（Playwright 1.64 要 1248），用 <code>PLAYWRIGHT_BROWSERS_PATH</code> 指向會話暫存區裡的別名目錄執行（Chromium 1248 → 預裝的 1243；ffmpeg 1013 → 系統的 ffmpeg 6.1.1，預裝的 ffmpeg 1011 不認得 1.64 的參數）。沒有 Firefox，Firefox 的結果看 CI。</dd>
       </dl></div>
@@ -75,6 +75,7 @@
         <li>2026-11-11 17:15 America/Los_Angeles（PST，UTC−08:00），Claude：讀 issue #17 與 run 42933251106 的失敗 job 日誌、Playwright 1.64 錄影的原始碼（Firefox 的 Juggler、Chromium 的 DevTools screencast），在本機量測測試頁的畫面格；從 main 554fe2f 在 <code>claude/project-thread-0k55i9</code> 修改測試頁與測試，寫本紀錄、任務索引與未完成工作的一列；本地檢查見上。</li>
         <li>2026-11-11 17:25 America/Los_Angeles（PST，UTC−08:00），Claude：推送 0a18c7a，17:13 開 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/19">PR #19</a>；CI 通過（見上），合併狀態 clean。指派負責人與審閱者時 GitHub 回覆使用者的帳號不是倉庫協作者，沒有設成。本次推送只回填本紀錄。</li>
         <li>2026-11-12 18:50 America/Los_Angeles（PST，UTC−08:00），Claude：PR #19 合併後，GitHub 為一鍵安裝腳本排程 run 43345289668 的失敗開了 issue #21。讀失敗 job 131623211344 的日誌（PR #19 加的診斷），影片在點擊結束前 0.1 秒就是紅色，第一次的原因判斷不成立；在本機重現讀到舊畫面沒有成功。分支從 main 3437048 重新開始，改 <code>test_video_browser.py</code> 讀畫面的方法與失敗時的診斷，更正本紀錄、任務索引與未完成工作那一列；本地檢查見上。PR 編號與 CI 結果見下一筆。</li>
+        <li>2026-11-12 18:55 America/Los_Angeles（PST，UTC−08:00），Claude：推送 60a526f、ae404c0，18:35 開 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/22">PR #22</a>。CI run 43353251346（18:40 完成）：靜態檢查、測試（Python 3.12、3.13）、Worker 測試（Windows）成功；Windows 的 94 個瀏覽器測試全部通過，包含 <code>test_video_lines_up_with_the_steps[firefox]</code> 與其他 Firefox 錄影測試。桌面端建置、一鍵安裝腳本、伺服器分發包、RPA Python 運行環境依執行範圍略過（只改測試與交接文件）。本次推送只回填本紀錄。</li>
       </ul></div>
     </section>
   </div>
