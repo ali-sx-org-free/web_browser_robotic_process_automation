@@ -577,7 +577,12 @@ class _Run:
         }
 
     def _open_page(self, page: Page, step: OpenPageStep, timeout: int, record: StepRecord) -> None:
-        """自己開的新分頁（M7.1）：同一個瀏覽器工作階段；迴圈裡關掉再開可以用同一個名稱。"""
+        """自己開的新分頁（M7.1）：同一個瀏覽器工作階段；迴圈裡關掉再開可以用同一個名稱。
+
+        這一步的動作（開分頁、載入網址）發生在新分頁上，所以步驟紀錄的 pageId 也是新分頁：
+        回看依 pageId 決定播哪個分頁的錄影，記成原分頁時新分頁載入的那段看不到（2026-11-13，
+        使用者驗收時發現）。點擊開出的 popup（M7b）不同，那一步是在原分頁上點。
+        """
         existing = self.tabs.named.get(step.as_)
         if existing is not None and not existing.is_closed():
             raise LookupError(t("browser.tab_already_open", name=step.as_))
@@ -585,6 +590,7 @@ class _Run:
         self.tabs.guard(tab)
         if self.tabs.identify is not None:
             record.created_page_id = self.tabs.identify(tab)
+            record.page_id = record.created_page_id
         self.tabs.named[step.as_] = tab
         self.tabs.last = tab
         if step.url is not None:
