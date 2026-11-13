@@ -142,6 +142,13 @@ def _white(color: list[int]) -> bool:
     return min(color) > 200
 
 
+def _first_red(video: Path, since: float, *, step: float = 0.1, count: int = 30) -> float | None:
+    """診斷用：從影片的第 since 秒起每 step 秒取樣，回傳第一個是紅色的時間（找不到時 None）。"""
+    moments = [since + step * index for index in range(count)]
+    _, colors = _sample(video, moments)
+    return next((m for m, color in zip(moments, colors, strict=True) if _red(color)), None)
+
+
 def test_video_lines_up_with_the_steps(site: str, engine: str, tmp_path: Path) -> None:
     result = execute(
         _scenario(tmp_path, site), {}, out_root=tmp_path / "runs", engine=engine, record_video=True
@@ -168,7 +175,17 @@ def test_video_lines_up_with_the_steps(site: str, engine: str, tmp_path: Path) -
 
     assert duration >= _moment(steps[3]["endedAt"]) - start - TOLERANCE, (duration, info)
     assert _white(colors[0]), (colors, info, click)
-    assert _red(colors[1]), (colors, info, click)
+    if not _red(colors[1]):
+        # 失敗時找出影片裡實際變紅的時間（issue #17）：約 1.5 秒（#done 出現）是變紅那一格被丟掉、
+        # 之後沒有重畫；稍微超過 0.3 秒則是整段影片的時間偏後（例如 Firefox 第一格送達得晚）
+        ended = _moment(click["endedAt"]) - start
+        red = _first_red(folder / VIDEO, ended - TOLERANCE)
+        late = "影片裡找不到紅色" if red is None else f"影片裡點擊結束後 {red - ended:.2f} 秒才變紅"
+        pytest.fail(
+            f"點擊結束後 {TOLERANCE} 秒還不是紅色（{colors[1]}）；{late}；"
+            f"video.json：{json.dumps(info, ensure_ascii=False)}；"
+            f"步驟：{json.dumps(click, ensure_ascii=False)}"
+        )
 
 
 _PIXEL = """async (sources) => {
