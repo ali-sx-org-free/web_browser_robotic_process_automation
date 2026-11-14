@@ -349,6 +349,19 @@ def _run_python_details(
     }
 
 
+def _handled_steps(result: Mapping[str, object] | None) -> int:
+    """失敗後繼續或被 catch 接住的步驟數（M7.1，D6）：和執行報告的提醒同一個算法。"""
+    steps = result.get("steps") if result else None
+    if not isinstance(steps, list):
+        return 0
+    return sum(
+        1
+        for step in cast("list[object]", steps)
+        if isinstance(step, dict)
+        and cast("dict[str, object]", step).get("handled") in ("continued", "caught")
+    )
+
+
 def _run_file_inputs(
     services: Services,
     record: RunRecord,
@@ -790,6 +803,7 @@ def page_router(services: Services) -> APIRouter:
             python=_run_python_details(services, run_id, files, record.output),
             preview_rows=_PREVIEW_ROWS,
             file_inputs=_run_file_inputs(services, record, scenario, result),
+            handled=_handled_steps(result),
             keep_days=services.uploads.limits.keep_days,
             can_publish=can_publish,
             worker_wait=None if record.finished else services.worker_wait(run_id),

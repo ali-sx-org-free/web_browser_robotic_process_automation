@@ -1,5 +1,6 @@
-"""伺服器設定：能不能顯示瀏覽器視窗（有頭模式）、資料目錄。"""
+"""伺服器設定：能不能顯示瀏覽器視窗（有頭模式）、資料目錄、範例資料夾。"""
 
+import os
 from pathlib import Path
 
 import pytest
@@ -40,3 +41,22 @@ def test_relative_data_dir_becomes_absolute(
     assert settings.data_dir == tmp_path / "data-m4"
     assert Settings.from_env(environ={"RPA_DATA_DIR": "other"}).data_dir == tmp_path / "other"
     assert Settings.from_env(environ={}).data_dir == tmp_path / "data"
+
+
+def test_flow_examples_are_imported_with_the_default_examples(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """M7.1：用預設的範例資料夾時，流程範例（scenarios/examples/flow）一起匯入；指定了
+    RPA_EXAMPLES_DIR 就只用它；RPA_EXTRA_EXAMPLES 可以另外指定（空字串代表不要）。"""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "scenarios" / "demo").mkdir(parents=True)
+    (tmp_path / "scenarios" / "examples" / "flow").mkdir(parents=True)
+    default = Settings.from_env(environ={})
+    assert default.examples_dir == Path("scenarios") / "demo"
+    assert default.extra_examples == (Path("scenarios") / "examples" / "flow",)
+    assert Settings.from_env(environ={"RPA_EXAMPLES_DIR": "mine"}).extra_examples == ()
+    both = Settings.from_env(
+        environ={"RPA_EXAMPLES_DIR": "mine", "RPA_EXTRA_EXAMPLES": os.pathsep.join(["a", "b"])}
+    )
+    assert both.extra_examples == (Path("a"), Path("b"))
+    assert Settings.from_env(environ={"RPA_EXTRA_EXAMPLES": ""}).extra_examples == ()

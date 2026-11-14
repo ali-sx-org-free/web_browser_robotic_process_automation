@@ -611,11 +611,13 @@ def test_wrapper_uses_the_bundled_python(tmp_path: Path) -> None:
         tmp_path,
         "1",
         'printf "%s\\n" "$@" "path=${PYTHONPATH-unset}" "release=$RPA_RELEASE_DIR" '
-        '"examples=$RPA_EXAMPLES_DIR" "nouser=$PYTHONNOUSERSITE" "cert=${SSL_CERT_FILE-unset}"\n',
+        '"examples=$RPA_EXAMPLES_DIR" "extra=$RPA_EXTRA_EXAMPLES" "nouser=$PYTHONNOUSERSITE" '
+        '"cert=${SSL_CERT_FILE-unset}"\n',
     )
     point_current(tmp_path, "1")
     environ = {**os.environ, "PYTHONPATH": "/evil", "SSL_CERT_FILE": "/my/ca.pem"}
     environ.pop("RPA_EXAMPLES_DIR", None)
+    environ.pop("RPA_EXTRA_EXAMPLES", None)
     result = subprocess.run(
         [str(tmp_path / "current" / "bin" / "rpa"), "pack", "--x"],
         env=environ,
@@ -632,6 +634,7 @@ def test_wrapper_uses_the_bundled_python(tmp_path: Path) -> None:
         f"path={real}/app",
         f"release={real}",
         f"examples={real}/scenarios/demo",
+        f"extra={real}/scenarios/examples/flow",
         "nouser=1",
         "cert=/my/ca.pem",
     ]

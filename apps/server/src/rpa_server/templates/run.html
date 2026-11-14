@@ -36,6 +36,8 @@
     <span class="cell-sub">{{ t("run.needs_login_hint_workflow") if run.workflow_run_id else t("run.needs_login_hint") }}</span>
   </div>
   {% elif run.error %}<div class="notice danger" role="alert">{{ run.error }}</div>{% endif %}
+  {#- M7.1（D6）：有失敗後繼續或被 catch 接住的步驟時，和執行報告一樣提醒；結果仍由 verify 決定 #}
+  {% if handled | default(0) %}<div class="notice warn" data-handled="{{ handled }}">{{ t("run.handled_summary", count=handled) }}</div>{% endif %}
   {% if can_publish and run.video and run.video.url %}
   <div class="notice">{{ t("run.replay_before_publish") }} <a href="/runs/{{ run.id }}/replay">{{ t("run.replay") }}</a></div>
   {% endif %}

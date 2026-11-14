@@ -90,6 +90,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         sessions,
         storage,
         examples_dir=settings.examples_dir,
+        extra_examples=settings.extra_examples,
         display=settings.display,
         locale=settings.locale,
         local_worker=settings.local_worker,
