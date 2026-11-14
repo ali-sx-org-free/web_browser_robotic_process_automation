@@ -106,7 +106,7 @@ bash RPA-Server-0.8.1-linux-x64/install.sh</pre>
           <dt>系統套件</dt><dd>只補裝缺少的 <code>libstdc++</code> 與 <code>git</code>（git 只有領域資料夾的 git 同步要用），所以升級通常不用 sudo 裝套件；管理員已備妥時加 <code>--skip-system-packages</code>。安裝 unit 與重新啟動服務需要 sudo。</dd>
           <dt>升級失敗時</dt><dd>新版本啟動後約 60 秒內管理埠沒有回應，安裝程式停下並說明怎麼退回上一版（<code>current</code> 指回 <code>releases/上一版</code> 後重新啟動）。資料庫遷移在新版本啟動時執行：升級前照下方的方式備份整個資料目錄，退回舊版前先還原。</dd>
         </dl>
-        <p>main 起（v0.8.0 之後，尚未發布）分發包另附 RPA Python 運行環境（<code>python/runtimes/</code>，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）：伺服器自己（本機 worker）執行 Python 節點時，第一次解壓到快取（<code>~/.cache/rpa/python/</code>），之後沿用。運行環境算進環境代號，所以從 v0.8.0 升到附帶運行環境的版本時要用完整的分發包，不能只用更新檔。分發包由 CI 建置（<code>tools/build_server.py</code>、「伺服器分發包」流程）：只選 <code>manylinux_2_28</code> 以下的套件，建好後用包內的 Python 執行；再在同架構的 Rocky Linux 8 容器（glibc 2.28、公司映像的 os-release、一般帳號）實際安裝、沿用舊設定、冒煙測試、重裝與升級。容器沒有 systemd：真實的服務啟停與公司主機仍需驗收。首次管理、SSH 轉發與防火牆和下方相同。</p>
+        <p>v0.9.0 起分發包另附 RPA Python 運行環境（<code>python/runtimes/</code>，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）：伺服器自己（本機 worker）執行 Python 節點時，第一次解壓到快取（<code>~/.cache/rpa/python/</code>），之後沿用。運行環境算進環境代號，所以從 v0.8.0 以前的版本升到 v0.9.0 以後時要用完整的分發包，不能只用更新檔。分發包由 CI 建置（<code>tools/build_server.py</code>、「伺服器分發包」流程）：只選 <code>manylinux_2_28</code> 以下的套件，建好後用包內的 Python 執行；再在同架構的 Rocky Linux 8 容器（glibc 2.28、公司映像的 os-release、一般帳號）實際安裝、沿用舊設定、冒煙測試、重裝與升級。容器沒有 systemd：真實的服務啟停與公司主機仍需驗收。首次管理、SSH 轉發與防火牆和下方相同。</p>
       </div>
     </section>
     <section class="panel" id="linux-server">
