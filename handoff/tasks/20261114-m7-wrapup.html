@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M7 收尾 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>M7 收尾</h1><p>M7 三期合併之後還沒做的七項：M7.1 的兩個缺口、M7.2 的兩個限制、M7.3 之後再看的三項。排程觸發批次屬於 M9 的定時執行，不在這裡。設計的補充記在 <a href="../../docs/adr/0023-sub-scenarios.html#changes">ADR 0023</a>、<a href="../../docs/adr/0024-batch-runs.html#changes">ADR 0024</a> 的「後來的變更」。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261114-m7-wrapup；2026-11-14 07:10 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 專案對話（2026-11-14 06:12 America/Los_Angeles（PST，UTC−08:00），原文）：「1、你開個PR更新最新“主體功能驗收通過”。2、M7還有未做完的部分做完。3、M8 多用戶與治理，但不包含正式環境改用PostgreSQL部分。」本任務是第 2 項；第 1 項是 PR #26（<a href="20261106-m7-flow.html">M7 任務紀錄</a>的追加紀錄），第 3 項另開任務。範圍照 M7 任務紀錄的「下一個具體動作」：M7.1 流程範例第一次啟動不自動匯入、運行頁沒有「N 步失敗後繼續」的提醒；M7.2 用到 call 的場景不能接著錄製、子場景不能有檔案入參與出參；M7.3 組合場景的批次執行、選擇工作表、所有批次共用的上限。</dd>
+        <dt>範圍／不包含</dt><dd>上面七項的程式、測試、文件（管理 Portal、場景 DSL、路線圖）、ADR 0023 與 0024 的補充、本頁與任務索引。不包含：排程觸發批次（M9）；Agent API 的組合場景批次（Agent API 的批次照舊只有場景）；發布（時間由使用者決定）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude（Opus 5.5）；審閱、人工驗收與合併：使用者。</dd>
+        <dt>修改檔案／整合者</dt><dd>rpa-core：<code>dsl/calls.py</code>（<code>call.file_value</code>、<code>call.file_missing</code> 取代 <code>call.files</code>；<code>read_call_bundle</code>、<code>write_call_files</code>）、多語言目錄。rpa-runner：<code>callfiles.py</code>（新）、<code>browser.py</code>、<code>contract.py</code>（<code>check_inputs</code> 的 <code>skip</code>）、<code>outputfiles.py</code>（<code>workspace_file</code>）、<code>record.py</code>（<code>--calls</code>、<code>load_replay</code>）、<code>debug.py</code>、多語言目錄。rpa-server：<code>config.py</code>、<code>app.py</code>、<code>services.py</code>（第二個範例資料夾）、<code>pages.py</code>、<code>templates/run.html</code>、<code>recordings.py</code>、<code>batch_table.py</code>、<code>batches.py</code>、<code>workflows.py</code>、<code>models.py</code>、<code>migrations/versions/0019_composite_batches.py</code>（新）、<code>api.py</code>、<code>templates/batch_form.html</code>、<code>batch.html</code>、<code>batches.html</code>、<code>workflow.html</code>、<code>static/portal.js</code>、<code>updates.py</code>、<code>packaging/rpa</code>、多語言目錄；<code>tools/build_server.py</code>。測試：<code>test_calls.py</code>、<code>test_callfiles.py</code>（新）、<code>test_call_browser.py</code>、<code>test_record_calls.py</code>（新）、<code>test_interactive_inputs.py</code>、<code>test_config.py</code>、<code>test_m7_wrapup.py</code>（新）、<code>test_calls_api.py</code>、<code>test_batch_table.py</code>、<code>test_batches_wrapup.py</code>（新）、<code>test_server_package.py</code>。文件：<code>design/portal.html</code>、<code>design/dsl.html</code>、ADR 0023、0024、路線圖（含英文版）。共用檔案（多語言目錄、遷移編號 0019、路線圖、任務索引）由本分支整合；本分支合併了 PR #26 的分支（<code>docs/m7-accepted</code>），#26 合併前差異也含它。</dd>
+        <dt>狀態</dt><dd>實作與文件完成，草稿 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/27">PR #27</a>，等待 CI、審閱與人工驗收。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>feat/m7-wrapup</code>，從 main <span class="mono">9819532</span> 開；<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/27">PR #27</a>（base main）。<strong>合併順序：#26 → #27。</strong></dd>
+        <dt>交接版本／同步狀態</dt><dd>推送到 <code>feat/m7-wrapup</code>；以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端工作區 Linux x86_64、系統 Python 3.13。不能安裝套件：沒有 FastAPI、SQLAlchemy、httpx2、OpenCC，伺服器 API 層的測試與簡中交給 CI 與 bootstrap；有 Chromium（<code>/opt/pw-browsers</code>），沒有 Firefox。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="decisions">
+      <div class="panel-header"><h2>決定</h2></div>
+      <div class="panel-body"><p>七項的範圍由使用者 06:12 的要求決定（Claude 06:19 列出範圍時沒有收到異議）。下面是這次的<strong>實作選擇</strong>（沒有另外問使用者，審閱時可以改），理由見 ADR 的「後來的變更」：</p></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>#</th><th>項目</th><th>選擇</th></tr></thead>
+        <tbody>
+          <tr><td>W1</td><td>流程範例的匯入</td><td>伺服器多一個「另外的範例資料夾」（<code>RPA_EXTRA_EXAMPLES</code>，以 <code>os.pathsep</code> 分隔，空字串是不要），預設是 <code>scenarios/examples/flow</code>；第一次啟動時和 BA 範例一起匯入「測試網站自動化」。分發包帶上這個資料夾，啟動腳本設好環境變數；更新時的子程序不繼承它。</td></tr>
+          <tr><td>W2</td><td>運行頁的提醒</td><td>步驟紀錄裡 <code>handled</code> 是 continued 或 caught 的步數；有的時候在運行頁上方顯示，說明結果仍由獨立斷言決定、要看哪幾步去執行報告或回看。</td></tr>
+          <tr><td>W3</td><td>接著錄製用到 call 的場景</td><td>伺服器把版本的 <code>calls/</code> 包成 JSON 交給錄製器（<code>--calls</code>，和逐步調試相同），錄製器放回場景檔旁邊再校驗；只接受 <code>calls/</code> 底下、沒有 <code>..</code> 的路徑。版本用到的擴充改用版本自己的（含子場景）。</td></tr>
+          <tr><td>W4</td><td>子場景的檔案入參與出參</td><td>檔案入參一律由 call 用 <code>{{ }}</code> 給：呼叫場景自己的檔案入參（依 sha256 與檔名找回準備好的檔案），或共用工作資料夾裡的檔案（download 的事實、前一個子場景的檔案出參）。直接寫附件、路徑、上傳檔不行；子場景的預設檔案不帶過來。檔案出參要在共用工作資料夾裡，換成 <code>{"workspace", "name", "size", "sha256"}</code>。不加新的擴充（call 還沒發布）。</td></tr>
+          <tr><td>W5</td><td>組合場景的批次</td><td>每一列一次組合運行（目的 execution，版本在建立時固定）；表格給的是沒有接上游出參的節點入參，名稱「節點代號.入參」，標題只寫入參名稱、只有一個節點有時也自動對應；固定值當預設值。給的值存在 <code>workflow_runs.inputs</code>，從失敗的節點繼續時照用。不能指定網址、不能給檔案入參。遷移 0019。取消組合運行時在鎖外面取消節點的執行，避免和批次排組合運行互等。</td></tr>
+          <tr><td>W6</td><td>選工作表</td><td><code>POST /api/batch-sheets</code> 列出工作表，建立批次時寫 <code>sheet</code>；表單只在有好幾個工作表時顯示；來源寫成「檔名 › 工作表」。</td></tr>
+          <tr><td>W7</td><td>共用的上限</td><td>設定 <code>batches.sharedLimit</code>（1～100，預設 10），算排隊中與執行中的批次執行和執行中的組合運行；一列結束時先排同一個批次，再依開始的先後補其他批次，調高時馬上補。設定在批次清單上面，API 是 <code>/api/settings/batches</code>。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>七項的程式、測試與文件（提交 <span class="mono">0eefdc4</span>、<span class="mono">450068f</span>、<span class="mono">07b4eb7</span>、<span class="mono">376c5a5</span> 與之後的文件提交）。</li>
+        <li><strong>未完成／阻礙：</strong>伺服器 API 層的測試只在 CI 跑；簡中由 bootstrap 產生；人工驗收。</li>
+        <li><strong>下一個具體動作：</strong>看 PR #27 的 CI，有失敗就修；之後開始 M8（另開任務）。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="acceptance">
+      <div class="panel-header"><h2>人工驗收（建議步驟，未執行）</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>流程範例：</strong>用新的資料夾啟動（<code>uv run rpa serve --data data-check</code>）：「測試網站自動化」裡除了 BA 範例還有六個 <code>flow-</code> 開頭的場景。</li>
+        <li><strong>運行頁的提醒：</strong>驗證 <code>flow-optional-survey</code>（有 onError: continue 的步驟）：運行頁上方出現「有 N 步失敗後繼續」，結果仍是通過。</li>
+        <li><strong>接著錄製：</strong>新增一個場景，在編輯頁「插入流程範本」插入 call 的範本、改成呼叫 BA-001 第 1 版（BA-001 要先發布）存檔，按「接著錄製」：先重播，子場景的步驟照樣在同一個分頁跑完，接著可以錄製。</li>
+        <li><strong>子場景的檔案：</strong>寫一個呼叫場景：有自己的檔案入參，call 一個有檔案入參、會上傳的子場景（例如照 <code>scenarios/examples/browser-python/upload-summary.yaml</code> 寫），<code>inputs</code> 寫 <code>'{{ inputs.檔案 }}'</code>；執行通過，網頁收到的就是那個檔案。把值改成 <code>files/a.csv</code> 存檔，回 422 並說明要寫 <code>{{ }}</code>。</li>
+        <li><strong>組合場景的批次：</strong>BA-001 → BA-002 的組合場景驗證並發布後，組合場景頁按「批次執行」，貼上 <code>title</code> 一欄三列（其中一列空白）；批次頁的欄位對應是 <code>n1.title ← title</code>，開始後每一列一次組合運行，空白那一列用節點的固定值；執行編號連到組合運行的匯總報告，出參欄有 <code>n2.recordId</code>。</li>
+        <li><strong>選工作表：</strong>上傳一個有兩個工作表的 .xlsx：表單出現「工作表」，選第二個建立，欄位是第二個工作表的標題，來源顯示「檔名 › 工作表」。</li>
+        <li><strong>共用的上限：</strong>批次清單上面把上限改成 1，建兩個「同時 2 列」的批次並開始：合計只有一列在排隊或執行，第一個批次跑完才輪到第二個；改回 10 時第二個批次馬上補滿。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td><span class="mono">376c5a5</span> 之前的工作區；雲端 Linux、系統 Python 3.13</td><td><code>ruff check</code>、<code>ruff format --check</code>（packages、apps、tools）；<code>pyright</code>（rpa_core、rpa_runner 的 src）；<code>pytest packages/rpa_core/tests</code>；<code>pytest packages/rpa_runner/tests -k "not firefox"</code>；<code>pytest apps/server/tests/test_batch_table.py</code>；<code>node --check static/portal.js</code></td><td>ruff、格式、pyright 0 errors；rpa_core 598 passed；rpa_runner 257 passed、8 failed、4 skipped：失敗的 8 個都是 <code>test_video_browser.py</code>（錄影與有頭模式），在 main 的乾淨工作樹上同樣失敗，是這個環境的問題；新的 <code>test_call_browser.py</code> 兩個檔案測試在 Chromium 通過；<code>test_batch_table.py</code> 27 passed；腳本語法通過</td><td>伺服器 API 層（<code>test_batches_wrapup.py</code>、<code>test_m7_wrapup.py</code>、<code>test_calls_api.py</code>、遷移與其他伺服器測試）要 FastAPI、SQLAlchemy，交給 CI；Firefox；簡中交給 bootstrap</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：見 PR #27 與追加紀錄。人工驗收：未執行。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>等待使用者審閱與驗收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-11-14 06:19～07:10 America/Los_Angeles（PST，UTC−08:00），Claude：從 main <span class="mono">9819532</span> 開 <code>feat/m7-wrapup</code>，依序做 W1～W7（提交見<a href="#progress">進度</a>）。檢查時發現：<code>rpa_runner.record</code> 的私有函式改成公開的 <code>load_replay</code> 後，<code>test_interactive_inputs.py</code> 還在呼叫舊名字，已更新；組合場景的批次會在批次的鎖裡開始組合運行，而取消組合運行原本在組合場景的鎖裡取消節點的執行、通知批次，兩邊可能互等，改成在鎖外面取消節點的執行。推送後開草稿 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/27">PR #27</a>，合併 PR #26 的分支，接著寫文件與本頁。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

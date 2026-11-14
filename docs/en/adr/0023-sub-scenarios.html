@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:1b05ade5148bf5ef">
+<meta name="translation-source" content="sha256:b7c2de27a1f1199b">
 <title>ADR 0023 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -61,8 +61,18 @@
             <li>A new revision of a sub-scenario does not apply by itself: every calling scenario has to change <code>revision</code>, save a new revision, and validate and publish again. This is deliberate (the same as pinning node revisions in composite scenarios); the cost is updating each calling scenario after a sub-scenario is fixed, and there is no list yet of which scenarios use a sub-scenario.</li>
             <li>When several scenarios call the same sub-scenario, each calling scenario's revision holds its own copy of the file (text, usually a few KB).</li>
             <li>The server only guarantees that the copy equals the source revision when it has that source revision; for domain folders synced from elsewhere, the calling scenario's own hash and validation records are what count, and <code>rpa pack check</code> does not compare against the source.</li>
-            <li>In step-by-step debugging a <code>call</code> runs the whole sub-scenario at once and counts as having side effects; continuing a recording (which replays the existing steps first) does not support scenarios that use <code>call</code> yet.</li>
-            <li>Sub-scenarios cannot have file inputs or outputs; flows that pass files should use composite scenarios for now.</li>
+            <li>In step-by-step debugging a <code>call</code> runs the whole sub-scenario at once and counts as having side effects. In the first version continuing a recording (which replays the existing steps first) did not support scenarios that use <code>call</code>; it does since 2026-11-14 (see “Later changes” below).</li>
+            <li>In the first version sub-scenarios could not have file inputs or outputs; they can since 2026-11-14 (see “Later changes” below).</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="changes">
+        <div class="panel-header"><h2>Later changes</h2></div>
+        <div class="panel-body prose">
+          <p>2026-11-14, M7 wrap-up (the user asked at 06:12 America/Los_Angeles (PST, UTC−08:00) to finish what was left of M7; see the <a href="../../../handoff/tasks/20261114-m7-wrapup.html">task record</a>):</p>
+          <ul>
+            <li><strong>Continue recording.</strong> The server packs the revision's <code>calls/</code> as JSON for the recorder (<code>--calls</code>), which puts the files back next to the scenario file before validating; during the replay a <code>call</code> runs the whole sub-scenario in the same tab. Step-by-step debugging already worked this way.</li>
+            <li><strong>File inputs and outputs.</strong> The call always gives a sub-scenario's <code>type: file</code> inputs with <code>{{ }}</code>, and at run time the value must be a calling-side file: a file input of the calling scenario (expressions see <code>{"name", "size", "sha256"}</code>, and the prepared file is found again by sha256 and name), or a file in the shared workspace (<code>{"workspace": …}</code>: a download step's fact, an earlier sub-scenario's file output). Attachments, paths and uploaded files cannot be written, and the sub-scenario's default file is not carried over: attachments live in the sub-scenario's revision folder and do not travel with <code>calls/</code>, and paths must be checked against the running machine's allowed folders, so neither is part of the calling revision. A sub-scenario's file output must be in the shared workspace and becomes a file description that can feed the next sub-scenario or the calling scenario's own file output. No new DSL extension: <code>call</code> has not been released yet, and the <code>fileInputs</code> and <code>fileOutputs</code> a sub-scenario uses already count as requirements.</li>
           </ul>
         </div>
       </section>

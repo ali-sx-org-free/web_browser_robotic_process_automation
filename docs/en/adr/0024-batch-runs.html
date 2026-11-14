@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:21474c8e47ca5d20">
+<meta name="translation-source" content="sha256:8ecbf7cb7dabca8d">
 <title>ADR 0024 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -64,7 +64,18 @@
             <li>“Rows at once” only decides how many are queued; one Worker runs one row at a time, so real parallelism needs several Workers.</li>
             <li>The server gains two tables (<code>batches</code>, <code>batch_rows</code>) and two columns on <code>runs</code>, which needs a database migration (0018).</li>
             <li>Reading and writing xlsx ourselves covers the common cases (the first worksheet, shared strings, inline strings, number and date formats); a formula gives the result Excel saved, and a formula without a saved result reads as empty.</li>
-            <li>The first version covers published scenarios only; batches of composite scenarios (composites in projects), scheduled triggers and a limit shared between batches wait for actual need.</li>
+            <li>The first version covers published scenarios only; batches of composite scenarios (composites in projects), choosing the worksheet and a limit shared between batches were added on 2026-11-14 (see “Later changes” below); scheduled triggers belong to M9's scheduled runs.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="changes">
+        <div class="panel-header"><h2>Later changes</h2></div>
+        <div class="panel-body prose">
+          <p>2026-11-14, M7 wrap-up (the user asked at 06:12 America/Los_Angeles (PST, UTC−08:00) to finish what was left of M7; see the <a href="../../../handoff/tasks/20261114-m7-wrapup.html">task record</a>):</p>
+          <ul>
+            <li><strong>Composite-scene batches.</strong> Each row is one composite run (purpose execution), fixed to the revision published when the batch was created (later releases do not change it). The table can give each node's inputs that are not bound to an upstream output, named “node.input”; a node's fixed value becomes the default. Given values are stored on the composite run (<code>workflow_runs.inputs</code>) and replace that node's fixed value or default, also when resuming from a failed node. File inputs cannot come from the table (as with scenario batches), and no URL can be set (composite runs never had one). When <code>batches.workflow_id</code> is set, <code>scene_id</code> is NULL and <code>batch_rows.run_id</code> holds a composite run ID; migration 0019. The next row is queued when a composite run ends (its last node ends, or it is cancelled). To avoid waiting on each other with “cancel composite run”, cancelling now cancels the node runs outside the composite lock.</li>
+            <li><strong>Choosing the worksheet.</strong> <code>POST /api/batch-sheets</code> lists an Excel file's worksheets and creating a batch takes <code>sheet</code>; the form only shows the choice when there are several worksheets. The source reads “file › worksheet”.</li>
+            <li><strong>A limit shared between batches.</strong> Setting <code>batches.sharedLimit</code> (1–100, default 10): rows queued at once across all batches (queued and running runs plus running composite runs). Each batch's own “rows at once” still applies; when a row finishes the same batch goes first, then other running batches in the order they started, and raising the limit fills them right away. The default of 10 equals a batch's own maximum, so a single batch behaves as before.</li>
           </ul>
         </div>
       </section>
