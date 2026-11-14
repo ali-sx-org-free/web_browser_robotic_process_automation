@@ -29,7 +29,9 @@ M7c：上傳的檔案（POST /api/files?name=檔名，本體就是檔案內容�
 /content 的內容）。執行、驗證、調試與組合場景的檔案入參寫 ``{"file": 代號, "name": …}``。
 
 M7.3：批次執行（POST /api/scenes/{代號}/batches 建立，/api/batches/{批次} 的 start、stop、
-rerun、export；ADR 0024）。
+rerun、export；ADR 0024）。M7 收尾：組合場景的批次（POST /api/workflows/{編號}/batches）、
+Excel 選工作表（POST /api/batch-sheets 列出，建立時寫 sheet）、所有批次共用的上限
+（/api/settings/batches）。
 """
 
 import base64
@@ -47,7 +49,7 @@ from rpa_core.dsl import validate_text
 from rpa_core.dsl.editing import SECTION_KEYS, json_document, section_text
 from rpa_core.dsl.files import MAX_ATTACHMENT_BYTES, guess_media_type
 from rpa_server.agents import AUDIT_LIMIT, DEFAULT_SCOPES, ClientPolicy
-from rpa_server.batch_table import Table, TableError, parse_text, read_table
+from rpa_server.batch_table import Table, TableError, parse_text, read_table, sheet_names
 from rpa_server.composite_report import report_json
 from rpa_server.domain import Engine, Target
 from rpa_server.errors import ServiceError, invalid, not_found
@@ -195,9 +197,24 @@ class BatchCreate(BatchOptions):
     text: str | None = Field(default=None, max_length=8_000_000)
     file_name: str | None = Field(default=None, max_length=255)
     file_content: str | None = Field(default=None, max_length=8_000_000)
+    sheet: str | None = Field(default=None, max_length=255)
+    """Excel 檔讀哪個工作表（M7 收尾）；沒寫是第一個。"""
     start: bool = False
     """True：建立後直接開始（不先看欄位對應）。"""
     idempotency_key: str | None = Field(default=None, max_length=100)
+
+
+class BatchSheets(_Body):
+    """上傳的表格檔有哪些工作表（M7 收尾）。"""
+
+    file_name: str = Field(max_length=255)
+    file_content: str = Field(max_length=8_000_000)
+
+
+class BatchSharedLimit(_Body):
+    """所有批次合計同時排入幾列（M7 收尾）。"""
+
+    shared_limit: int = Field(ge=1, le=100)
 
 
 class BatchRerun(_Body):
@@ -481,15 +498,21 @@ class WorkflowRerun(_Body):
     idempotency_key: str | None = Field(default=None, max_length=100)
 
 
-def batch_table_of(text: str | None, name: str | None, content: str | None) -> Table:
-    """批次的表格：base64 的檔案或貼上的文字；讀不進來時回 422 並說明原因。"""
+def _table_bytes(content: str) -> bytes:
+    try:
+        return base64.b64decode(content, validate=True)
+    except (binascii.Error, ValueError) as error:
+        raise TableError(t("batch.table_base64")) from error
+
+
+def batch_table_of(
+    text: str | None, name: str | None, content: str | None, sheet: str | None = None
+) -> Table:
+    """批次的表格：base64 的檔案（Excel 讀 ``sheet`` 那個工作表）或貼上的文字；讀不進來時
+    回 422 並說明原因。"""
     try:
         if content is not None:
-            try:
-                data = base64.b64decode(content, validate=True)
-            except (binascii.Error, ValueError) as error:
-                raise TableError(t("batch.table_base64")) from error
-            return read_table(name or "table.csv", data)
+            return read_table(name or "table.csv", _table_bytes(content), sheet or None)
         if text is not None and text.strip():
             return parse_text(text)
     except TableError as error:
@@ -937,13 +960,22 @@ def api_router(services: Services) -> APIRouter:
 
     # ------------------------------------------------------------ 批次執行（M7.3）
 
-    @router.post("/scenes/{scene_id}/batches", status_code=201)
-    def create_batch(scene_id: str, body: BatchCreate) -> dict[str, object]:
-        table = batch_table_of(body.text, body.file_name, body.file_content)
+    def batch_source(body: BatchCreate) -> str | None:
+        """上傳的檔名；選了工作表時加上工作表名稱。"""
+        if body.file_content is None:
+            return None
+        name = body.file_name or ""
+        return f"{name} › {body.sheet}" if body.sheet else name
+
+    def new_batch(
+        scene_id: str | None, workflow_id: int | None, body: BatchCreate
+    ) -> dict[str, object]:
+        table = batch_table_of(body.text, body.file_name, body.file_content, body.sheet)
         batch = services.batches.create(
             scene_id,
             table,
-            source=body.file_name if body.file_content is not None else None,
+            workflow_id=workflow_id,
+            source=batch_source(body),
             mapping=body.mapping,
             on_failure=body.on_failure or "continue",
             concurrency=body.concurrency or 1,
@@ -957,11 +989,40 @@ def api_router(services: Services) -> APIRouter:
             batch = services.batches.start(batch.id)
         return batch.to_json()
 
+    @router.post("/scenes/{scene_id}/batches", status_code=201)
+    def create_batch(scene_id: str, body: BatchCreate) -> dict[str, object]:
+        return new_batch(scene_id, None, body)
+
+    @router.post("/workflows/{workflow_id}/batches", status_code=201)
+    def create_composite_batch(workflow_id: int, body: BatchCreate) -> dict[str, object]:
+        """組合場景的批次（M7 收尾）：表格的欄位對到「節點代號.入參」。"""
+        return new_batch(None, workflow_id, body)
+
+    @router.post("/batch-sheets")
+    def batch_sheets(body: BatchSheets) -> dict[str, object]:
+        """上傳的 Excel 檔有哪些工作表（依順序）；不是 Excel 檔時是空的。"""
+        try:
+            return {"sheets": sheet_names(body.file_name, _table_bytes(body.file_content))}
+        except TableError as error:
+            raise invalid("batch_table", str(error)) from error
+
+    @router.get("/settings/batches")
+    def get_batch_settings() -> dict[str, object]:
+        """所有批次合計同時排入幾列，以及目前排入幾列（M7 收尾）。"""
+        return dict(services.batches.shared_usage())
+
+    @router.put("/settings/batches")
+    def set_batch_settings(body: BatchSharedLimit) -> dict[str, object]:
+        services.batches.set_shared_limit(body.shared_limit)
+        return dict(services.batches.shared_usage())
+
     @router.get("/batches")
     def list_batches(
-        scene: str | None = None, limit: Annotated[int, Query(ge=1, le=500)] = 100
+        scene: str | None = None,
+        workflow: int | None = None,
+        limit: Annotated[int, Query(ge=1, le=500)] = 100,
     ) -> dict[str, object]:
-        found = services.batches.recent(scene_id=scene, limit=limit)
+        found = services.batches.recent(scene_id=scene, workflow_id=workflow, limit=limit)
         return {"batches": [batch.to_json(rows=False) for batch in found]}
 
     @router.get("/batches/{batch_id}")

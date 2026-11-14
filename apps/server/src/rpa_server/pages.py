@@ -833,32 +833,64 @@ def page_router(services: Services) -> APIRouter:
             **_location_context(services),
         )
 
+    @router.get("/playground/{workflow_id}/batch", include_in_schema=False)
+    def composite_batch_form(workflow_id: int) -> HTMLResponse:
+        """組合場景的批次（M7 收尾）：表格的欄位對到「節點代號.入參」（沒有接上游出參的入參）。"""
+        record = services.workflows.get_workflow(workflow_id)
+        name, number = services.workflows.batch_target(workflow_id)
+        return page(
+            "batch_form.html",
+            page="batches",
+            title=t("batch_form.title", name=name, number=number),
+            composite=record,
+            revision_number=number,
+            scenario=services.workflows.batch_scenario(workflow_id, number),
+            engines=ENGINES,
+            base_url=None,
+            limits={"rows": MAX_ROWS, "megabytes": MAX_BYTES // (1024 * 1024)},
+            **_location_context(services),
+        )
+
     @router.get("/batches", include_in_schema=False)
-    def batches(scene: str | None = None) -> HTMLResponse:
+    def batches(scene: str | None = None, workflow: int | None = None) -> HTMLResponse:
         return page(
             "batches.html",
             page="batches",
             title=t("nav.batches"),
-            batches=services.batches.recent(scene_id=scene, limit=200),
+            batches=services.batches.recent(scene_id=scene, workflow_id=workflow, limit=200),
             scene=scene,
+            workflow=workflow,
+            shared=services.batches.shared_usage(),
         )
 
     @router.get("/batches/{batch_id}", include_in_schema=False)
     def batch(batch_id: str) -> HTMLResponse:
         record = services.batches.get(batch_id)
-        scenario = services.revision_scenario(record.scene_id, record.revision)
-        scene = services.get_scene(record.scene_id)
+        common: dict[str, object] = {
+            "batch": record,
+            "used_columns": [column for column in record.mapping.values() if column is not None],
+            "engines": ENGINES,
+            **_location_context(services),
+        }
+        title = t("batch.title", id=record.id)
+        if record.workflow_id is not None:
+            return page(
+                "batch.html",
+                page="batches",
+                title=title,
+                scenario=services.workflows.batch_scenario(record.workflow_id, record.revision),
+                **common,
+            )
+        scene_id = record.scene_id or ""
+        scene = services.get_scene(scene_id)
         return page(
             "batch.html",
             page="batches",
-            title=t("batch.title", id=record.id),
-            batch=record,
+            title=title,
             scene=scene,
             domain=domain_of(scene.domain_id),
-            scenario=scenario,
-            used_columns=[column for column in record.mapping.values() if column is not None],
-            engines=ENGINES,
-            **_location_context(services),
+            scenario=services.revision_scenario(scene_id, record.revision),
+            **common,
         )
 
     @router.get("/runs/{run_id}/files/{relative:path}", include_in_schema=False)

@@ -8,7 +8,8 @@ M14：對外 Agent API 的用戶端 api_clients 與稽核 api_audit；執行記�
 錄製端加上允不允許 Agent 調試 recorders.allow_agent、agent_headless_only（ADR 0017）。
 M7c：上傳的檔案 uploaded_files（內容以 sha256 存在資料目錄的 input-files/，同內容只存一份）。
 M7.3：批次執行 batches 與它的每一列 batch_rows；執行記下屬於哪個批次的第幾列 runs.batch_id、
-runs.batch_row（ADR 0024）。
+runs.batch_row（ADR 0024）。M7 收尾：組合場景的批次 batches.workflow_id（這時 scene_id 是 NULL），
+組合運行記下批次、第幾列與表格給節點的入參 workflow_runs.batch_id、batch_row、inputs。
 
 M11：場景、版本、角色的定義與驗證、發布紀錄都在領域資料夾（rpa_server.packs）；這幾張表是
 資料夾的**索引**，載入時依資料夾重建。只在資料庫的欄位（網址覆寫、排序、登入檢查的結果）
@@ -202,14 +203,20 @@ class Batch(Base):
 
     每一列是一筆 batch_rows；排入的執行是一般的 runs（目的 execution），記下 batch_id 與第幾列，
     各有報告、出參與回看。版本在建立時固定，之後場景發布新版本不影響這個批次。
+    組合場景的批次（M7 收尾）：scene_id 是 NULL、workflow_id 是組合場景，每一列是一次組合運行
+    （workflow_runs，目的 execution），batch_rows.run_id 是組合運行的編號。
     """
 
     __tablename__ = "batches"
 
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
-    scene_id: Mapped[str] = mapped_column(ForeignKey("scenes.id"), index=True)
+    scene_id: Mapped[str | None] = mapped_column(ForeignKey("scenes.id"), index=True)
+    """場景的批次：哪個場景；組合場景的批次是 None。"""
+    workflow_id: Mapped[int | None] = mapped_column(index=True)
+    """組合場景的批次：哪個組合場景（組合場景刪除後批次仍保留，不設外鍵）。"""
     revision_number: Mapped[int] = mapped_column()
     scene_name: Mapped[str] = mapped_column(String(200))
+    """場景或組合場景的名稱（建立時的）。"""
     status: Mapped[str] = mapped_column(String(20), index=True)
     """draft（等待開始，可以改欄位對應與選項）→ running → finished；停下的是 stopped。"""
     columns: Mapped[list[str]] = mapped_column(JsonType)
@@ -416,6 +423,12 @@ class WorkflowRun(Base):
     M11 PR 2 之前的執行（與它們的重跑）沒有，不寫驗證紀錄。"""
     client_id: Mapped[str | None] = mapped_column(String(64), index=True)
     """觸發的對外 API 用戶端（M14）；Portal 觸發的是 None。節點的執行也記同一個用戶端。"""
+    batch_id: Mapped[str | None] = mapped_column(ForeignKey("batches.id"), index=True)
+    """屬於哪個批次（M7 收尾，組合場景的批次）；單獨的組合運行是 None。"""
+    batch_row: Mapped[int | None] = mapped_column()
+    """批次的第幾列（從 1 起）。"""
+    inputs: Mapped[dict[str, object] | None] = mapped_column(JsonType)
+    """表格給節點的入參：節點代號 → 入參名稱 → 值，取代那個節點的固定值或預設值。"""
 
 
 class RemoteWorker(Base):

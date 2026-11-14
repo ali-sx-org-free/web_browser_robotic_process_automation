@@ -1,12 +1,14 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
-{#- 新的批次執行（M7.3，ADR 0024）：上傳或貼上表格與選項；建立後到批次頁看欄位對應與每一列的檢查再開始。 -#}
-{% block crumb %}{{ m.scene_crumb(scene, domain) }} › {{ t("batch_form.crumb") }}{% endblock %}
-{% block description %}{{ t("batch_form.description", number=revision.number, name=scene.name) }}{% endblock %}
-{% block actions %}<a class="button" href="/scenes/{{ scene.id }}">{{ t("edit.back") }}</a>{% endblock %}
+{#- 新的批次執行（M7.3，ADR 0024）：上傳或貼上表格與選項；建立後到批次頁看欄位對應與每一列的檢查再開始。
+    組合場景的批次（M7 收尾）：composite 是組合場景，表格的欄位對到「節點代號.入參」。 -#}
+{% block crumb %}{% if composite %}<a href="/playground/{{ composite.id }}">{{ composite.name }}</a>{% else %}{{ m.scene_crumb(scene, domain) }}{% endif %} › {{ t("batch_form.crumb") }}{% endblock %}
+{% block description %}{% if composite %}{{ t("batch_form.description", number=revision_number, name=composite.name) }}{% else %}{{ t("batch_form.description", number=revision.number, name=scene.name) }}{% endif %}{% endblock %}
+{% block actions %}<a class="button" href="{% if composite %}/playground/{{ composite.id }}{% else %}/scenes/{{ scene.id }}{% endif %}">{{ t("edit.back") }}</a>{% endblock %}
 {% block content %}
-<form class="stack" id="batch-form" data-scene="{{ scene.id }}">
+<form class="stack" id="batch-form"{% if composite %} data-workflow="{{ composite.id }}"{% else %} data-scene="{{ scene.id }}"{% endif %}>
   <div class="notice">{{ t("batch_form.notice", rows=limits.rows, megabytes=limits.megabytes) }}</div>
+  {% if composite %}<div class="notice">{{ t("batch_form.composite_notice") }}</div>{% endif %}
   <section class="panel" id="problems" hidden>
     <div class="panel-header"><h2>{{ t("run_form.problems") }}</h2></div>
     <ul class="panel-body checklist" id="problem-list"></ul>
@@ -18,6 +20,10 @@
         <label class="field">{{ t("batch_form.file") }}
           <input type="file" name="file" accept=".csv,.tsv,.txt,.xlsx,text/csv">
           <span class="cell-sub">{{ t("batch_form.file_hint") }}</span>
+        </label>
+        <label class="field" id="sheet-field" hidden>{{ t("batch_form.sheet") }}
+          <select name="sheet"></select>
+          <span class="cell-sub">{{ t("batch_form.sheet_hint") }}</span>
         </label>
         <label class="field">{{ t("batch_form.paste") }}
           <textarea class="code-editor compact" name="text" rows="10" spellcheck="false" placeholder="{{ scenario.inputs | join('\t') }}"></textarea>
@@ -41,7 +47,7 @@
         {% set python_node = scenario.script is not none and scenario.script.runtime is not none %}
         <label class="field"{% if python_node %} hidden{% endif %}>{{ t("run_form.engine") }}
           <select name="engine">
-            <option value="">{{ t("run_form.engine_default", engine=scenario.browser.engine) }}</option>
+            <option value="">{% if composite %}{{ t("batch_form.engine_composite") }}{% else %}{{ t("run_form.engine_default", engine=scenario.browser.engine) }}{% endif %}</option>
             {% for engine in engines %}<option value="{{ engine }}">{{ engine }}</option>{% endfor %}
           </select>
         </label>
@@ -51,7 +57,7 @@
           <label><input type="radio" name="headless" value="0"{% if display and not python_node %} checked{% elif not display %} disabled{% endif %}> {{ t("run_form.window_headed") }}</label>
           <label><input type="radio" name="headless" value="1"{% if not display or python_node %} checked{% endif %}> {{ t("run_form.window_headless") }}</label>
         </fieldset>
-        <label class="field"{% if python_node %} hidden{% endif %}>{{ t("run_form.base_url") }}
+        <label class="field"{% if python_node or composite %} hidden{% endif %}>{{ t("run_form.base_url") }}
           <input type="url" name="baseUrl" value="{{ base_url or '' }}" placeholder="https://">
         </label>
         <div><button class="button primary" type="submit" data-action="create-batch">{{ t("batch_form.submit") }}</button></div>

@@ -12,6 +12,7 @@
     <button class="button" data-action="workflow-export">{{ t("workflow.export") }}</button>
     <button class="button" data-action="workflow-save" disabled>{{ t("workflow.save") }}</button>
     <button class="button" data-action="workflow-check">{{ t("workflow.check") }}</button>
+    {% if workflow.published and not workflow.archived %}<a class="button" href="/playground/{{ workflow.id }}/batch" title="{{ t('composite.batch_title') }}">{{ t("scene.batch") }}</a>{% endif %}
     <button class="button primary" data-action="workflow-run">{{ t("workflow.run") }}</button>
     <details class="workflow-help"><summary class="button">{{ t("workflow.help") }}</summary><div class="panel panel-body"><p id="description">{{ workflow.description or t("workflow.description") }}</p><p>{{ t("workflow.notice") }}</p></div></details>
   </div>
