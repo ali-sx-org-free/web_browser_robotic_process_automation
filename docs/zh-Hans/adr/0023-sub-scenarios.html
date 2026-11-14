@@ -61,8 +61,18 @@
             <li>子场景出新版本不会自动应用：每个调用场景要改 <code>revision</code>、存成新版本、重新验证与发布。这是刻意的（和组合场景固定节点版本相同），代价是子场景修正后要逐一更新调用它的场景；目前没有「哪些场景用到这个子场景」的清单。</li>
             <li>同一个子场景被好几个场景调用时，场景文件在每个调用场景的版本里各有一份（文字档，通常几 KB）。</li>
             <li>带进来的那一份和来源版本是否相同，只在这台有来源版本时由服务器保证；从别处同步来的领域文件夹以调用场景自己的哈希与验证记录为准，<code>rpa pack check</code> 不另外比较来源。</li>
-            <li>逐步调试时 <code>call</code> 整个子场景一起运行，算有副作用；接著录制（先重播既有步骤）还不支持用到 <code>call</code> 的场景。</li>
-            <li>子场景不能有文件入参与出参；要传文件的流程先用组合场景。</li>
+            <li>逐步调试时 <code>call</code> 整个子场景一起运行，算有副作用。第一版接著录制（先重播既有步骤）不支持用到 <code>call</code> 的场景，2026-11-14 起支持（见下面「后来的变更」）。</li>
+            <li>第一版子场景不能有文件入参与出参，2026-11-14 起可以（见下面「后来的变更」）。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="changes">
+        <div class="panel-header"><h2>后来的变更</h2></div>
+        <div class="panel-body prose">
+          <p>2026-11-14，M7 收尾（用户 2026-11-14 06:12 America/Los_Angeles（PST，UTC−08:00）要求「M7还有未做完的部分做完」，见<a href="../../../handoff/tasks/20261114-m7-wrapup.html">任务记录</a>）：</p>
+          <ul>
+            <li><strong>接著录制。</strong>服务器把版本的 <code>calls/</code> 包成 JSON 交给录制器（<code>--calls</code>），录制器放回场景文件旁边再校验；重播时 <code>call</code> 照样在同一个分页运行整个子场景。逐步调试早就用同一个做法。</li>
+            <li><strong>文件入参与出参。</strong>子场景的 <code>type: file</code> 入参一律由 <code>call</code> 用 <code>{{ }}</code> 给，运行时要是调用场景这边的文件：调用场景自己的文件入参（表达式看到的是 <code>{"name", "size", "sha256"}</code>，依 sha256 与文件名找回准备好的文件），或共用工作文件夹里的文件（<code>{"workspace": …}</code>：download 步骤的事实、前一个子场景的文件出参）。直接写附件、路径或上传档不行，子场景的默认文件也不带过来：附件在子场景的版本文件夹、不跟着 <code>calls/</code>，路径要照运行那台的允许文件夹检查，都不是调用场景版本的一部分。子场景的文件出参要在共用工作文件夹里，换成文件的说明，可以接到下一个子场景或调用场景自己的文件出参。没有新的 DSL 扩充：<code>call</code> 还没有发布过，子场景用到的 <code>fileInputs</code>、<code>fileOutputs</code> 照常算进要求。</li>
           </ul>
         </div>
       </section>
