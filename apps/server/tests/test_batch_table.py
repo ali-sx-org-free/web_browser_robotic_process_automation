@@ -5,9 +5,10 @@ import io
 import zipfile
 from collections.abc import Iterator
 from datetime import date, datetime, time
+from xml.etree import ElementTree
+from xml.sax.saxutils import escape
 
 import pytest
-from openpyxl import Workbook, load_workbook
 
 from rpa_core.dsl import Scenario, validate_text
 from rpa_core.i18n import use_locale
@@ -52,17 +53,84 @@ def scenario() -> Scenario:
     return result.scenario
 
 
-def xlsx(rows: list[list[object]], number_formats: dict[str, str] | None = None) -> bytes:
-    book = Workbook()
-    sheet = book.active
-    assert sheet is not None
-    for row in rows:
-        sheet.append(row)
-    for reference, code in (number_formats or {}).items():
-        sheet[reference].number_format = code
+MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+RELATIONSHIPS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+EPOCH = datetime(1899, 12, 30)
+"""Excel 的日期是從這一天起算的天數（1900 制，1900-03-01 以後）。"""
+
+
+def serial(value: date | datetime | time) -> float:
+    if isinstance(value, datetime):
+        delta = value - EPOCH
+        return delta.days + delta.seconds / 86400
+    if isinstance(value, date):
+        return float((value - EPOCH.date()).days)
+    return (value.hour * 3600 + value.minute * 60 + value.second) / 86400
+
+
+def zipped(files: dict[str, str]) -> bytes:
     buffer = io.BytesIO()
-    book.save(buffer)
+    with zipfile.ZipFile(buffer, "w") as book:
+        for name, content in files.items():
+            book.writestr(name, content)
     return buffer.getvalue()
+
+
+def xlsx(rows: list[list[object]], number_formats: dict[str, str] | None = None) -> bytes:
+    """照 Excel 存檔的樣子寫一個工作表：文字是共用字串，數字、是非照原樣，日期與時間是序號，
+    ``number_formats``（儲存格 → 數字格式）寫成自訂格式。不用 openpyxl：伺服器的依賴沒有它，測試環境也不一定有。"""
+    formats = number_formats or {}
+    codes = sorted(set(formats.values()))
+    style_of = {code: index + 1 for index, code in enumerate(codes)}
+    strings: list[str] = []
+    lines: list[str] = []
+    for number, row in enumerate(rows, start=1):
+        cells: list[str] = []
+        for index, value in enumerate(row):
+            reference = f"{chr(ord('A') + index)}{number}"
+            code = formats.get(reference)
+            style = f' s="{style_of[code]}"' if code is not None else ""
+            if value is None:
+                continue
+            if isinstance(value, bool):
+                cells.append(f'<c r="{reference}" t="b"{style}><v>{int(value)}</v></c>')
+            elif isinstance(value, int | float):
+                cells.append(f'<c r="{reference}"{style}><v>{value}</v></c>')
+            elif isinstance(value, date | datetime | time):
+                cells.append(f'<c r="{reference}"{style}><v>{serial(value)}</v></c>')
+            else:
+                strings.append(str(value))
+                cells.append(f'<c r="{reference}" t="s"{style}><v>{len(strings) - 1}</v></c>')
+        lines.append(f'<row r="{number}">{"".join(cells)}</row>')
+    custom = "".join(
+        f'<numFmt numFmtId="{163 + index}" formatCode="{escape(code, {chr(34): "&quot;"})}"/>'
+        for code, index in style_of.items()
+    )
+    styles = "".join(
+        f'<xf numFmtId="{163 + index}" applyNumberFormat="1"/>' for index in style_of.values()
+    )
+    shared = "".join(f"<si><t>{escape(text)}</t></si>" for text in strings)
+    return zipped(
+        {
+            "xl/workbook.xml": (
+                f'<workbook xmlns="{MAIN}" xmlns:r="{RELATIONSHIPS}">'
+                '<sheets><sheet name="工作表1" sheetId="1" r:id="rId1"/></sheets></workbook>'
+            ),
+            "xl/_rels/workbook.xml.rels": (
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/'
+                'relationships"><Relationship Id="rId1" Type="worksheet" '
+                'Target="worksheets/sheet1.xml"/></Relationships>'
+            ),
+            "xl/sharedStrings.xml": f'<sst xmlns="{MAIN}">{shared}</sst>',
+            "xl/styles.xml": (
+                f'<styleSheet xmlns="{MAIN}"><numFmts>{custom}</numFmts>'
+                f'<cellXfs><xf numFmtId="0"/>{styles}</cellXfs></styleSheet>'
+            ),
+            "xl/worksheets/sheet1.xml": (
+                f'<worksheet xmlns="{MAIN}"><sheetData>{"".join(lines)}</sheetData></worksheet>'
+            ),
+        }
+    )
 
 
 # ---------------------------------------------------------------- 讀入
@@ -169,12 +237,10 @@ def test_xlsx_values_dates_and_numbers() -> None:
     assert table.rows[1][:4] == ("紙張", "5", "1200", "false")
 
 
-MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
-
-
-def test_xlsx_shared_strings_rich_text_and_1904_dates() -> None:
+def test_xlsx_shared_strings_rich_text_formulas_and_1904_dates() -> None:
     """Excel 存的檔多半用共用字串（sharedStrings），有的是多段格式的文字（<r>）、注音（<rPh>）；
-    Mac 的舊檔用 1904 制的日期。工作表的位置照 workbook 的關聯找，不一定是 sheet1。"""
+    公式取 Excel 存下的計算結果；Mac 的舊檔用 1904 制的日期。工作表的位置照 workbook 的關聯找，
+    不一定是 sheet1。"""
     files = {
         "xl/workbook.xml": (
             f'<workbook xmlns="{MAIN}" xmlns:r="http://schemas.openxmlformats.org/'
@@ -188,7 +254,8 @@ def test_xlsx_shared_strings_rich_text_and_1904_dates() -> None:
         ),
         "xl/sharedStrings.xml": (
             f'<sst xmlns="{MAIN}"><si><t>title</t></si><si><t>day</t></si>'
-            "<si><r><t>第</t></r><r><t>一</t></r><rPh><t>ㄉㄧˋ</t></rPh></si></sst>"
+            "<si><r><t>第</t></r><r><t>一</t></r><rPh><t>ㄉㄧˋ</t></rPh></si>"
+            "<si><t>sum</t></si><si><t>label</t></si><si><t>later</t></si></sst>"
         ),
         "xl/styles.xml": (
             f'<styleSheet xmlns="{MAIN}"><cellXfs><xf numFmtId="0"/><xf numFmtId="14"/>'
@@ -196,20 +263,21 @@ def test_xlsx_shared_strings_rich_text_and_1904_dates() -> None:
         ),
         "xl/worksheets/data.xml": (
             f'<worksheet xmlns="{MAIN}"><sheetData>'
-            '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>'
-            '<row r="3"><c r="A3" t="s"><v>2</v></c><c r="B3" s="1"><v>0</v></c></row>'
+            '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c>'
+            '<c r="C1" t="s"><v>3</v></c><c r="D1" t="s"><v>4</v></c>'
+            '<c r="E1" t="s"><v>5</v></c></row>'
+            '<row r="3"><c r="A3" t="s"><v>2</v></c><c r="B3" s="1"><v>0</v></c>'
+            '<c r="C3"><f>1+1</f><v>2</v></c><c r="D3" t="str"><f>A1&amp;"!"</f><v>title!</v></c>'
+            '<c r="E3"><f>NOW()</f></c></row>'
             "</sheetData></worksheet>"
         ),
     }
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w") as book:
-        for name, content in files.items():
-            book.writestr(name, content)
 
-    table = read_table("a.xlsx", buffer.getvalue())
+    table = read_table("a.xlsx", zipped(files))
 
-    assert table.columns == ("title", "day")
-    assert table.rows == (("第一", "1904-01-01"),)
+    assert table.columns == ("title", "day", "sum", "label", "later")
+    # 沒有存下計算結果的公式讀成空白
+    assert table.rows == (("第一", "1904-01-01", "2", "title!", ""),)
 
 
 def test_broken_xlsx() -> None:
@@ -334,14 +402,16 @@ def test_export_csv_opens_in_excel_and_is_safe() -> None:
 def test_export_xlsx_round_trip() -> None:
     data = export_xlsx(["title", "quantity"], ["recordId", "tags"], rows())
 
-    book = load_workbook(io.BytesIO(data))
-    sheet = book.active
-    assert sheet is not None
-    values = [[cell.value for cell in row] for row in sheet.iter_rows()]
-    assert values[0][:3] == ["列", "title", "quantity"]
-    assert values[1] == [1, "文具", "3", "通過", 1, "run-1", "DEMO-1", '["a"]', ""]
-    assert values[2][1] == '=HYPERLINK("x")'  # 文字儲存格，不是公式
-    assert sheet["B3"].data_type == "s"
+    with zipfile.ZipFile(io.BytesIO(data)) as book:
+        assert "[Content_Types].xml" in book.namelist()
+        sheet = ElementTree.fromstring(book.read("xl/worksheets/sheet1.xml"))
+    cells = {cell.get("r"): cell for cell in sheet.iter(f"{{{MAIN}}}c")}
+    assert cells["A2"].get("t") is None  # 列號與執行次數是數字
+    assert cells["E2"].get("t") is None
+    assert cells["B3"].get("t") == "inlineStr"  # 文字儲存格，不是公式
+    assert cells["B3"].find(f"{{{MAIN}}}f") is None
     # 自己讀得回來（匯出的結果可以改過再上傳成新的批次）
     again = read_table("results.xlsx", data)
-    assert again.rows[0][:3] == ("1", "文具", "3")
+    assert again.columns[:3] == ("列", "title", "quantity")
+    assert again.rows[0] == ("1", "文具", "3", "通過", "1", "run-1", "DEMO-1", '["a"]', "")
+    assert again.rows[1][1] == '=HYPERLINK("x")'
