@@ -15,13 +15,13 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261111-composite-flow；2026-11-13 07:21 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261111-composite-flow；2026-11-13 18:10 America/Los_Angeles（PST，UTC−08:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-11 17:04 America/Los_Angeles（PST，UTC−08:00）：「把組合場景這一層的平行節點、條件分支、重複次數合併做完。結合 M7.1 給我一份人工驗收教程教我驗收。」驗收條件見<a href="#acceptance">人工驗收</a>。</dd>
         <dt>範圍／不包含</dt><dd>範圍：組合場景（第 2 版 DAG）的條件連線（<code>when</code>／<code>otherwise</code>）、同時執行（<code>concurrency</code>）、重複次數（<code>repeat</code>）的定義、檢查、排程、伺服器執行、運行頁、匯總報告、回看、畫布、發布門檻、文件。不包含：一台 worker 同時開多個瀏覽器（D1 沒選）；回看的多軌同時播；M7.2 子場景、M7.3 資料驅動；M7.1 的兩個已知缺口（流程範例自動匯入、運行頁的黃色提醒）。</dd>
         <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude（Opus 5.5）；審閱：未審閱；合併：使用者。</dd>
         <dt>修改檔案／整合者</dt><dd><code>packages/rpa_core</code>（<code>workflow.py</code>、<code>pack.py</code> 的發布證明、訊息目錄、測試）；<code>apps/server</code>（<code>workflows.py</code>、<code>domain.py</code>、<code>composite_report.py</code>、<code>composite_replay.py</code>、<code>render.py</code>、樣板、<code>portal.js</code>、<code>portal-app.css</code>、訊息目錄、<code>test_workflow_api.py</code>）；文件（管理 Portal、Agent 使用指南、ADR 0022、ADR 索引、導覽、路線圖）；本頁、任務索引、決定、未完成工作。共用檔案：訊息目錄、<code>docs/assets/nav.js</code>、任務索引，本分支整合；簡中由 bootstrap 產生。</dd>
-        <dt>狀態</dt><dd>實作完成，<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/20">PR #20</a> 人工驗收進行中；2026-11-13 修了驗收回報的問題（見追加紀錄），等 CI；要先合併 #15。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>feat/composite-flow</code>，從 <code>feat/m7-flow-control</code> 的 <span class="mono">b6129bd</span>（已合併 main <span class="mono">554fe2f</span>）開；D4 決定疊在 M7.1 上；<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/20">PR #20</a> 開到 main，#15 合併前它的差異包含 M7.1 的提交。2026-11-11 17:44 兩個 PR 和 main 都可以直接合併。</dd>
+        <dt>狀態</dt><dd>實作完成，<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/20">PR #20</a> 人工驗收進行中：M7.1 的部分已驗收，#15 於 2026-11-13 17:57 合併；驗收回報的三項已處理（見追加紀錄），最新 head 的 CI 見驗證表。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>feat/composite-flow</code>，從 <code>feat/m7-flow-control</code> 的 <span class="mono">b6129bd</span>（已合併 main <span class="mono">554fe2f</span>）開；D4 決定疊在 M7.1 上；<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/20">PR #20</a> 開到 main，#15 合併前它的差異包含 M7.1 的提交，合併後只剩本分支的。2026-11-11 17:44 兩個 PR 和 main 都可以直接合併；之後 main 合併 #19、#15，各把 main 合併進本分支一次（見追加紀錄）。</dd>
         <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準；全部已推送，沒有未提交的修改。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux，Python 3.13，Node）；不能安裝套件：沒有 SQLAlchemy、FastAPI、OpenCC，伺服器與 Worker 的測試、簡中產生都以 CI 為準。本機能跑 Ruff、Pyright（伺服器部分缺 SQLAlchemy 的型別，以 CI 為準）、rpa_core 的測試與 docs／i18n 的大部分測試。</dd>
       </dl></div>
@@ -54,7 +54,7 @@
             <li>文件：管理 Portal（繁中、英文）、Agent 使用指南、ADR 0022、ADR 索引、導覽、路線圖、本頁、決定、未完成工作。</li>
           </ul></li>
         <li><strong>未完成／阻礙：</strong>人工驗收；畫布的互動沒有自動化的瀏覽器測試（伺服器測試涵蓋 API 與頁面內容）。</li>
-        <li><strong>下一個具體動作：</strong>使用者照 Claude Doc「M7.1 與組合場景流程人工驗收教程（一台電腦）」驗收 M7.1 與這三項 → Claude 回填結果（本頁與 M7 任務紀錄）→ 使用者審閱並合併（先合 #15，再合 #20）。</li>
+        <li><strong>下一個具體動作：</strong>使用者照 Claude Doc「M7.1 與組合場景流程人工驗收教程（一台電腦）」第六～八步驗收這三項 → Claude 回填結果 → 使用者審閱並合併 #20。#20 與 #22 都改任務索引，已錯開成不相鄰的兩行，哪一個先合併都不會讓另一個衝突。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -77,9 +77,10 @@
           <tr><td><span class="mono">54fbc59</span>，Claude 雲端環境</td><td><code>ruff check</code>、<code>ruff format --check</code>；Pyright strict（rpa_core 檔案）；<code>pytest packages/rpa_core/tests</code>；<code>node --check portal.js</code></td><td>Ruff 通過；rpa_core 的 Pyright 0 錯誤；rpa_core 574 passed；portal.js 語法正確</td><td>伺服器測試（缺 SQLAlchemy、FastAPI）、伺服器的 Pyright、簡中</td></tr>
           <tr><td><span class="mono">54fbc59</span>，GitHub Actions（手動觸發 CI）</td><td><a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43134475815">CI 43134475815</a></td><td>靜態檢查（Ruff、Pyright）通過；Windows 的 Worker 測試 120 passed；測試 3.13 有 9 個失敗：<code>test_render</code> 4 個（運行頁的 data-signature 與流程圖縮圖多了新欄位，預期值沒更新）、<code>test_workflow_api</code> 的發布 2 個（那裡的假執行器回報全 0 的雜湊，本來就過不了發布門檻）、簡中 3 個（還沒產生）。都在 <span class="mono">cc4ae2e</span> 與 bootstrap <span class="mono">64572ee</span> 修好</td><td>—</td></tr>
           <tr><td><span class="mono">cc4ae2e</span>，GitHub Actions（PR #20）</td><td><a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43135963332">CI 43135963332</a>；桌面端建置、伺服器分發包、一鍵安裝腳本、RPA Python 運行環境</td><td>全部通過（2026-11-11 17:44 America/Los_Angeles（PST，UTC−08:00））。測試 3.12：2350 passed、6 skipped；3.13：2407 passed、6 skipped（含新的伺服器測試、docs／i18n 的簡中）；Windows 的 Worker 測試 120 passed</td><td>人工驗收；畫布互動沒有瀏覽器自動化測試</td></tr>
+          <tr><td><span class="mono">5b8d33d</span>（合併 main 的 #19，含 <span class="mono">4212c82</span>、<span class="mono">948b773</span>），GitHub Actions（PR #20）</td><td><a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43452895789">CI 43452895789</a>；桌面端建置、伺服器分發包、一鍵安裝腳本、RPA Python 運行環境</td><td>全部通過（2026-11-13 07:33 America/Los_Angeles（PST，UTC−08:00））。測試 3.12：2350 passed、6 skipped；3.13：2407 passed、6 skipped；Windows 的 Worker 測試 121 passed；bootstrap 略過</td><td>畫布存檔後的刷新沒有自動化的瀏覽器測試，靠人工驗收</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：PR #20 最新 head <span class="mono">cc4ae2e</span> 全綠（見上表）；人工驗收：未執行（教程已交給使用者）；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI：<span class="mono">5b8d33d</span> 全綠（見上表）；<span class="mono">12ca8ec</span> 之後的程式和它相同，只多了合併提交與任務紀錄。人工驗收：M7.1 的部分已通過（#15 已合併），組合場景的三項進行中；審閱：未審閱。</p></div>
     </section>
 
     <section class="panel" id="receipt">
@@ -93,6 +94,8 @@
         <li>2026-11-11 17:04～17:32 America/Los_Angeles（PST，UTC−08:00），Claude：使用者要求做這三項並出驗收教程。讀了組合場景的定義、排程、派工、驗證紀錄、報告、回看與畫布；問四個設計問題（D1～D4），使用者回答。先把 main（#16、#18）合併進 <code>feat/m7-flow-control</code>（<span class="mono">b6129bd</span>，衝突兩處：任務索引兩行都留、英文 Portal 頁重新 stamp；那次的 CI 全綠，bootstrap 沒有需要更新的檔案），再開本分支實作，推送後手動觸發 CI。</li>
         <li>2026-11-11 17:32～17:50 America/Los_Angeles（PST，UTC−08:00），Claude：手動觸發的 CI 有 9 個失敗（見驗證表），修好後 17:39 開 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/20">PR #20</a>，17:44 全部流程通過。寫 Claude Doc「M7.1 與組合場景流程人工驗收教程（一台電腦）」給使用者：照使用者的一台機模式（<code>rpa serve --no-local-worker</code>、命令列的錄製端與兩個 Worker），舊版 Worker 用 main 的 worktree，取代前一份 M7.1 教程（Mac 加 Windows）。沒有合併任何 PR、沒有推標籤。</li>
         <li>2026-11-13 07:16～07:21 America/Los_Angeles（PST，UTC−08:00），Claude：使用者驗收回報三項。(1) 新分頁查月報表的回看看不出開了新分頁：M7.1 的問題，在 #15 修（<span class="mono">948b773</span>，見 <a href="20261106-m7-flow.html#log">M7 任務紀錄</a>），合併進本分支。(2) 條件分支驗證時 n3（BA-003 查詢不存在的紀錄）失敗：條件本身走對了（兩次都走到「其他情況」的 n3），是新加入畫布的節點入參預設「同名匹配」，n3 的 recordId 接到 n1 剛建的真實紀錄，查得到資料，等不到「查無紀錄」；教程漏了「n3 的 recordId 改成預設值」，已補上，程式不改。(3) 畫布按「儲存」後版本表不更新：<span class="mono">4212c82</span> 修正（JS，沒有自動化的瀏覽器測試）。</li>
+        <li>2026-11-13 07:27～07:33 America/Los_Angeles（PST，UTC−08:00），Claude：main 合併 #19（每晚 Firefox 錄影）後，#20 和 main 在任務索引衝突（兩邊各加一行），GitHub 不跑有衝突的 PR 的 CI。把 main 合併進本分支（<span class="mono">5b8d33d</span>，不 rebase），兩行都留；07:33 全部流程通過（見驗證表）。</li>
+        <li>2026-11-13 17:59～18:10 America/Los_Angeles（PST，UTC−08:00），Claude：使用者（原文）「PR15我驗收merge了，幫我解決其他兩個pr的衝突。」開著的是 #20 與 #22（<code>claude/project-thread-0k55i9</code>，另一個 session 的 issue #21 測試修正）。(1) #20：GitHub 標成有衝突，但 git 的 ort 合併沒有衝突、結果和 <span class="mono">5b8d33d</span> 的樹相同；原因是 main 的 #15 合併提交讓兩邊有兩個共同祖先（<span class="mono">429a51f</span>、<span class="mono">3437048</span>）。把 main 合併進本分支（<span class="mono">12ca8ec</span>），共同祖先變成一個。(2) #22 和 main 沒有衝突（GitHub 也標可合併），但它和 #20 改到任務索引相鄰的兩行（#22 改 nightly-firefox-video 那一行，#20 在它上面加一行），哪一個先合併，另一個就會衝突。在本分支把組合場景那一行移到 scene-dag-visual-order 下面，和 #22 改的那一行隔開；#22 的分支沒有動。同一個提交把 M7 任務紀錄與索引改成 #15 已合併（#15 的分支已合併，所以放在這裡）。</li>
       </ul></div>
     </section>
   </div>
