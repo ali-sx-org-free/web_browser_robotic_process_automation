@@ -1,0 +1,91 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/adr/0024-batch-runs.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0024 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0024" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0024：数据驱动是批量运行，一列是一次一般的正式运行</h1>
+      <p>上传或粘贴一张表，每一列是一组入参，每一列各正式运行一次发布过的场景版本，各有报告、出参与回看。批量记下表格、字段对应与选项，调度每次都从数据库重新算；结束后可以导出结果，只重跑没有通过的列（重跑前可以改那几列的保存格）。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-11-13</dd>
+        <dt>状态</dt><dd>2026-11-06 18:21 America/Los_Angeles（PST，UTC−08:00）用户确认 M7 的 D9：数据驱动做成批量运行，一列一次运行、各有报告，汇总可以导出、可以只重跑失败的列（见<a href="../../../handoff/decisions.html#decisions">决定记录</a>）。表格格式、字段对应与换算、调度与「第几轮」、服务器自己读写 xlsx、Agent API 的写法是 2026-11-13 细部设计时的实现选择（用户 2026-11-13 18:12 要求「把M7后续流程实现」），记在本页与<a href="../../../handoff/tasks/20261113-m7-3-batch.html">任务记录</a>，审阅 PR 时可以调整。</dd>
+        <dt>影响范围</dt><dd>rpa-server（表格的读入与导出、批量服务与调度、迁移 0018、API、Agent API、Portal 的批量页）；rpa-core、rpa-runner、Worker 与录制端不改（每一列就是一次一般的正式运行）</dd>
+        <dt>相关</dt><dd><a href="0009-scenario-contract.html">ADR 0009</a>（场景契约）、<a href="0012-remote-workers.html">ADR 0012</a>（远程 Worker 与运行位置）、<a href="0017-agent-api.html">ADR 0017</a>（对外 Agent API）、<a href="0018-layered-updates.html">ADR 0018</a>（分层更新）、<a href="0021-flow-control.html">ADR 0021</a>（场景内的流程控制）；<a href="../design/portal.html#batch">管理 Portal › 批量运行</a>、<a href="../design/agent-api.html">对外 Agent API</a>；<a href="../../../handoff/tasks/20261113-m7-3-batch.html">任务记录</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>常见的需求是「同一个流程，对一份清单的每一笔各做一次」：逐笔建单、逐个账号开通。M7.1 的 <code>forEach</code> 能在一次运行里逐项做，但一笔出错就要靠 <code>try</code> 接住，结果只有一份报告，事后也看不出哪一笔是哪个画面。逐笔建单往往每一笔都要留证据，而且要能只补做失败的几笔。</p>
+          <p>正式运行本来就有契约校验、报告、出参、回看、运行位置与 Agent 的上限；要的是把一张表变成很多次正式运行，并且看得到每一列的结果。</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>决策</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>一列是一次一般的正式运行。</strong>批量在创建时固定场景目前发布的版本；每一列排入一次目的是 execution 的运行（<code>runs.batch_id</code>、<code>batch_row</code>），和手动运行一样有报告、出参、回看与运行位置。Worker、录制端与运行器不知道批量。</li>
+            <li><strong>表格存文字。</strong>粘贴（Tab 或逗号分隔）或上传 CSV、TSV、Excel（.xlsx，第一个工作表；日期依保存格格式换成 ISO 写法）。第一列是标题；最多 1,000 列、50 栏、5 MB，每格 10,000 字。保存格原样存成文字，排入前才换成入参。</li>
+            <li><strong>字段依标题自动对应，可以改。</strong>标题和入参名称相同（或不分大小写、忽略空白、底线与连字号后相同）就对应；没对应或空白的保存格用默认值。换算：数字可以有千分位；是非接受 true／false、1／0、yes／no、是／否；清单与对象写 JSON；写了 <code>{{ }}</code> 的照原样交给动态值；文件入参不能从表格给值。换算后照场景的契约检查，有问题的列标成「数据有问题」、不运行。</li>
+            <li><strong>先创建再开始。</strong>创建后是「等待开始」，可以改字段对应与选项、看每一列的检查结果；开始后不能再改。选项：一列没通过时照跑或停下；同时排入几列（1～10，实际同时跑几列看有几台 Worker 空着）；浏览器、网址、有头／无头、运行位置同运行表单。</li>
+            <li><strong>调度从数据库重新算。</strong>每一次运行结束（包括排队中被取消）就重新看这个批量：哪几列在跑、这一轮还有哪几列没排、有没有没通过的列，补满「同时几列」或结束。同一个通知来两次、服务器重启后都能接着走；每一列的幂等键是「批量-列号-第几次」，不会重复排入。排不进去的列（例如场景被封存）记下原因、算没有通过。</li>
+            <li><strong>「第几轮」区分要跑的列。</strong>开始是第 1 轮，每次重跑加 1；只有被选进这一轮的列会排入、会算「没有通过」。没指定时重跑没有通过的列（失败、超时、取消、需要登录、排不进去、数据有问题、没有运行）；可以指定列号；重跑前可以改那几列的保存格（只能改原有的字段，每次运行仍各自保留）。</li>
+            <li><strong>停下不复原。</strong>手动停下或「一列没通过就停下」时不再排新的列，手动停下会取消排队中与运行中的列；已经发生的外部动作不会回滚。</li>
+            <li><strong>导出由服务器产生。</strong>CSV（UTF-8 带 BOM，以 <code>=</code>、<code>+</code>、<code>-</code>、<code>@</code> 开头又不是数字的值前面加 <code>'</code>，避免被当成公式）与 Excel；内容是原本的保存格加上状态、第几次、运行编号、每个出参与错误。服务器用标准函数库读写 xlsx，不加 openpyxl。</li>
+            <li><strong>Agent API 用同一套。</strong><code>POST /agent-api/v1/batches</code> 的 <code>rows</code> 每一列是一组入参（入参名称 → 值），创建后直接开始；任何一列有问题就整批不创建（422，列出每一列的问题）。同时排入的列算在排队与运行中的上限里；只看得到、停得了自己创建的批量。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>后果</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>每一列的证据和手动运行完全相同，运行清单、回看、Agent 读运行都不用改；代价是 1,000 列就是 1,000 笔运行记录与运行目录，保留规则照一般运行。</li>
+            <li>批量不挡场景之后发布新版本，也不会换版本：要用新版本就建一个新批量。</li>
+            <li>每一列都开一次浏览器、登录一次（有登录角色时用保存的登录状态）；同一个画面里逐项做、要共用一个浏览器的情况仍用 <code>forEach</code>。</li>
+            <li>「同时几列」只决定排入多少；同一台 Worker 一次一列，要真的平行需要多台 Worker。</li>
+            <li>服务器多两张表（<code>batches</code>、<code>batch_rows</code>）与 <code>runs</code> 的两个字段，要一个数据库迁移（0018）。</li>
+            <li>自己读写 xlsx 只处理常见的情况（第一个工作表、共用字符串、内嵌字符串、数字与日期格式）；公式取 Excel 存下的计算结果，没有存结果的公式读成空白。</li>
+            <li>第一版只有发布过的场景；组合场景（项目里的组合）的批量运行、调度触发与「批量之间共用的上限」之后再看需求。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>没有选的方案</h2></div>
+        <div class="panel-body">
+          <table class="table">
+            <thead><tr><th>方案</th><th>没有选的原因</th></tr></thead>
+            <tbody>
+              <tr><td>只做 <code>forEach</code>，把表格读成清单在一次运行里逐列做</td><td>一列出错会影响整次运行，只有一份报告，不能只补做失败的列；用户选了批量运行（D9）。</td></tr>
+              <tr><td>批量是一种新的运行目的，或在 Worker 端逐列运行</td><td>报告、回看、运行位置、Agent 的上限与运行清单都要另外处理；Worker 协定要改。</td></tr>
+              <tr><td>创建时就把每一列换算好存成入参</td><td>改字段对应或改保存格就要重算、存两份；换算规则改了以后旧批量看不出原本的数据。</td></tr>
+              <tr><td>用「开始之后创建的运行」判断这一轮的结果</td><td>重跑指定的列时，没被选、也从来没跑过的列分辨不出来，会跟着被排入；上一轮排不进去的列也会让「一列没通过就停下」立刻停下。</td></tr>
+              <tr><td>服务器加 openpyxl 读写 Excel</td><td>分发包的 Python 依赖改变，runtime 编号跟着变，升级要下载完整安装包；需要的只是读第一个工作表的文字与写一张简单的表。</td></tr>
+              <tr><td>在浏览器里解析文件、产生导出</td><td>Agent API 也要同样的检查与导出；规则只写一份在服务器。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

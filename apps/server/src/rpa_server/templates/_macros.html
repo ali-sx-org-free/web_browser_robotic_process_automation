@@ -219,12 +219,12 @@
 
 
 {# 執行位置（M9a）：登記了遠端 worker 才顯示；data-display 是各位置能不能用有頭模式 #}
-{% macro location_field(locations) -%}
+{% macro location_field(locations, chosen=none) -%}
 {% if locations.remote %}
 <fieldset class="field choice" data-target-choice data-display="{{ locations.display | tojson | forceescape }}">
   <legend>{{ t("target.label") }}</legend>
   {% for target in ("local", "remote", "any") %}
-  <label><input type="radio" name="target" value="{{ target }}"{% if target == locations.default %} checked{% endif %}{% if target == "local" and not locations.local %} disabled{% endif %}> {{ t("target." + target) }}</label>
+  <label><input type="radio" name="target" value="{{ target }}"{% if target == (chosen or locations.default) %} checked{% endif %}{% if target == "local" and not locations.local %} disabled{% endif %}> {{ t("target." + target) }}</label>
   {% endfor %}
   <span class="cell-sub">{{ t("target.hint") }}</span>
   <p class="notice warn" data-local-url-warning hidden>{{ t("target.local_url_warning") }}</p>

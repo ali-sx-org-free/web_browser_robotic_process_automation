@@ -248,6 +248,29 @@ POST /agent-api/v1/scenes/order-import/revisions/3/validate
       </div>
     </section>
 
+    <section class="panel" id="batches">
+      <div class="panel-header"><h2>批量运行</h2><span class="muted">M7.3；<a href="../adr/0024-batch-runs.html">ADR 0024</a></span></div>
+      <div class="panel-body">
+        <p>同一个场景要对一份清单的每一笔各正式运行一次（逐笔建单、逐个开账号）时，用批量运行：每一列是一次一般的正式运行，各有报告、出参与回看；一列失败不影响其他列，之后可以只重跑没有通过的列。在同一个画面里逐项做、要共用一个浏览器时，改在场景里用 <code>forEach</code>。</p>
+<pre class="source">POST /agent-api/v1/batches                       （需要 runs:execute）
+{"sceneId": "order-create",
+ "rows": [{"customer": "王小明", "quantity": 2}, {"customer": "陈大华"}],
+ "onFailure": "continue", "concurrency": 2, "idempotencyKey": "orders-1105"}
+→ 202 {"id": "batch-20261105-…", "status": "running", "revision": 3,
+       "counts": {"total": 2, "queued": 2}, "rows": [{"number": 1, "status": "queued", "runId": "order-create-…", …}, …],
+       "portalPath": "/batches/batch-20261105-…"}
+
+GET /agent-api/v1/batches/batch-20261105-…        （需要 runs:read）</pre>
+        <ul class="points">
+          <li><strong>一列一组入参</strong>：键是入参名称；没写或空字符串的入参用默认值。用的是场景目前发布的版本（创建时固定）。任何一列不符合契约或写了场景没有的入参，整批不创建，回 422 <code>batch_rows_invalid</code>，<code>problems</code> 的每一项有 <code>row</code>（从 1 起；写了场景没有的入参时是 null）、<code>input</code> 与 <code>message</code>。</li>
+          <li><strong>同时几列</strong>：<code>concurrency</code> 是 1～10，算在排队与运行中的上限里（超过时 429 <code>limit_reached</code>）；同一台 Worker 一次一列。<code>onFailure: "stop"</code> 时一列没通过就不再排新的列。</li>
+          <li><strong>看结果</strong>：<code>GET /batches/{id}</code> 的 <code>status</code> 是 running、finished 或 stopped；<code>counts</code> 是每种状态几列；每一列有 <code>status</code>、<code>runId</code>、<code>output</code>、<code>error</code>、<code>attempts</code> 与每一次的 <code>runs</code>。报告、步骤、文件照一般运行用 <code>/runs/{runId}</code> 读。</li>
+          <li><strong>停下与重跑</strong>：<code>POST /batches/{id}/stop</code> 取消排队中与运行中的列（已经在目标系统完成的动作不会复原）；结束或停下后 <code>POST /batches/{id}/rerun</code> 重跑没有通过的列，或用 <code>{"rows": [2, 5]}</code> 指定。改数据再跑、导出 CSV／Excel 在 Portal 的批量页（<code>portalPath</code>）。</li>
+          <li><strong>只看得到自己的</strong>：别的用户端创建的批量回 404 <code>batch_not_found</code>。同一个 <code>idempotencyKey</code> 回传同一个批量。</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel" id="projects">
       <div class="panel-header"><h2>项目与组合场景</h2></div>
       <div class="panel-body">

@@ -7,6 +7,8 @@ M10.1 加上裝置邀請 device_invites；M10.2 加上錄製端 recorders 與錄
 M14：對外 Agent API 的用戶端 api_clients 與稽核 api_audit；執行記下觸發的用戶端 runs.client_id，
 錄製端加上允不允許 Agent 調試 recorders.allow_agent、agent_headless_only（ADR 0017）。
 M7c：上傳的檔案 uploaded_files（內容以 sha256 存在資料目錄的 input-files/，同內容只存一份）。
+M7.3：批次執行 batches 與它的每一列 batch_rows；執行記下屬於哪個批次的第幾列 runs.batch_id、
+runs.batch_row（ADR 0024）。
 
 M11：場景、版本、角色的定義與驗證、發布紀錄都在領域資料夾（rpa_server.packs）；這幾張表是
 資料夾的**索引**，載入時依資料夾重建。只在資料庫的欄位（網址覆寫、排序、登入檢查的結果）
@@ -189,6 +191,73 @@ class Run(Base):
     """刪除的原因：expired（超過保留天數）、quota（超過總量上限）。"""
     client_id: Mapped[str | None] = mapped_column(String(64), index=True)
     """由哪個 API 用戶端觸發（M14）；人在 Portal 觸發的是 None。用戶端刪除後仍保留，不設外鍵。"""
+    batch_id: Mapped[str | None] = mapped_column(ForeignKey("batches.id"), index=True)
+    """屬於哪個批次（M7.3，目的是 execution）；單獨的執行是 None。"""
+    batch_row: Mapped[int | None] = mapped_column()
+    """批次的第幾列（從 1 起）；同一列重跑時有好幾筆執行。"""
+
+
+class Batch(Base):
+    """批次執行（M7.3，ADR 0024）：用一張表的每一列，各正式執行一次發布過的場景版本。
+
+    每一列是一筆 batch_rows；排入的執行是一般的 runs（目的 execution），記下 batch_id 與第幾列，
+    各有報告、出參與回看。版本在建立時固定，之後場景發布新版本不影響這個批次。
+    """
+
+    __tablename__ = "batches"
+
+    id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    scene_id: Mapped[str] = mapped_column(ForeignKey("scenes.id"), index=True)
+    revision_number: Mapped[int] = mapped_column()
+    scene_name: Mapped[str] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(20), index=True)
+    """draft（等待開始，可以改欄位對應與選項）→ running → finished；停下的是 stopped。"""
+    columns: Mapped[list[str]] = mapped_column(JsonType)
+    """表格的標題，依原本的順序。"""
+    mapping: Mapped[dict[str, object]] = mapped_column(JsonType)
+    """入參 → 欄位（沒有對應的是 null，用預設值）。"""
+    source: Mapped[str | None] = mapped_column(String(255))
+    """上傳的檔名；貼上的表格是 None。"""
+    on_failure: Mapped[str] = mapped_column(String(10))
+    """一列沒有通過時：continue（其他列照跑）或 stop（不再排新的列）。"""
+    concurrency: Mapped[int] = mapped_column()
+    """同時排入幾列（1～10）；實際同時跑幾列看有幾台 worker 空著。"""
+    round_number: Mapped[int] = mapped_column(default=0)
+    """第幾輪：開始是 1，每次重跑加 1；只有這一輪要跑的列（batch_rows 的 round_number 相同）會排入、
+    算「沒有通過」。"""
+    engine: Mapped[str | None] = mapped_column(String(20))
+    base_url: Mapped[str | None] = mapped_column(String(2000))
+    headless: Mapped[bool | None] = mapped_column(Boolean)
+    target: Mapped[str | None] = mapped_column(String(10))
+    error: Mapped[str | None] = mapped_column(Text)
+    """停下的原因。"""
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime(), index=True)
+    started_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    client_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    """由哪個 API 用戶端建立（M14）；Portal 建立的是 None。"""
+    idempotency_key: Mapped[str | None] = mapped_column(String(100), unique=True)
+
+
+class BatchRow(Base):
+    """批次的一列：原本的儲存格（文字），以及最近一次執行。入參在排入前依欄位對應換算。"""
+
+    __tablename__ = "batch_rows"
+    __table_args__ = (UniqueConstraint("batch_id", "number"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    batch_id: Mapped[str] = mapped_column(ForeignKey("batches.id"))
+    number: Mapped[int] = mapped_column()
+    """第幾列（從 1 起，不含標題）。"""
+    cells: Mapped[dict[str, object]] = mapped_column(JsonType)
+    """標題 → 文字；重跑前可以改。"""
+    run_id: Mapped[str | None] = mapped_column(String(120))
+    """最近一次的執行；還沒排入的是 None。"""
+    attempts: Mapped[int] = mapped_column(default=0)
+    round_number: Mapped[int] = mapped_column(default=0)
+    """最近一次被選進哪一輪；等於批次的 round_number、還沒排入的列就是這一輪要跑的。"""
+    error: Mapped[str | None] = mapped_column(Text)
+    """排入失敗的原因（例如場景封存了）；入參的問題每次重新檢查，不存。"""
 
 
 class Role(Base):

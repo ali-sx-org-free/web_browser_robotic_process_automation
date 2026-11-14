@@ -208,6 +208,8 @@
             <tr><td><code>POST /scenes/{id}/revisions/{n}/publish</code></td><td>发布验证通过、哈希相符的版本</td><td>scenes:publish</td><td>沿用</td></tr>
             <tr><td><code>POST /scenes/{id}/runs</code></td><td>正式运行已发布版本</td><td>runs:execute</td><td>沿用＋<code>workerId</code></td></tr>
             <tr><td><code>POST /runs/{id}/cancel</code>、<code>/rerun</code></td><td>取消；同样的入参再跑一次</td><td>runs:execute</td><td>沿用</td></tr>
+            <tr><td><code>POST /batches</code></td><td>批量运行（M7.3，<a href="../adr/0024-batch-runs.html">ADR 0024</a>）：<code>sceneId</code>、<code>rows</code>（1～1,000 列，每一列是一组入参）、<code>onFailure</code>、<code>concurrency</code>、运行位置等选项；创建后直接开始。任何一列有问题 422 <code>batch_rows_invalid</code>；同时排入的列算在排队上限里</td><td>runs:execute</td><td>沿用</td></tr>
+            <tr><td><code>POST /batches/{id}/stop</code>、<code>/rerun</code></td><td>停下（取消排队中与运行中的列）；重跑没有通过的列（或 <code>rows</code> 指定的列）；只限自己创建的批量</td><td>runs:execute</td><td>沿用</td></tr>
             <tr><td><code>GET</code>、<code>POST /projects</code>，<code>GET</code>、<code>PATCH /projects/{id}</code></td><td>可用的项目与它的组合场景摘要；添加项目；改名称与说明</td><td>projects:read／write</td><td>沿用项目空间</td></tr>
             <tr><td><code>GET /composites/library</code>、<code>POST /composites/check</code></td><td>可以放进组合场景的场景版本；不保存检查定义</td><td>projects:read</td><td>沿用</td></tr>
             <tr><td><code>GET /composites</code>、<code>/composites/{code}</code></td><td>组合场景摘要；定义、问题、版本、验证记录、依赖、最近的运行</td><td>projects:read</td><td>沿用</td></tr>
@@ -229,6 +231,7 @@
             <tr><td><code>GET /runs/{id}</code></td><td>状态（排队、运行中、通过、失败、超时、已取消、需要登录）、目前阶段、哪台 Worker、入参、出参（只有通过才有）、错误、开始与结束时间</td><td>一</td></tr>
             <tr><td><code>GET /runs?scene=&amp;status=&amp;purpose=&amp;mine=</code></td><td>这个用户端看得到的运行（可用领域里的场景）；<code>mine</code> 只列自己触发的</td><td>一</td></tr>
             <tr><td><code>GET /runs/{id}/steps</code></td><td>每一步的状态、开始与结束时间、错误、步骤后的网址；第二期起运行中也实时更新</td><td>一、二</td></tr>
+            <tr><td><code>GET /batches/{id}</code></td><td>批量运行（M7.3）：状态、各状态的列数、每一列的入参、状态、运行代号、出参、错误与每一次的运行；只看得到自己创建的批量（别人的回 404）</td><td>一</td></tr>
             <tr><td><code>GET /runs/{id}/files/{path}</code></td><td>截图、report.html、result.json、录像等产物（受「回传页面内容」控制）</td><td>一</td></tr>
             <tr><td><code>GET /composite-runs/{id}</code>、<code>GET /composite-runs?project=&amp;composite=&amp;status=&amp;mine=</code></td><td>组合场景的运行：状态、进度（共几个节点、完成几个、通过几个、目前的节点）、每个节点的状态与那次运行（再用 <code>/runs/{id}</code> 读细节）；<code>reportUrl</code> 是汇总报告，<code>replayPath</code> 是人在 Portal 看合并回看的路径</td><td>一</td></tr>
             <tr><td><code>GET /composite-runs/{id}/report</code></td><td>整次组合运行的汇总报告（2026-10-27）：结论（停在哪个节点的哪一步、错误、没通过的断言）、节点与步骤与断言的通过数、时间轴、每个节点的入参（值与来源）、出参（值与流向）、步骤与断言；截图与节点报告的网址是本 API 的路径，没有页面内容权限时是 null。写测试报告时一次读完，不必逐一读节点</td><td>一</td></tr>
@@ -301,6 +304,7 @@
             <tr><td><code>api_clients</code></td><td>名称、密钥哈希、权限范围、可用领域、项目与录制端、运行位置、限额、回传页面内容、到期、激活、最后使用</td><td>一</td></tr>
             <tr><td><code>api_audit</code></td><td>时间、用户端、动作、对象、结果码、摘要；只增不改</td><td>一</td></tr>
             <tr><td><code>runs.client_id</code>、<code>workflow_runs.client_id</code></td><td>触发这次运行或组合场景运行的用户端（组合场景的节点也记下）</td><td>一</td></tr>
+            <tr><td><code>batches.client_id</code></td><td>创建这个批量的用户端（M7.3）；批量每一列的运行也记在 <code>runs.client_id</code></td><td>一</td></tr>
             <tr><td><code>recorders.allow_agent</code>、<code>agent_headless_only</code></td><td>允不允许 Agent 调试、是否只允许无头</td><td>一</td></tr>
             <tr><td><code>run_events</code></td><td>运行代号、序号、时间、种类、内容；跟着运行的保留规则清理</td><td>二</td></tr>
             <tr><td><code>runs.step_index</code>、<code>step_count</code></td><td>目前第几步、共几步</td><td>二</td></tr>

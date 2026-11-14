@@ -27,14 +27,19 @@ Agent 自己用的 API 在 /agent-api/v1（agent_api.py）。
 
 M7c：上傳的檔案（POST /api/files?name=檔名，本體就是檔案內容；GET /api/files/{代號} 的說明與
 /content 的內容）。執行、驗證、調試與組合場景的檔案入參寫 ``{"file": 代號, "name": …}``。
+
+M7.3：批次執行（POST /api/scenes/{代號}/batches 建立，/api/batches/{批次} 的 start、stop、
+rerun、export；ADR 0024）。
 """
 
+import base64
+import binascii
 from datetime import datetime
 from typing import Annotated, Literal, cast
 
 import anyio
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
@@ -42,9 +47,10 @@ from rpa_core.dsl import validate_text
 from rpa_core.dsl.editing import SECTION_KEYS, json_document, section_text
 from rpa_core.dsl.files import MAX_ATTACHMENT_BYTES, guess_media_type
 from rpa_server.agents import AUDIT_LIMIT, DEFAULT_SCOPES, ClientPolicy
+from rpa_server.batch_table import Table, TableError, parse_text, read_table
 from rpa_server.composite_report import report_json
 from rpa_server.domain import Engine, Target
-from rpa_server.errors import ServiceError, not_found
+from rpa_server.errors import ServiceError, invalid, not_found
 from rpa_server.gitsync import Auth, GitSource
 from rpa_server.i18n import t
 from rpa_server.recordings import RecordingTarget
@@ -168,6 +174,37 @@ class RunCreate(_Body):
     """無頭模式；沒指定時能顯示瀏覽器視窗就用有頭模式。"""
     target: Target | None = None
     """執行位置（M9a）；沒指定時用預設執行位置。"""
+
+
+class BatchOptions(_Body):
+    """批次的選項（M7.3）：一列沒通過時、同時幾列、執行的設定（同執行表單）。"""
+
+    mapping: dict[str, str | None] | None = None
+    """入參 → 欄位（null 是不對應、用預設值）；沒寫的入參依標題自動對應。"""
+    on_failure: Literal["continue", "stop"] | None = None
+    concurrency: int | None = Field(default=None, ge=1, le=10)
+    engine: Engine | None = None
+    base_url: str | None = Field(default=None, max_length=2000)
+    headless: bool | None = None
+    target: Target | None = None
+
+
+class BatchCreate(BatchOptions):
+    """建立批次：貼上的表格（text），或上傳的檔案（fileName 與 base64 的 fileContent）。"""
+
+    text: str | None = Field(default=None, max_length=8_000_000)
+    file_name: str | None = Field(default=None, max_length=255)
+    file_content: str | None = Field(default=None, max_length=8_000_000)
+    start: bool = False
+    """True：建立後直接開始（不先看欄位對應）。"""
+    idempotency_key: str | None = Field(default=None, max_length=100)
+
+
+class BatchRerun(_Body):
+    rows: list[int] | None = Field(default=None, max_length=1000)
+    """要重跑的列（從 1 起）；沒寫是沒有通過的列。"""
+    cells: dict[str, dict[str, str]] | None = None
+    """重跑前改的儲存格：列號 → 欄位 → 文字。"""
 
 
 class ContractItem(_Body):
@@ -442,6 +479,35 @@ class WorkflowRerun(_Body):
     resume: bool = False
     """True：從停下的節點繼續，沿用前面節點的出參；False：從頭再執行一次。"""
     idempotency_key: str | None = Field(default=None, max_length=100)
+
+
+def batch_table_of(text: str | None, name: str | None, content: str | None) -> Table:
+    """批次的表格：base64 的檔案或貼上的文字；讀不進來時回 422 並說明原因。"""
+    try:
+        if content is not None:
+            try:
+                data = base64.b64decode(content, validate=True)
+            except (binascii.Error, ValueError) as error:
+                raise TableError(t("batch.table_base64")) from error
+            return read_table(name or "table.csv", data)
+        if text is not None and text.strip():
+            return parse_text(text)
+    except TableError as error:
+        raise invalid("batch_table", str(error)) from error
+    raise invalid("batch_table", t("batch.table_missing"))
+
+
+def rerun_cells(cells: dict[str, dict[str, str]] | None) -> dict[int, dict[str, str]] | None:
+    """重跑前改的儲存格：JSON 的鍵是文字，換成列號。"""
+    if cells is None:
+        return None
+    changed: dict[int, dict[str, str]] = {}
+    for key, values in cells.items():
+        try:
+            changed[int(key)] = values
+        except ValueError as error:
+            raise invalid("batch_row_unknown", t("error.batch_row_unknown", row=key)) from error
+    return changed
 
 
 def _values(body: RoleBody) -> dict[str, object]:
@@ -868,6 +934,81 @@ def api_router(services: Services) -> APIRouter:
             target=body.target,
         )
         return run.to_json()
+
+    # ------------------------------------------------------------ 批次執行（M7.3）
+
+    @router.post("/scenes/{scene_id}/batches", status_code=201)
+    def create_batch(scene_id: str, body: BatchCreate) -> dict[str, object]:
+        table = batch_table_of(body.text, body.file_name, body.file_content)
+        batch = services.batches.create(
+            scene_id,
+            table,
+            source=body.file_name if body.file_content is not None else None,
+            mapping=body.mapping,
+            on_failure=body.on_failure or "continue",
+            concurrency=body.concurrency or 1,
+            engine=body.engine,
+            base_url=body.base_url,
+            headless=body.headless,
+            target=body.target,
+            idempotency_key=body.idempotency_key,
+        )
+        if body.start and batch.status == "draft":
+            batch = services.batches.start(batch.id)
+        return batch.to_json()
+
+    @router.get("/batches")
+    def list_batches(
+        scene: str | None = None, limit: Annotated[int, Query(ge=1, le=500)] = 100
+    ) -> dict[str, object]:
+        found = services.batches.recent(scene_id=scene, limit=limit)
+        return {"batches": [batch.to_json(rows=False) for batch in found]}
+
+    @router.get("/batches/{batch_id}")
+    def get_batch(batch_id: str) -> dict[str, object]:
+        return services.batches.get(batch_id).to_json()
+
+    @router.patch("/batches/{batch_id}")
+    def update_batch(batch_id: str, body: BatchOptions) -> dict[str, object]:
+        sent = body.model_fields_set
+        return services.batches.update(
+            batch_id,
+            mapping=body.mapping,
+            on_failure=body.on_failure,
+            concurrency=body.concurrency,
+            engine=body.engine,
+            base_url=body.base_url,
+            headless=body.headless,
+            target=body.target,
+            fields=frozenset(sent),
+        ).to_json()
+
+    @router.delete("/batches/{batch_id}", status_code=204)
+    def delete_batch(batch_id: str) -> None:
+        services.batches.delete(batch_id)
+
+    @router.post("/batches/{batch_id}/start", status_code=202)
+    def start_batch(batch_id: str) -> dict[str, object]:
+        return services.batches.start(batch_id).to_json()
+
+    @router.post("/batches/{batch_id}/stop", status_code=202)
+    def stop_batch(batch_id: str) -> dict[str, object]:
+        return services.batches.stop(batch_id).to_json()
+
+    @router.post("/batches/{batch_id}/rerun", status_code=202)
+    def rerun_batch(batch_id: str, body: BatchRerun | None = None) -> dict[str, object]:
+        cells = rerun_cells(body.cells if body is not None else None)
+        rows = body.rows if body is not None else None
+        return services.batches.rerun(batch_id, rows=rows, cells=cells).to_json()
+
+    @router.get("/batches/{batch_id}/export", response_model=None)
+    def export_batch(batch_id: str, format: Literal["csv", "xlsx"] = "csv") -> Response:
+        name, media, data = services.batches.export(batch_id, format)
+        return Response(
+            data,
+            media_type=media,
+            headers={"Content-Disposition": f'attachment; filename="{name}"'},
+        )
 
     @router.get("/runs")
     def list_runs(

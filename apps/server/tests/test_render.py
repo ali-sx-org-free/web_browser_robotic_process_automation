@@ -1198,8 +1198,8 @@ def test_top_menu_has_six_groups_on_the_server() -> None:
         "管理後台",
     ]
     assert _menu(pages["recording"], "sidenav") == ["/recording", "/playground"]
-    # 運行回看併進運行報告（2026-10-25）：場景運行只剩運行報告
-    assert _menu(pages["runs"], "sidenav") == ["/runs"]
+    # 運行回看併進運行報告（2026-10-25）；M7.3 加上批次執行
+    assert _menu(pages["runs"], "sidenav") == ["/runs", "/batches"]
     assert _menu(pages["project"], "sidenav") == ["/projects/composites", "/projects/billing"]
     assert _menu(pages["workers"], "sidenav") == ["/devices"]
     assert _menu(pages["domains"], "sidenav") == ["/domains", "/projects", "/agents"]

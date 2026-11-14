@@ -247,6 +247,29 @@ POST /agent-api/v1/scenes/order-import/revisions/3/validate
       </div>
     </section>
 
+    <section class="panel" id="batches">
+      <div class="panel-header"><h2>批次執行</h2><span class="muted">M7.3；<a href="../adr/0024-batch-runs.html">ADR 0024</a></span></div>
+      <div class="panel-body">
+        <p>同一個場景要對一份清單的每一筆各正式執行一次（逐筆建單、逐個開帳號）時，用批次執行：每一列是一次一般的正式執行，各有報告、出參與回看；一列失敗不影響其他列，之後可以只重跑沒有通過的列。在同一個畫面裡逐項做、要共用一個瀏覽器時，改在場景裡用 <code>forEach</code>。</p>
+<pre class="source">POST /agent-api/v1/batches                       （需要 runs:execute）
+{"sceneId": "order-create",
+ "rows": [{"customer": "王小明", "quantity": 2}, {"customer": "陳大華"}],
+ "onFailure": "continue", "concurrency": 2, "idempotencyKey": "orders-1105"}
+→ 202 {"id": "batch-20261105-…", "status": "running", "revision": 3,
+       "counts": {"total": 2, "queued": 2}, "rows": [{"number": 1, "status": "queued", "runId": "order-create-…", …}, …],
+       "portalPath": "/batches/batch-20261105-…"}
+
+GET /agent-api/v1/batches/batch-20261105-…        （需要 runs:read）</pre>
+        <ul class="points">
+          <li><strong>一列一組入參</strong>：鍵是入參名稱；沒寫或空字串的入參用預設值。用的是場景目前發布的版本（建立時固定）。任何一列不符合契約或寫了場景沒有的入參，整批不建立，回 422 <code>batch_rows_invalid</code>，<code>problems</code> 的每一項有 <code>row</code>（從 1 起；寫了場景沒有的入參時是 null）、<code>input</code> 與 <code>message</code>。</li>
+          <li><strong>同時幾列</strong>：<code>concurrency</code> 是 1～10，算在排隊與執行中的上限裡（超過時 429 <code>limit_reached</code>）；同一台 Worker 一次一列。<code>onFailure: "stop"</code> 時一列沒通過就不再排新的列。</li>
+          <li><strong>看結果</strong>：<code>GET /batches/{id}</code> 的 <code>status</code> 是 running、finished 或 stopped；<code>counts</code> 是每種狀態幾列；每一列有 <code>status</code>、<code>runId</code>、<code>output</code>、<code>error</code>、<code>attempts</code> 與每一次的 <code>runs</code>。報告、步驟、檔案照一般運行用 <code>/runs/{runId}</code> 讀。</li>
+          <li><strong>停下與重跑</strong>：<code>POST /batches/{id}/stop</code> 取消排隊中與執行中的列（已經在目標系統完成的動作不會復原）；結束或停下後 <code>POST /batches/{id}/rerun</code> 重跑沒有通過的列，或用 <code>{"rows": [2, 5]}</code> 指定。改資料再跑、匯出 CSV／Excel 在 Portal 的批次頁（<code>portalPath</code>）。</li>
+          <li><strong>只看得到自己的</strong>：別的用戶端建立的批次回 404 <code>batch_not_found</code>。同一個 <code>idempotencyKey</code> 回傳同一個批次。</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel" id="projects">
       <div class="panel-header"><h2>專案與組合場景</h2></div>
       <div class="panel-body">
