@@ -12,7 +12,7 @@ window.DOCS_NAV = {
   "subtitle": "ENGINEERING DOCS",
   "text": {
     "title": {"zh-Hant": "瀏覽器 RPA", "zh-Hans": "浏览器 RPA", "en": "Browser RPA"},
-    "badge": {"zh-Hant": "文檔 · v0.8.0", "zh-Hans": "文档 · v0.8.0", "en": "Docs · v0.8.0"},
+    "badge": {"zh-Hant": "文檔 · v0.9.1", "zh-Hans": "文档 · v0.9.1", "en": "Docs · v0.9.1"},
     "skip": {"zh-Hant": "跳至主要內容", "zh-Hans": "跳至主要内容", "en": "Skip to main content"},
     "topnav": {"zh-Hant": "第一級選單", "zh-Hans": "第一级菜单", "en": "Primary navigation"},
     "sidenav": {"zh-Hant": "第二級選單", "zh-Hans": "第二级菜单", "en": "Section navigation"},
@@ -207,6 +207,11 @@ window.DOCS_NAV = {
           "id": "adr-0022",
           "href": "adr/0022-composite-flow.html",
           "name": {"zh-Hant": "0022 組合場景的流程", "zh-Hans": "0022 组合场景的流程", "en": "0022 Flow in composite scenarios"}
+        },
+        {
+          "id": "adr-0023",
+          "href": "adr/0023-sub-scenarios.html",
+          "name": {"zh-Hant": "0023 子場景", "zh-Hans": "0023 子场景", "en": "0023 Sub-scenarios"}
         }
       ]
     },

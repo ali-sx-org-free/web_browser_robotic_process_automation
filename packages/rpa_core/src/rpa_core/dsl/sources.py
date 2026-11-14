@@ -3,13 +3,14 @@
 雜湊每次執行都記在 result.json 的 scenarioHash；管理 Portal 的發布門檻與領域資料夾的版本說明檔
 （M11）都用它確認「通過驗證的就是要發布的版本」。放在 rpa-core，資料夾的校驗不必依賴瀏覽器；
 rpa-runner 沿用同一組函式。演算法改了會讓所有既有的雜湊對不上，不能修改：Python 節點的
-``script.files``（ADR 0020）與場景附件（M7c）都是接在後面的新檔案，沒有它們的場景雜湊和以前
-完全相同。
+``script.files``（ADR 0020）、場景附件（M7c）與子場景檔（M7.2，``calls/``）都是接在後面的
+新檔案，沒有它們的場景雜湊和以前完全相同。
 """
 
 import hashlib
 from pathlib import Path
 
+from rpa_core.dsl.calls import call_files
 from rpa_core.dsl.files import ATTACHMENT_DIR
 from rpa_core.dsl.scenario import Scenario
 
@@ -32,7 +33,7 @@ def scenario_sources(path: Path, scenario: Scenario) -> list[str]:
     """場景由哪些檔案組成（相對於場景檔所在的資料夾）。
 
     場景檔，加上 Python 節點的 automation、assertion（有寫才加）與 ``files``，
-    再加上場景附件（M7c）。
+    再加上場景附件（M7c），最後是 ``call`` 用到的子場景檔（M7.2，含子場景自己呼叫的）。
     """
     sources = [path.name]
     if scenario.script is not None:
@@ -40,6 +41,8 @@ def scenario_sources(path: Path, scenario: Scenario) -> list[str]:
         sources += [script.automation, *([script.assertion] if script.assertion else [])]
         sources += [name for name in script.files or () if name not in sources]
     sources += [name for name in attachment_files(path.parent) if name not in sources]
+    if scenario.steps is not None:
+        sources += [name for name in call_files(path.parent, scenario) if name not in sources]
     return sources
 
 

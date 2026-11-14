@@ -32,7 +32,7 @@ automation.log；Playwright 印出的訊息也會夾在中間。格式（目前�
 import time
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timedelta
-from typing import Final, TextIO
+from typing import Final, TextIO, cast
 
 from rpa_core.dsl import Scenario
 from rpa_runner.browser import StepRecord
@@ -44,7 +44,8 @@ __all__ = ["StepLog"]
 
 _INDENT: Final = " " * 14
 """明細行對齊時間後面的文字（「HH:MM:SS.mmm」加兩個空白）。"""
-_BLOCKS: Final = frozenset({"if", "forEach", "repeat", "try"})
+_BLOCKS: Final = frozenset({"if", "forEach", "repeat", "try", "call"})
+"""裡面還有步驟、開始時先記一行的動作：區塊（M7.1）與 call（M7.2）。"""
 _NESTED: Final = "  "
 """區塊裡每多一層多縮排的空白。"""
 
@@ -247,6 +248,19 @@ class StepLog:
                     error=self._mask(record.caught.get("error", "")),
                 )
             )
+        if record.call is not None:
+            lines.append(
+                t(
+                    "steplog.call",
+                    scenario=record.call.get("scenario", "?"),
+                    revision=record.call.get("revision", "?"),
+                )
+            )
+            checks = record.call.get("checks")
+            if isinstance(checks, list):
+                results = cast("list[dict[str, object]]", checks)
+                passed = sum(1 for check in results if check.get("passed") is True)
+                lines.append(t("steplog.call_checks", passed=passed, total=len(results)))
         return lines
 
     def finished(self, facts: Mapping[str, object]) -> None:

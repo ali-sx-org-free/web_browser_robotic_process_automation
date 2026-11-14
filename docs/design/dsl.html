@@ -368,6 +368,7 @@ steps:
             <tr><td><code>openPage</code></td><td>自己開一個新分頁（M7.1）</td><td><strong>as</strong>、url、waitUntil</td><td>同一個瀏覽器工作階段（同一個登入狀態）；as 是分頁名稱，和 popup 共用；url 規則同 goto；不能寫 page</td></tr>
             <tr><td><code>closePage</code></td><td>關掉分頁（M7.1）</td><td><strong>page</strong></td><td>一開始的分頁不能關；迴圈裡關掉後可以用同一個名稱再開</td></tr>
             <tr><td><code>if</code>、<code>forEach</code>、<code>repeat</code>、<code>try</code></td><td>區塊步驟（M7.1）</td><td>見<a href="#flow">流程控制</a></td><td>裡面再放步驟</td></tr>
+            <tr><td><code>call</code></td><td>呼叫子場景（M7.2）</td><td><strong>scenario</strong>、<strong>revision</strong>、inputs、as、append</td><td>見<a href="#call">子場景</a>；在同一個瀏覽器接著執行另一個場景的固定版本</td></tr>
           </tbody>
         </table>
       </div>
@@ -380,7 +381,7 @@ steps:
           <dt>extract 的 fields</dt><dd>每個元素抽成一筆記錄，鍵是欄位名稱，值可寫 target（相對於該元素）、get、attribute。有 fields 時不寫外層的 get。</dd>
         </dl>
       </div>
-      <div class="diagram-caption">expect 是步驟內的防護，verify 才決定是否發布出參。iframe 用定位器的 <a href="#locators">frame</a>（M7a），新分頁用步驟的 <a href="#tabs">popup 與 page</a>（M7b），上傳見<a href="#upload">上傳檔案</a>（M7c），條件、迴圈、錯誤處理與自己開的分頁見<a href="#flow">流程控制</a>（M7.1）。</div>
+      <div class="diagram-caption">expect 是步驟內的防護，verify 才決定是否發布出參。iframe 用定位器的 <a href="#locators">frame</a>（M7a），新分頁用步驟的 <a href="#tabs">popup 與 page</a>（M7b），上傳見<a href="#upload">上傳檔案</a>（M7c），條件、迴圈、錯誤處理與自己開的分頁見<a href="#flow">流程控制</a>（M7.1），呼叫另一個場景見<a href="#call">子場景</a>（M7.2）。</div>
     </section>
 
     <section class="panel" id="flow">
@@ -404,7 +405,7 @@ steps:
           <dt id="condition">條件</dt><dd>if 的 <code>condition</code>、repeat 的 <code>while</code>／<code>until</code>，寫法沿用 <a href="#actions">expect</a>，差別是不成立不算失敗：有 <code>target</code> 時檢查元素的 <code>state</code>（visible、hidden、attached、detached、enabled、disabled、checked、unchecked、editable）、<code>text</code>、<code>value</code>、<code>count</code> 其一；沒有 target 時檢查 <code>url</code> 或 <code>title</code>；<code>match</code> 同字串比對。或寫 <code>expression: '{{ … }}'</code>，結果是真值就成立（入參、事實、迴圈變數都能用；不能再寫其他欄位）。<code>wait</code> 是最多等多久讓條件成立（毫秒，預設 0 只看當下），成立就馬上結束；<code>not: true</code> 反過來判斷；<code>page</code> 指定在哪個分頁判斷。visible／hidden 看前 20 個符合的元素有沒有看得見的；其他狀態與文字看第一個。<strong>判斷本身出錯</strong>（例如 <code>{{ }}</code> 用到沒有值的事實）算這個區塊失敗，不當成不成立。</dd>
           <dt>迴圈變數</dt><dd>forEach 的 <code>as: order</code> 之後，迴圈裡用 <code>{{ order.title }}</code>；另有最內層迴圈的 <code>{{ loop.index }}</code>（從 1 起）、<code>loop.count</code>（repeat 的 while／until 沒有）、<code>loop.first</code>、<code>loop.last</code>。repeat 也有 loop。catch 裡有 <code>{{ error.step }}</code>（失敗那一步的 id）與 <code>{{ error.message }}</code>。名稱不能用 inputs、secrets、facts、env、loop、error，也不能和外層的迴圈變數相同；只能在那個迴圈（catch）裡用，校驗時就會檢查。</dd>
           <dt>事實</dt><dd>迴圈裡 extract 的事實每一輪覆蓋，結束後是最後一輪的值；要累積就寫 <a href="#actions">append</a>。分支與迴圈裡產生的事實，之後的步驟可以用（校驗依場景檔的順序），但執行時真的沒有值（例如那個分支沒走到）就在用到它的那一步失敗。</dd>
-          <dt>上限</dt><dd>forEach 最多 1,000 項，repeat 的 times 與 max 最多 1,000，區塊最多巢狀 5 層，一次執行最多 10,000 筆步驟紀錄（超過算失敗，onError 與 try 也接不住）；每一輪都受總期限限制。更多筆資料請用批次執行（M7.3）。</dd>
+          <dt>上限</dt><dd>forEach 最多 1,000 項，repeat 的 times 與 max 最多 1,000，區塊最多巢狀 5 層，一次執行最多 10,000 筆步驟紀錄（超過算失敗，onError 與 try 也接不住）；每一輪都受總期限限制。更多筆資料請用批次執行（M7.3）。<a href="#call">子場景</a>裡的步驟也算在這次執行的紀錄裡。</dd>
           <dt>紀錄、日誌與回看</dt><dd>steps.json 依執行順序：最外層的步驟一開始就列出，區塊裡的步驟執行到才新增，緊接在區塊後面；每筆多了 <code>path</code>（在場景檔的位置）、<code>parent</code>（外層區塊是第幾筆）、<code>iteration</code>（第幾輪）、<code>attempts</code>、<code>handled</code>（<code>continued</code>、<code>caught</code>）、<code>condition</code>、<code>branch</code>、<code>iterations</code>、<code>caught</code>。automation.log 在區塊開始與結束各寫一行，裡面的步驟縮排並標出第幾輪；報告與回看依層縮排，失敗後繼續與被接住的失敗標黃色。</dd>
           <dt>相容性</dt><dd>用到流程控制（區塊、openPage／closePage、onError、retry、<code>append: true</code>）的場景有擴充 <code>flow</code>，0.8.x 以前的錄製端與 Worker 不會領到；沒用到的場景雜湊與結果都不變。</dd>
         </dl>
@@ -437,6 +438,31 @@ steps:
   - { id: read-total, action: extract, page: report, target: { testId: total }, as: total, retry: { times: 2 } }
   - { id: close-report, action: closePage, page: report }</pre>
         <p class="muted">完整可執行的範例在 <code>scenarios/examples/flow/</code>（搭配本機測試網站的 <code>/flow</code>）。錄製錄不出條件與迴圈：先錄成直線的草稿，再把需要的部分包進區塊；Portal 的場景編輯頁有「插入流程範本」。錄製稿的 <code>page1 = context.new_page()</code> 轉成 openPage，新分頁的 <code>close()</code> 轉成 closePage。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="call">
+      <div class="panel-header"><h2>子場景 <code>call</code></h2><span class="muted">M7.2，<a href="../adr/0023-sub-scenarios.html">ADR 0023</a></span></div>
+      <div class="panel-body">
+        <p><code>call</code> 在同一個瀏覽器、同一個分頁裡接著執行另一個場景的<strong>固定版本</strong>，適合把「先建客戶、再在同一個畫面建訂單」這種會重複用到的一段拆成自己的場景。和組合場景的差別：組合場景的每個節點各自開瀏覽器、各自執行；子場景共用登入與畫面。</p>
+<pre class="source">  - id: create-customer
+    action: call
+    scenario: cust-new          # 子場景的代號
+    revision: 4                 # 固定版本；在管理 Portal 存檔時要是發布過的
+    inputs:                     # 給子場景的入參；沒給的用它的預設值
+      name: '{{ inputs.customer }}'
+    as: customer                # 子場景的出參 → {{ facts.customer.customerId }}</pre>
+        <dl class="spec-list">
+          <dt>契約</dt><dd>子場景的入參照它自己的契約校驗（型別、限制、預設值與動態值）；它的步驟跑完後<strong>立刻跑它自己的 verify</strong>，通過才把出參存成事實 <code>facts.名稱</code>（一個物件，欄位是子場景的出參）。入參不符、步驟失敗、verify 不通過或出參不符時，<code>call</code> 這一步失敗，可以被外層的 <a href="#flow">try</a> 接住或寫 <a href="#on-error">onError: continue</a>。呼叫場景自己的 verify 與發布門檻不變。</dd>
+          <dt>欄位</dt><dd><code>inputs</code> 的值可以用 <code>{{ }}</code>；整個值只有一個 <code>{{ }}</code> 時保留清單、物件、數字的型別（數字給文字入參時自動轉成文字）。<code>as</code> 只在子場景有出參時寫。<code>append: true</code> 把每一次的出參加到清單尾端，迴圈裡逐筆呼叫時收集全部的結果（同 extract 的 append，要寫 as）。<code>page</code> 是子場景從哪個分頁開始。不能寫 timeout（逾時由子場景裡的步驟各自決定，沒寫用子場景的 <code>defaults.timeout</code>）、不能 retry。<code>call</code> 可以放在區塊裡。</dd>
+          <dt>各自獨立的部分</dt><dd>子場景看不到呼叫場景的事實、迴圈變數與分頁名稱，它的事實也不會蓋掉呼叫場景同名的事實；步驟 id 只要在各自的場景裡唯一。子場景開了沒關的分頁在它結束時關掉；子場景裡的截圖檔名前面加上 call 的 id（例如 <code>create-customer.evidence.png</code>）。</dd>
+          <dt>沿用呼叫場景的部分</dt><dd>瀏覽器種類、視窗大小、有頭無頭、登入狀態、總期限（子場景自己的 <code>deadline</code> 不用）、步驟紀錄的上限。網址：執行時另外指定了網址（管理 Portal 的運行設定、<code>--base-url</code>）就全部用它；否則子場景用自己的 <code>browser.baseUrl</code>，沒寫用呼叫場景的。</dd>
+          <dt>限制（第一版）</dt><dd>子場景要是 DSL 場景（不是 Python 節點）；登入角色和呼叫場景相同，或子場景不需要登入；子場景用到的 Secrets 呼叫場景也要宣告；不能有 <code>type: file</code> 的入參與出參；最多 3 層、10 個不同的子場景版本；不能直接或間接呼叫自己（不管版本）。這些都在校驗時檢查。</dd>
+          <dt id="call-files">子場景檔放在哪裡</dt><dd>子場景那個版本的場景檔原樣複製在呼叫場景的版本裡：<code>calls/&lt;子場景代號&gt;/&lt;版本&gt;.yaml</code>（子場景自己呼叫的也平放在這裡），<strong>算進呼叫場景的內容雜湊</strong>。所以呼叫場景自己就能執行，子場景之後出新版本、封存都不影響已經存好的呼叫場景；要用子場景的新版本，改 <code>revision</code> 存成新版本、重新驗證。在管理 Portal 存檔時由伺服器從發布過的版本帶入（見<a href="portal.html#call">管理 Portal › 子場景</a>）；手寫的場景資料夾自己放。<code>rpa validate</code>、<code>rpa run</code> 從場景檔旁邊的 <code>calls/</code> 找。</dd>
+          <dt>紀錄、日誌與回看</dt><dd>steps.json 裡 <code>call</code> 一筆，子場景的步驟緊接在後面、<code>parent</code> 指到它；<code>path</code> 過了 <code>"call"</code> 是子場景裡的位置（例如 <code>["steps", 2, "call", 0]</code>）。call 那一筆多了 <code>call</code>：<code>scenario</code>、<code>revision</code>、<code>name</code>，跑到獨立斷言時加上 <code>checks</code>（每一條的名稱與結果），通過後加上 <code>outputs</code>（出參的名稱）。automation.log、報告與回看把子場景的步驟縮排在 call 下面。</dd>
+          <dt>相容性</dt><dd>用到 <code>call</code> 的場景有擴充 <code>call</code>（連同子場景自己用到的擴充），0.9.x 以前的錄製端與 Worker 不會領到；沒用到的場景雜湊與結果都不變，<code>schemaVersion</code> 維持 1。</dd>
+        </dl>
+        <p class="muted">完整可執行的範例在 <code>scenarios/examples/call/</code>：建立後接著查詢、迴圈裡逐筆呼叫並收集每次的出參。逐步調試時 <code>call</code> 整個子場景一起執行；要一步一步看子場景，打開子場景自己的調試。</p>
       </div>
     </section>
 

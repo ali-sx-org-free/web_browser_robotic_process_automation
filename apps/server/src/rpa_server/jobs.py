@@ -26,6 +26,7 @@ from sqlalchemy import CursorResult, or_, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.dsl import Scenario, validate_file
+from rpa_core.dsl.calls import closure_features, load_calls
 from rpa_core.dsl.files import MAX_FILE_BYTES, MAX_RUN_BYTES, uploaded_ids
 from rpa_runner.login import LoginSettings
 from rpa_runner.pyruntime import available_versions, platform_tag
@@ -113,6 +114,15 @@ def _scenario_at(path: str) -> Scenario | None:
     return validate_file(Path(path)).scenario
 
 
+@lru_cache(maxsize=512)
+def _features_at(path: str) -> frozenset[str]:
+    """版本用到的 DSL 擴充，含它的子場景用到的（M7.2）；場景讀不出來時是空的。"""
+    scenario = _scenario_at(path)
+    if scenario is None:
+        return frozenset()
+    return closure_features(scenario, load_calls(Path(path).parent, scenario)[0])
+
+
 class RunQueue:
     def __init__(
         self,
@@ -141,6 +151,10 @@ class RunQueue:
 
     def scenario(self, scene_id: str, number: int) -> Scenario | None:
         return _scenario_at(str(self.storage.scenario_path(scene_id, number)))
+
+    def features(self, scene_id: str, number: int) -> frozenset[str]:
+        """版本用到的 DSL 擴充，含 ``call`` 的子場景用到的（M7.2）。"""
+        return _features_at(str(self.storage.scenario_path(scene_id, number)))
 
     def engine_of(self, run: Run) -> str:
         """這次執行要用的瀏覽器：指定的，或場景預設的。"""

@@ -183,7 +183,7 @@ POST /agent-api/v1/debug/a1b2c3d4e5f6/run-to/3
 → {"steps": [… {"index": 3, "id": "submit", "status": "failed", "error": "…"}], …}</pre>
         <p>浏览器与已运行的步骤会保留，<code>run-to</code> 只运行还没运行过的步骤，失败就停。改好再存一版、<code>reload</code>、<code>run-to</code>，直到每一步都是 <code>passed</code>。想从头重跑用 <code>reset</code>。</p>
         <p>录制端在另一台电脑时，<code>reload</code> 要服务器与录制端都是 0.6.3 以上：0.6.2 以前在录制端换版本一定回 422 <code>revision_invalid</code>「场景校验失败」（服务器把自己的文件路径交给录制端，录制端读不到）。服务器已更新、录制端还没更新时回 422 <code>recorder_outdated</code>；这时请人更新录制端，或改用 <code>POST /scenes/{id}/debug</code> 带新的 <code>revision</code> 与 <code>"restart": true</code> 重新开始（从第 1 步重跑，有副作用的步骤会再做一次）。</p>
-        <div class="notice warn">点击、填写、选择、勾选、按键是有副作用的步骤，会在目标系统上真的发生。运行过一次的有副作用步骤用 <code>POST /debug/{sid}/steps/{index}</code> 再运行时回 409 <code>confirm_required</code>，必须带 <code>{"force": true}</code>；只在确定重做不会造成重复数据时才这样做。<code>run-to</code> 的目标在下一个还没运行的步骤之前时回 409 <code>already_executed</code>。区块步骤（M7.1）整块运行；里面有任何有副作用的步骤，整块就算有副作用。要单独运行区块里的一步，带 <code>{"path": ["steps", 2, "steps", 0]}</code>；循环里的一步用 <code>{"choices": {"steps/2": 1}}</code> 指定用第几项（从 0 起）。</div>
+        <div class="notice warn">点击、填写、选择、勾选、按键是有副作用的步骤，会在目标系统上真的发生。运行过一次的有副作用步骤用 <code>POST /debug/{sid}/steps/{index}</code> 再运行时回 409 <code>confirm_required</code>，必须带 <code>{"force": true}</code>；只在确定重做不会造成重复数据时才这样做。<code>run-to</code> 的目标在下一个还没运行的步骤之前时回 409 <code>already_executed</code>。区块步骤（M7.1）整块运行；里面有任何有副作用的步骤，整块就算有副作用。要单独运行区块里的一步，带 <code>{"path": ["steps", 2, "steps", 0]}</code>；循环里的一步用 <code>{"choices": {"steps/2": 1}}</code> 指定用第几项（从 0 起）。子场景的 <code>call</code>（M7.2）是一步，整个子场景一起运行，算有副作用；不能用 <code>path</code> 单独运行子场景里的一步。</div>
 
         <h3>5. 补齐入参、出参与独立断言</h3>
         <p>用 <code>GET</code>／<code>PUT /scenes/{id}/sections/steps</code>、<code>verify</code>、<code>inputs</code>、<code>outputs</code> 只读写一段（<code>{"baseRevision": n, "text": "verify:\n  - …"}</code>；场景文件整份写成 JSON 时，段落的原文也是 JSON，例如 <code>{"verify": [ … ]}</code>，保存后整份还是 JSON），或 <code>PUT /scenes/{id}/contract</code> 以表格形式改入参与出参；每次都会存成新版本。已经有 Playwright（Python）脚本时，可以用 <code>POST /scenes/{id}/import {"source": "…", "mode": "replace"}</code> 转成 DSL，转不了的写在 <code>warnings</code>。完成后 <code>DELETE /debug/{sid}</code> 结束工作阶段，释放录制端。</p>
@@ -230,7 +230,7 @@ POST /agent-api/v1/scenes/order-import/revisions/3/validate
     </section>
 
     <section class="panel" id="python-nodes">
-      <div class="panel-header"><h2>Python 节点</h2><span class="muted"><a href="../adr/0020-python-nodes.html">ADR 0020</a>；main 上、尚未发布</span></div>
+      <div class="panel-header"><h2>Python 节点</h2><span class="muted"><a href="../adr/0020-python-nodes.html">ADR 0020</a>；v0.9.0 起</span></div>
       <div class="panel-body">
         <p>浏览器做不到的工作（合并 Excel、整理数据、调用 API）写成 Python 节点：场景文件写 <code>script:</code> 与 <code>runtime: "1"</code>，自动化由 <code>automation.py</code> 完成，成功照样由独立断言判定（规格见 <a href="../design/dsl.html#python">DSL › Python 节点</a>）。服务器支持时 <code>GET /meta</code> 的 <code>dslFeatures</code> 有 <code>pythonNodes</code>、<code>jsonInputs</code>、<code>fileOutputs</code>、<code>download</code>。</p>
 <pre class="source">POST /agent-api/v1/scenes/merge-sales/revisions
@@ -241,7 +241,7 @@ POST /agent-api/v1/scenes/order-import/revisions/3/validate
         <ul class="points">
           <li><strong>保存</strong>：<code>files</code> 一起放场景文件、<code>automation.py</code>，以及 <code>assertion.py</code>（没有用 <code>verify</code> 时）与 <code>script.files</code> 列的文件，路径相对于场景文件；没有被场景文件用到的文件会被拒绝。<code>POST /dsl/check</code> 只收场景文件，还没放进来的脚本会报成 <code>dsl.script.missing</code>，以保存时的检查为准。</li>
           <li><strong>不能逐步调试</strong>：<code>POST /scenes/{id}/debug</code> 回 422 <code>debug_script</code>。直接验证运行，看运行的步骤、事实与 <code>automation.log</code>。</li>
-          <li><strong>交给有运行环境的 Worker</strong>：只派给带了 RPA Python 运行环境 1、平台在 <code>platforms</code> 里的 Worker，不需要浏览器。运行环境附在 main 起的 RPA Worker 与 Linux 分发包；v0.8.0 以前的 App 没有，<code>GET /workers</code> 的 <code>features</code> 也没有 <code>pythonNodes</code>，这时运行会一直排队。</li>
+          <li><strong>交给有运行环境的 Worker</strong>：只派给带了 RPA Python 运行环境 1、平台在 <code>platforms</code> 里的 Worker，不需要浏览器。运行环境附在 v0.9.0 起的 RPA Worker 与 Linux 分发包；v0.8.0 以前的 App 没有，<code>GET /workers</code> 的 <code>features</code> 也没有 <code>pythonNodes</code>，这时运行会一直排队。</li>
           <li><strong>数据与文件</strong>：<code>type: array</code>、<code>object</code> 的入参值直接写 JSON，上游同类型的出参可以接到下游。脚本写进 <code>run.output_dir</code> 的文件与 file 出参在运行的文件清单里，用 <code>GET /runs/{id}/files/outputs/…</code> 下载；组合场景里 file 出参可以接到下游 DSL 场景的 file 入参（同一台 Worker 的共用工作文件夹）。</li>
           <li><strong>不能用登录角色</strong>：运行环境模式的场景写 <code>login</code> 会被校验挡下（这一版不支持）。</li>
         </ul>

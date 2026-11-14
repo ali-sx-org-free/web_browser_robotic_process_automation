@@ -35,7 +35,7 @@
   </div>
 
   <div class="stack">
-    <div class="notice">决策与没有选的方案见 <a href="../adr/0017-agent-api.html">ADR 0017</a>；给 Agent 的调用方式见 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。设计 2026-10-23 由用户确认，第一期同日实现，PR #79 于 2026-10-25 合并、随 v0.6.0 发布（人工验收未运行）；2026-10-24 用户要求把项目与组合场景并入第一期，并给 Agent 写<a href="../develop/agent-test-plan-guide.html">测试方案指南</a>与<a href="../develop/agent-test-report-guide.html">测试报告指南</a>；之后加上的组合运行汇总报告与文件入参的 <code>files:write</code> 随 v0.7.0 发布；Python 节点（main，尚未发布，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）的场景与运行沿用同一套端点，见 <a href="../develop/agent-api-guide.html#python-nodes">Agent 使用指南 › Python 节点</a>。端点以服务器的 <code>/agent-api/v1/openapi.json</code> 为准，<code>/agent-api/v1/docs</code> 可以直接试。</div>
+    <div class="notice">决策与没有选的方案见 <a href="../adr/0017-agent-api.html">ADR 0017</a>；给 Agent 的调用方式见 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。设计 2026-10-23 由用户确认，第一期同日实现，PR #79 于 2026-10-25 合并、随 v0.6.0 发布（人工验收未运行）；2026-10-24 用户要求把项目与组合场景并入第一期，并给 Agent 写<a href="../develop/agent-test-plan-guide.html">测试方案指南</a>与<a href="../develop/agent-test-report-guide.html">测试报告指南</a>；之后加上的组合运行汇总报告与文件入参的 <code>files:write</code> 随 v0.7.0 发布；Python 节点（v0.9.0，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）的场景与运行沿用同一套端点，见 <a href="../develop/agent-api-guide.html#python-nodes">Agent 使用指南 › Python 节点</a>；流程控制（M7.1，#15）与组合场景的条件连接、同时运行、重复次数（#20）已合并到 main、尚未发布；子场景（M7.2，<a href="../adr/0023-sub-scenarios.html">ADR 0023</a>）存场景版本时由服务器带入子场景文件，版本的 <code>files</code> 会多出 <code>calls/</code>。端点以服务器的 <code>/agent-api/v1/openapi.json</code> 为准，<code>/agent-api/v1/docs</code> 可以直接试。</div>
 
     <section class="panel" id="scope">
       <div class="panel-header"><h2>范围</h2><span class="muted">Agent 从空白做到可以正式运行的场景</span></div>
@@ -200,7 +200,7 @@
             <tr><td><code>POST /debug/{sid}/snapshot</code></td><td>目前页面的结构：无障碍树、表单字段、iframe 与标签页清单</td><td>debug＋回传页面内容</td><td>新（录制端 App 要更新）</td></tr>
             <tr><td><code>POST /debug/{sid}/screenshot</code></td><td>截目前页面，回传图片的下载路径</td><td>debug＋回传页面内容</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/locate</code></td><td>测试定位器：找到几个、前几个的文字</td><td>debug</td><td>沿用</td></tr>
-            <tr><td><code>POST /debug/{sid}/steps/{index}</code></td><td>运行一步；有副作用而且跑过的要带 <code>force</code>。区块步骤（M7.1）整块运行；<code>path</code>（例如 <code>["steps", 2, "steps", 0]</code>）单独运行第 index 步里面的一步，<code>choices</code>（循环的路径 <code>steps/2</code> → 第几项，从 0 起）是循环的目前项；回复的 <code>steps</code> 是树（<code>children</code>）</td><td>debug</td><td>沿用</td></tr>
+            <tr><td><code>POST /debug/{sid}/steps/{index}</code></td><td>运行一步；有副作用而且跑过的要带 <code>force</code>。区块步骤（M7.1）整块运行；<code>path</code>（例如 <code>["steps", 2, "steps", 0]</code>）单独运行第 index 步里面的一步，<code>choices</code>（循环的路径 <code>steps/2</code> → 第几项，从 0 起）是循环的目前项；子场景的 <code>call</code>（M7.2）整个子场景一起运行；回复的 <code>steps</code> 是树（<code>children</code>）</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/run-to/{index}</code></td><td>从下一个还没运行的步骤运行到第几步，失败就停</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/reload</code></td><td>换到刚存的新版本，浏览器与已运行的步骤保留（命令带场景内容；录制端的 App 要支持 <code>debugInlineLoad</code>，v0.6.3）</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/reset</code>、<code>DELETE /debug/{sid}</code></td><td>从头开始、结束</td><td>debug</td><td>沿用</td></tr>
