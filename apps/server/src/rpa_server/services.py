@@ -32,6 +32,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.dsl import GotoStep, Scenario, ScriptConfig, validate_file
+from rpa_core.dsl.calls import CallKey, closure_features, is_call_path, load_calls
 from rpa_core.dsl.editing import (
     SECTION_KEYS,
     SectionError,
@@ -53,6 +54,7 @@ from rpa_runner.pyruntime import platform_tag
 from rpa_runner.run import new_run_id
 from rpa_server.addresses import PortalAddress
 from rpa_server.agents import AgentService
+from rpa_server.batches import BatchService
 from rpa_server.composite_replay import build_composite_replay
 from rpa_server.composite_report import build_composite_report
 from rpa_server.config import EXAMPLES_DOMAIN
@@ -92,7 +94,7 @@ from rpa_server.recordings import RecordingService
 from rpa_server.replay import build_replay
 from rpa_server.roles import RoleService
 from rpa_server.secret_store import SecretStore
-from rpa_server.storage import SCENARIO_FILE, Storage, new_scene_template
+from rpa_server.storage import SCENARIO_FILE, CheckedRevision, Storage, new_scene_template
 from rpa_server.uploads import UploadLimits, UploadService, definition_uploads
 from rpa_server.videos import VideoService, VideoSettings, retention_basis, video_details
 from rpa_server.workflows import WorkflowService
@@ -338,6 +340,8 @@ def run_record(run: Run) -> RunRecord:
         worker_id=run.worker_id,
         video=video_details(run),
         client_id=run.client_id,
+        batch_id=run.batch_id,
+        batch_row=run.batch_row,
     )
 
 
@@ -428,6 +432,8 @@ class Services:
         self.projects = ProjectService(sessions)
         """專案空間的專案：組合場景的分組，只在資料庫（2026-10-23）。"""
         self.workflows = WorkflowService(sessions, self)
+        self.batches = BatchService(sessions, self)
+        """批次執行（M7.3）：一張表的每一列各正式執行一次。"""
         # 組合場景節點固定值用到的上傳檔不因保留期限刪除（M7c D7）
         self.uploads.pinned = self._pinned_uploads
         self.videos = VideoService(sessions, storage)
@@ -1016,6 +1022,57 @@ class Services:
         self.get_revision(scene_id, number)
         return self._load_scenario(scene_id, number)
 
+    def revision_calls(self, scene_id: str, number: int) -> dict[CallKey, Scenario]:
+        """版本用到的子場景（M7.2）：``call`` 引用的場景版本，從版本目錄的 ``calls/`` 載入。"""
+        path = self.storage.scenario_path(scene_id, number)
+        return load_calls(path.parent, self._load_scenario(scene_id, number))[0]
+
+    def revision_features(self, scene_id: str, number: int) -> frozenset[str]:
+        """版本用到的 DSL 擴充，含它的子場景用到的（派工、調試前比對裝置看不看得懂）。"""
+        scenario = self._load_scenario(scene_id, number)
+        calls = load_calls(self.storage.scenario_path(scene_id, number).parent, scenario)[0]
+        return closure_features(scenario, calls)
+
+    def check_files(
+        self,
+        files: Mapping[str, str],
+        *,
+        scene_id: str | None = None,
+        attachments: Mapping[str, bytes] | None = None,
+        session: Session | None = None,
+    ) -> CheckedRevision:
+        """檢查一組版本檔案（:meth:`Storage.check`），新加的子場景要是發布過的版本（M7.2）。
+
+        ``session`` 是呼叫的人已經開著的資料庫工作階段；沒給時查子場景另外開一個。
+        """
+
+        def gate(callee: str, number: int) -> str | None:
+            if session is not None:
+                return self._call_problem(session, callee, number)
+            with self.sessions() as own:
+                return self._call_problem(own, callee, number)
+
+        return self.storage.check(files, scene_id=scene_id, attachments=attachments, call_gate=gate)
+
+    @staticmethod
+    def _call_problem(session: Session, scene_id: str, number: int) -> str | None:
+        """子場景的這個版本不能用的原因（規則同組合場景的節點）：場景要在、沒封存，版本要在、
+        沒有問題、發布過。可以用時是 None。"""
+        params = {"scenario": scene_id, "revision": number}
+        scene = session.get(Scene, scene_id)
+        revision = session.scalars(
+            select(Revision).where(Revision.scene_id == scene_id, Revision.number == number)
+        ).first()
+        if scene is None or scene.missing:
+            return t("revision.call_scene_missing", **params)
+        if scene.archived:
+            return t("revision.call_archived", **params)
+        if revision is None or revision.missing or revision.problem is not None:
+            return t("revision.call_revision_missing", **params)
+        if revision.published_at is None:
+            return t("revision.call_unpublished", **params)
+        return None
+
     def _load_scenario(self, scene_id: str, number: int) -> Scenario:
         scenario = validate_file(self.storage.scenario_path(scene_id, number)).scenario
         if scenario is None:
@@ -1060,7 +1117,7 @@ class Services:
         attachments: Mapping[str, bytes] | None = None,
     ) -> SceneRecord:
         attachments = dict(attachments or {})
-        checked = self.storage.check(files, scene_id=scene_id, attachments=attachments)
+        checked = self.check_files(files, scene_id=scene_id, attachments=attachments)
         if not checked.ok or checked.scenario is None or checked.digest is None:
             raise _invalid(
                 "revision_invalid",
@@ -1216,7 +1273,17 @@ class Services:
                 )
             if attachments is None:
                 attachments = self.storage.load_attachments(scene_id, base)
-            checked = self.storage.check(files, scene_id=scene_id, attachments=attachments)
+            # 子場景檔（M7.2）：沒送來的沿用 base 版本的；這台沒有那個子場景版本時
+            # （例如它的領域沒有同步過來）照樣能存
+            inherited = {
+                path: text
+                for path, text in self.storage.load(scene_id, base).items()
+                if is_call_path(path) and path not in files
+            }
+            files = {**inherited, **files}
+            checked = self.check_files(
+                files, scene_id=scene_id, attachments=attachments, session=session
+            )
             if not checked.ok or checked.scenario is None or checked.digest is None:
                 raise _invalid(
                     "revision_invalid",
@@ -1403,9 +1470,12 @@ class Services:
         target: Target | None = None,
         required_worker: str | None = None,
         client_id: str | None = None,
+        batch: tuple[str, int] | None = None,
     ) -> RunRecord:
         """排入一次執行。驗證可以用任何版本（預設最新）；正式執行只用已發布版本；
         試驗場序列的節點（workflow）用序列固定的版本，只能是發布過的版本（M6）。
+        批次的一列（``batch`` 是批次與第幾列，M7.3）是正式執行，用批次固定的 ``number``，
+        也只能是發布過的版本。
 
         target 是執行位置（M9a），沒指定時用預設執行位置；
         required_worker 指定只能由哪台 worker 執行；client_id 是觸發的 API 用戶端（M14）。
@@ -1425,13 +1495,13 @@ class Services:
                 raise _conflict("scene_missing", t("error.scene_missing", id=scene_id))
             if scene.archived:
                 raise _conflict("scene_archived", t("error.scene_archived", id=scene_id))
-            if purpose == "execution":
+            if purpose == "execution" and batch is None:
                 if scene.published_number is None:
                     raise _conflict("not_published", t("error.not_published", id=scene_id))
                 number = scene.published_number
             revision = self._revision(session, scene_id, number or scene.latest_number)
             self._check_usable(revision)
-            if purpose == "workflow" and revision.published_at is None:
+            if (purpose == "workflow" or batch is not None) and revision.published_at is None:
                 raise _conflict(
                     "revision_unpublished",
                     t("error.revision_unpublished", id=scene_id, number=revision.number),
@@ -1469,6 +1539,8 @@ class Services:
                 target=target,
                 required_worker=required_worker,
                 client_id=client_id,
+                batch_id=batch[0] if batch is not None else None,
+                batch_row=batch[1] if batch is not None else None,
             )
             session.add(run)
             if purpose == "validation":
@@ -1860,10 +1932,12 @@ class Services:
 
     def run_finished(self, run_id: str) -> None:
         """一次執行結束了（worker 執行完、排隊中被取消）：寫執行目錄的 run.json，驗證執行另外寫
-        領域資料夾的驗證紀錄（M11）；屬於試驗場序列時，接著排下一個節點。
+        領域資料夾的驗證紀錄（M11）；屬於試驗場序列時，接著排下一個節點；屬於批次時，接著排
+        下一列（M7.3）。
         """
         self.packs.record_run(run_id)
         self.workflows.node_finished(run_id)
+        self.batches.row_finished(run_id)
 
     @staticmethod
     def _settle_revision(session: Session, revision_id: int) -> None:
@@ -1928,6 +2002,7 @@ class Services:
                     self._settle_revision(session, run.revision_id)
             session.commit()
         self.workflows.recover()
+        self.batches.recover()
         return len(runs)
 
     # ------------------------------------------------------------ M4：角色、入參出參、重新執行
@@ -2057,7 +2132,7 @@ class Services:
             files[SCENARIO_FILE] = replace_contract(
                 files[SCENARIO_FILE], inputs=None, outputs=None, renames=renames
             )
-        checked = self.storage.check(files, scene_id=scene_id)
+        checked = self.check_files(files, scene_id=scene_id)
         if not checked.ok:
             issues = [issue_json(issue) for issue in checked.issues]
             for key in ("inputs", "outputs"):
@@ -2095,7 +2170,7 @@ class Services:
     def preview_section(self, scene_id: str, key: str, *, base: int, text: str) -> Scenario:
         """換掉一段之後的場景（不存檔）；有問題時 422，問題附上段落裡的行號。"""
         files = self._section_files(scene_id, key, base, text)
-        checked = self.storage.check(files, scene_id=scene_id)
+        checked = self.check_files(files, scene_id=scene_id)
         if not checked.ok or checked.scenario is None:
             issues = [issue_json(issue) for issue in checked.issues]
             _section_lines(issues, files[SCENARIO_FILE], key)

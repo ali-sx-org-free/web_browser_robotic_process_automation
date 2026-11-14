@@ -165,6 +165,12 @@
   "steplog.branch_none": "条件不成立，略过",
   "steplog.iterations": "共运行 {n} 轮",
   "steplog.caught": "接住 {step} 的失败：{error}",
+  "browser.call_missing": "找不到子场景 {scenario} 第 {revision} 版（场景文件夹的 calls/ 里没有）",
+  "browser.call_inputs": "给子场景的入参有问题：{problems}",
+  "browser.call_verify_failed": "子场景的独立断言没有通过：{names}",
+  "browser.call_outputs": "子场景的出参有问题：{problems}",
+  "steplog.call": "子场景 {scenario} 第 {revision} 版",
+  "steplog.call_checks": "子场景的独立断言：{passed}/{total} 条通过",
   "steplog.attempts": "第 {n} 次才成功（retry）",
   "debug.loop_empty": "循环 {id} 的清单是空的，里面的步骤没有「目前这一项」可以用",
   "debug.sample_error": "（调试时的示范错误）",
@@ -177,5 +183,7 @@
   "report.branch.else": "条件不成立，走 else",
   "report.branch.none": "条件不成立，略过",
   "report.iterations": "共 {n} 轮",
+  "report.call": "子场景 {scenario} 第 {revision} 版（{name}）",
+  "report.call_checks": "；独立断言 {passed}/{total} 条通过",
   "report.attempts": "第 {n} 次才成功（retry）"
 }

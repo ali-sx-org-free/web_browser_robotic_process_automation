@@ -34,6 +34,8 @@ def test_migrations_match_models(tmp_path: Path) -> None:
             "alembic_version",
             "api_audit",
             "api_clients",
+            "batch_rows",
+            "batches",
             "device_invites",
             "domains",
             "projects",

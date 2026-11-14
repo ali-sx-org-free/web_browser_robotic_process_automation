@@ -15,9 +15,9 @@
   <div class="heading">
     <div>
       <h1>管理 Portal</h1>
-      <p>在浏览器里创建场景、验证、发布、运行并查看报告（M3）；录制、逐步调试、登录角色与入参出参的表单（M4）；自由试验场的 DAG 组合场景（M6）；之后的设备（M10）、领域文件夹与 git 同步（M11）、运行回看（M12）、项目空间、组合运行的汇总报告与合并回看、上传文件（M7c），以及 main 上、尚未发布的 Python 节点（<a href="#python-nodes">Python 节点</a>，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）也在这里。单机、单用户（<a href="../adr/0010-mvp-first.html">ADR 0010</a>），FastAPI + Jinja（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>），SQLite（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；版面沿用 <a href="../../prototypes/mvp/index.html">MVP 原型</a>与设计系统 v1.1。</p>
+      <p>在浏览器里创建场景、验证、发布、运行并查看报告（M3）；录制、逐步调试、登录角色与入参出参的表单（M4）；自由试验场的 DAG 组合场景（M6）；之后的设备（M10）、领域文件夹与 git 同步（M11）、运行回看（M12）、项目空间、组合运行的汇总报告与合并回看、上传文件（M7c）、Python 节点（v0.9.0，<a href="#python-nodes">Python 节点</a>，<a href="../adr/0020-python-nodes.html">ADR 0020</a>），以及 main 上、尚未发布的流程控制（M7.1，<a href="../adr/0021-flow-control.html">ADR 0021</a>）与组合场景的<a href="#composite-flow">条件连接、同时运行与重复次数</a>（<a href="../adr/0022-composite-flow.html">ADR 0022</a>），以及<a href="#call">子场景</a>（M7.2，<a href="../adr/0023-sub-scenarios.html">ADR 0023</a>）与<a href="#batch">批量运行</a>（M7.3，<a href="../adr/0024-batch-runs.html">ADR 0024</a>）也在这里。单机、单用户（<a href="../adr/0010-mvp-first.html">ADR 0010</a>），FastAPI + Jinja（<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>），SQLite（<a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>）；版面沿用 <a href="../../prototypes/mvp/index.html">MVP 原型</a>与设计系统 v1.1。</p>
     </div>
-    <span class="badge blue">M3～M14 · v0.8.0</span>
+    <span class="badge blue">M3～M14 · v0.9.1</span>
   </div>
 
   <div class="stack">
@@ -110,6 +110,7 @@
           <li id="files"><strong>上传文件（M7c）。</strong>场景有 <code>type: file</code> 的入参时，运行、验证与调试表单多一区「文件入参」：每个入参可以选档上传（看得到进度；上传中不能送出）或选这个版本的场景附件，值写进入参 JSON，入参 JSON 仍是送出的唯一来源，也可以直接写附件或运行那台电脑上的路径（见 <a href="dsl.html#upload">DSL › 上传文件</a>）。上传的文件存在文件区（同内容只存一份），请求运行时检查在不在、类型与大小、一次运行的合计，网页看到的文件名、大小与 sha256 以服务器的为准；不合规则直接回 422。本机运行把文件位置交给 runner；远程 worker 与录制端另外下载、比较 sha256；旧的 App 看不懂上传时提示更新。运行详情页列出这次用的文件（来源、大小、sha256、下载），运行回看显示 upload 步骤的文件与拦下选择文件窗口的提醒。场景详情页的「场景附件」加上、换掉、删除附件，每次都存成新版本；中文文件名先换成英文名称，默认值还在用的附件不能删。组合场景节点的固定值也可以选档上传。上传后 24 小时没用到就删；用过的保留到最后一次使用后 90 天；全部超过 10 GB 时从最久没用的开始删；组合场景节点的固定文件不删。只删内容，运行记录仍看得到当时的文件名。</li>
           <li id="video"><strong>录像（M12）。</strong>DSL 场景的自动化阶段录像，有头、无头都录，存成运行目录的 <code>video.webm</code> 与 <code>video.json</code>；<code>steps.json</code> 记下每一步的开始、结束时间、步骤后的网址与所在分页（<code>pageId</code>），回看时和视频对上。画面跟页面一样大，宽度最多 1280。取消、超时、失败的运行也有完整的视频（Windows 上取消时先只结束浏览器，让 Playwright 把视频写完；写坏的视频用 Playwright 自带的 ffmpeg 重新封装）。登录检查、逐步调试、录制与 Python 脚本场景不录（Python 节点的回看是步骤时间轴，见下一项）。步骤开出的新分页（M7b）各录一段，存成 <code>video-page-N.webm</code>；回看依步骤所在的分页换片段，回到一开始的分页时换回去。某段时间没有那个分页的录像时显示缺片，不沿用其他分页的画面；各分页的原始录像可分别下载。录像时每一步做完另外拍一张缩小的截图（2026-10-29，<code>steps/001.jpg</code>…，<code>steps.json</code> 的 <code>shot</code>、<code>shotAt</code>；Chromium 无头时由浏览器直接缩成最多 640 宽的 JPEG，其他时候是页面大小、品质低一点的 JPEG）：回看的时间轴、滑过预览、步骤列表与运行报告用它当那一步的缩略图，不受录像对时的误差影响；拍不到就不拍，不影响步骤的结果；跟着运行记录保存，清理录像时不删，运行详情的文件清单合成一列。浏览器播不了 WebM 时提示改用 Chrome、Edge 或 Firefox，或下载录像。默认全部录；通过的运行保留 7 天，失败、超时、取消、需要登录的保留 30 天，全部最多 20 GB（超过时从最旧的删起；一次运行的所有分页合计），钉选的不删。清理只删视频（一次运行的所有片段一起删），运行记录、报告、截图（含每一步的截图）都留着。组合运行里的节点整组处理（2026-10-27）：保留天数看整次组合运行的结果与结束时间（还在运行就不删），钉选一个节点就是钉选整次，超过总量时整次一起删，合并回看才不会缺前面通过的节点。见 <a href="../adr/0016-run-replay.html">ADR 0016</a>、<a href="../adr/0019-composite-report-replay.html">ADR 0019</a>。</li>
           <li id="python-nodes"><strong>Python 节点（ADR 0020，2026-10-29）。</strong>写了 <code>script.runtime</code> 的 Python 脚本场景是 Python 节点，用 RPA Python 运行环境运行、不开浏览器：运行、验证表单不显示浏览器、窗口与网址，改说明这是 Python 节点；派工只交给回报了这个主版本运行环境、平台在 <code>platforms</code> 里的 Worker，没有时运行页说明在等哪种 Worker（不看浏览器与窗口）；设备页列出每台带的运行环境。运行详情多了运行环境（版本、平台、第一次准备或沿用）、产出文件（<code>outputs/</code>、file 出参与 download 步骤下载的文件，可以下载）、文件变化（自动化前后共用工作文件夹与产出文件的差异）与数据预览（<code>run.preview()</code>，每份最多 50 列）；运行目录的文件名可以是中文。脚本用 <code>rpa_script</code> 的 <code>run.step()</code> 标出步骤时，回看页没有视频，是步骤时间轴：沿用章节轴，一步一章，主画面是那一步的脚本原文（标出行号）与第几次，详情有文件变化、数据预览、事实与主控台；主控台显示到那一步为止的最后 40 行，这一步写的标出来（2026-10-30：<code>steps.json</code> 的 <code>console</code> 记下每一步开始、结束时 <code>automation.log</code> 写到第几个字节，<code>print()</code>、<code>run.log()</code> 与脚本开的子进程的输出都算在内；超过 16 MB 的主控台只显示整份的最后 200 行）。失败的运行打开就停在失败的步骤。没有用 <code>run.step()</code> 的脚本与兼容模式照旧只有报告与主控台。见 <a href="../adr/0020-python-nodes.html">ADR 0020</a>、<a href="dsl.html#python">场景 DSL › Python 节点</a>。</li>
+          <li id="batch"><strong>批量运行（M7.3，<a href="../adr/0024-batch-runs.html">ADR 0024</a>）。</strong>用一张表的每一列各正式运行一次发布过的场景版本：场景详情页（已发布时）的「批量运行」，或场景运行的「批量运行」清单。<em>创建</em>：上传 CSV、TSV、Excel（.xlsx，第一个工作表）或粘贴一张表（Tab 或逗号分隔），第一列是标题；最多 1,000 列、50 栏、5 MB；选项同运行表单（浏览器、运行位置、窗口、网址），另有「一列没通过时」照跑或停下、「同时几列」（1～10）。创建后先到批量页，还没开始。<em>开始前</em>：入参依标题自动对应字段（相同，或不分大小写、忽略空白、底线与连字号后相同），可以改成别的字段或「不对应（用默认值）」；每一列照契约检查（数字可以有千分位，是非收 true／false、1／0、yes／no、是／否，清单与对象写 JSON，<code>{{ }}</code> 照原样交给动态值，文件入参不能从表格给值），有问题的列标出原因、不运行；没用到的字段标出来。可以存设置、删除这个批量或开始。<em>运行中</em>：批量固定创建时发布的版本；每一列是一次一般的正式运行（运行清单、报告、回看都看得到），依「同时几列」排入、一列结束就排下一列；同一台 Worker 一次一列。页面每 3 秒检查一次，状态或各状态的列数变了就刷新；「停下」不再排新的列，并取消排队中与运行中的列。<em>结束后</em>：每一列的状态、第几次、运行编号（连到运行详情与回看）、出参、问题；导出 CSV（UTF-8 带 BOM，看起来像公式的值前面加 <code>'</code>）或 Excel；「重跑没有通过的列」（失败、超时、取消、需要登录、排不进去、数据有问题、没有运行）前可以直接改那几列的保存格。每一列的每一次运行都保留。服务器重启后运行中的批量接着走。</li>
         </ul>
       </div>
     </section>
@@ -154,7 +155,7 @@
       <div class="panel-body prose">
         <ul>
           <li><strong>开始。</strong>场景页的「逐步调试」或卡片的「调试」选版本、入参、浏览器与窗口模式。有图形界面时浏览器窗口开在这台电脑上；两种模式都在页面上显示每一步之后的截图、网址与页面事实。只支持 DSL 场景。</li>
-          <li><strong>运行。</strong>每一步可以「运行这一步」，或「运行到这里」（只运行还没运行过的步骤，遇到失败就停）。有副作用的步骤（点击、填写、选择、勾选、按键）运行过一次后，再运行要先确认；不会自动重复任何步骤。「从头开始」开新的页面并重新加载登录状态。<strong>区块步骤（M7.1）</strong>显示成可以展开的树：区块可以「整块运行」（照运行时的规则判断条件、跑循环，里面每一步都更新状态，循环里的运行次数累加），也能单独运行里面的一步；循环那一列可以填「目前第几项」，单独运行循环里的一步时循环变量用那一项（记在这个工作阶段，catch 里的 error 是示范值）。区块里有任何有副作用的步骤，整块就算有副作用；「运行到这里」只用于最外层的步骤。</li>
+          <li><strong>运行。</strong>每一步可以「运行这一步」，或「运行到这里」（只运行还没运行过的步骤，遇到失败就停）。有副作用的步骤（点击、填写、选择、勾选、按键，以及<a href="#call">子场景</a>的 call）运行过一次后，再运行要先确认；不会自动重复任何步骤。「从头开始」开新的页面并重新加载登录状态。<strong>区块步骤（M7.1）</strong>显示成可以展开的树：区块可以「整块运行」（照运行时的规则判断条件、跑循环，里面每一步都更新状态，循环里的运行次数累加），也能单独运行里面的一步；循环那一列可以填「目前第几项」，单独运行循环里的一步时循环变量用那一项（记在这个工作阶段，catch 里的 error 是示范值）。区块里有任何有副作用的步骤，整块就算有副作用；「运行到这里」只用于最外层的步骤。</li>
           <li><strong>定位器测试。</strong>输入 DSL 定位器（例如 <code>{ role: button, name: 登录 }</code>），回报找到几个元素与前几个的文字，截图时以红框标出。</li>
           <li><strong>修改。</strong>页面下方直接编辑 YAML，存成新版本后换到新版本继续；浏览器与页面事实保留，运行过的步骤依 id 保留状态。换版本的命令直接带场景内容与入参，调试在录制端（另一台电脑）时也能换（v0.6.3 修正；之前送服务器上的路径，只回「场景校验失败」）。新版本存好、但没有换过去时（例如录制端的 App 太旧），页面留下说明，可以选「用新版本重新开始调试」（关掉目前的浏览器、沿用入参与设置，从第 1 步开始）或留在原本的版本。</li>
           <li><strong>限制。</strong>每个场景同一时间一个工作阶段；闲置 15 分钟自动结束，服务器关闭时全部结束。调试会真的操作目标网站，请用测试环境。</li>
@@ -167,6 +168,7 @@
       <div class="panel-body prose">
         <ul>
           <li><strong>自动化脚本与断言脚本分开。</strong>DSL 场景的卡片与场景页有「自动化脚本」（<code>steps:</code>）与「断言脚本」（<code>verify:</code>）两个入口，各自只显示、只改写场景文件的那一段；运行时先跑自动化步骤，再用断言脚本检查取得的页面事实，全部通过才发布出参。断言脚本右侧可以一键插入 notEmpty、equals、contains、matches 的检查，点一下页面事实或入参的名称就插入到光标位置。保存前校验，问题标出段落里的行号。完整场景文件的编辑页有「插入流程模板」（M7.1）：if、forEach、repeat、try／catch、openPage／closePage 的模板插在光标所在的那一行之前，定位器是 <code>testId: change-me</code>，提醒改成实际的定位器。模板是 YAML 写法，整份写成 JSON 的场景文件不显示这个菜单。</li>
+          <li id="call"><strong>子场景（M7.2，<a href="../adr/0023-sub-scenarios.html">ADR 0023</a>）。</strong>场景文件里写 <code>action: call</code>（写法见<a href="dsl.html#call">场景 DSL › 子场景</a>；「插入流程模板」有 call 的模板）。<em>保存</em>：服务器把 call 用到的子场景版本的场景文件带进这个版本的 <code>calls/</code>，算进内容哈希；新加的 call 要引用<strong>发布过的版本</strong>（子场景要在、没封存，版本没有问题），不符合时保存回 422 并说明原因。上一个版本已经带进来的子场景不再检查，之后子场景出新版本、封存都不影响这个场景；拿掉 call 保存，那一份也跟着拿掉。完整场景文件的编辑页不列出 <code>calls/</code> 的文件（版本的 API 有）。<em>运行与验证</em>：和一般场景相同，子场景文件跟着版本送到 Worker；派工前连同子场景用到的 DSL 扩充一起比较，App 太旧时说明要更新。<em>逐步调试</em>：call 是一步，整个子场景一起运行，算有副作用（运行过再运行要确认）；要一步一步看子场景，打开子场景自己的调试。<em>报告与回看</em>：子场景的步骤缩进在 call 下面，点了显示子场景文件里那一步的原文；call 那一步显示调用的场景与版本。<em>还不支持</em>：用到 call 的场景不能「接著录制」（重播既有步骤的子进程拿不到子场景），会直接说明。</li>
           <li><strong>入参与出参左右编辑。</strong>场景页优先呈现契约工作台，默认左右两栏 YAML 原文；表格仍可添加、排序、改名与设置限制。切换查看保留两栏草稿，统一「保存入参与出参」会一起校验并创建一个版本，任一栏有错不会部分保存。错误标示字段及段落行号；版本冲突回 409，保留草稿。</li>
           <li><strong>三个唯读预览。</strong>在左右编辑器下方依序平铺「默认入参」「出参样例」「出参提取映射」，桌面三栏同时可见，窄屏纵向排列，无需切换页签。默认入参与提取映射随草稿自动刷新；草稿无效时清除旧预览并提示不可用。默认入参由目前草稿产生，没有默认值的必填项另列，不伪造值。出参样例只取该已保存版本最近一次成功运行的真实出参，标明版本与运行编号；没有结果时明确显示空状态，草稿已修改时提示尚未验证。提取映射来自草稿的 outputs.from；Python 场景明示由 assertion.py 产生。三个预览不接受编辑保存。</li>
           <li><strong>修改与验证动线。</strong>契约、完整文件与脚本分段保存后留在原页，更新版本并显示「验证这个版本」。发布后留在报告，显示已发布版本与运行入口。离开有修改的编辑器会提示。契约保存只替换 inputs／outputs，其他段落与注释保留；表格改名同步更新 DSL 引用，YAML 改名需自行调整引用。新版本仍需重新验证、发布；不修改 Python 脚本。</li>
@@ -246,7 +248,7 @@
           <tbody>
             <tr><td>场景管理（<code>/scenes</code>）</td><td>领域 ×N（依领域管理的顺序）、登录与凭证</td><td>显示</td><td>显示</td></tr>
             <tr><td>场景生产（<code>/recording</code>）</td><td>自主脚本录制、自由试验场</td><td>显示</td><td>显示</td></tr>
-            <tr><td>场景运行（<code>/runs</code>）</td><td>运行报告（2026-10-25 前另有运行回看，已并进来）</td><td>显示</td><td>显示</td></tr>
+            <tr><td>场景运行（<code>/runs</code>）</td><td>运行报告（2026-10-25 前另有运行回看，已并进来）、批量运行（M7.3）</td><td>显示</td><td>显示</td></tr>
             <tr><td>项目空间（<code>/workspace</code>）</td><td>项目 ×N（依项目管理的顺序）</td><td>显示</td><td>显示</td></tr>
             <tr><td>集群管理（<code>/devices</code>）</td><td>设备</td><td>显示</td><td>默认不显示</td></tr>
             <tr><td>管理后台（<code>/domains</code>）</td><td>领域管理、项目管理</td><td>显示</td><td>默认不显示</td></tr>
@@ -280,6 +282,9 @@
             <tr><td><code>/scenes/{id}/run</code></td><td>验证或运行的表单：入参（JSON，已带入默认值）、浏览器、网址</td></tr>
             <tr><td><code>/runs</code></td><td>运行报告：分类、场景、结果、目的、录像的筛选菜单，每一项都可以复选；「录像」栏的「▶ 回看」打开那次运行的录像；录像设置与目前用量（原本在运行回看页）。上方切换「场景运行｜组合运行」（2026-10-27）：场景运行里组合的节点标出属于哪次组合运行；<code>?view=composite</code> 一列一次组合运行（项目、组合场景、结果、目的、运行位置的筛选），点「报告」到汇总报告</td></tr>
             <tr><td><code>/runs/{运行编号}</code></td><td>状态、阶段、独立断言、入参与出参、截图；运行目录的文件（每个文件一行说明、另开窗口查看、下载；录像点文件名到回看页；每一步的截图合成一列 <code>steps/</code>，连到回看页，2026-10-29）；Python 节点另有运行环境、产出文件（可以下载）、文件变化与数据预览（见 <a href="#python-nodes">Python 节点</a>）；取消、发布；有录像或步骤时间轴时「回看」。在 Portal 里打开 report.html 时最上面加一列「回到运行详情」「录像回看」（文件本身不变）。JSON 与文字档标明 UTF-8，直接打开不会乱码；运行目录文件的 CSP 允许同来源的视频（直接打开 video.webm 可以播放）</td></tr>
+            <tr><td><code>/scenes/{id}/batch</code></td><td>新的批量运行（M7.3）：上传或粘贴表格、选项；场景要发布过</td></tr>
+            <tr><td><code>/batches</code></td><td>批量运行清单（场景运行）：最近的批量、状态、列数、通过与没有通过的列数；<code>?scene=</code> 只看一个场景</td></tr>
+            <tr><td><code>/batches/{批量}</code></td><td>一个批量：开始前改字段对应与选项、看每一列的检查；运行中自动更新、停下；结束后导出、改保存格后重跑没有通过的列（见<a href="#batch">批量运行</a>）</td></tr>
             <tr><td><code>/replay</code></td><td>旧网址：转到 <code>/runs?video=1</code>（只看有录像的运行；2026-10-25 前是单独的运行回看清单）</td></tr>
             <tr><td><code>/runs/{运行编号}/replay</code></td><td>回看一次运行：视频（网址列、目前步骤的标签）、控制列（播放、上一步／下一步、逐格、¼×～2×、全屏幕、快捷键）、缩略图时间轴（滑过预览、拖曳、步骤轨；2026-10-29 起默认「依步骤」：一格一步，缩略图是那一步做完的截图，同一段录像里超过 0.5 秒没有动作的空档折叠成窄格并标出实际秒数，播放经过时 4× 快转（控制列的「快转等待」可以关掉），刻度标实际时间；步骤多到一步放不下 44 px 时格子变窄、每几步合成一格缩略图，单一运行每几步一组（组合回看是节点），点一组放大那一段，「← 整次」回来；可以切到「依时间」：照实际时间等比例排、平均切格，这个选择记在浏览器里）、步骤列表跟着视频走（点一步跳到那一步开始前，最多 0.4 秒、不早于上一步结束；详情在清单上方往下滑出、不盖住清单，有错误、这一步做完的截图、定位器、填入的值、抽到的事实、场景文件原文与行号、「在场景中打开」，可以直接点别的步骤或用上一步／下一步换内容，「收起」或 Esc 收回，2026-10-29；2026-10-28 曾是从右侧滑出、盖住清单）、断言、运行信息与钉选；失败的运行打开就停在失败步骤之前 1 秒；同一个场景的上一次、下一次、上一次没通过；组合场景的节点之间切换。<code>?t=秒&amp;step=步骤</code> 打开时跳到那一刻。Python 节点没有视频，是步骤时间轴（见 <a href="#python-nodes">Python 节点</a>）</td></tr>
             <tr><td><code>/roles</code></td><td>登录与凭证：登录角色（登录、检查、注销）、Secrets</td></tr>
@@ -330,6 +335,10 @@
             <tr><td><code>POST /api/scenes/{id}/revisions/{n}/publish</code></td><td>发布；不符合发布门槛时 409</td></tr>
             <tr><td><code>GET /api/scenes/{id}/verifications</code></td><td>验证记录（领域文件夹里的，不管是哪一台服务器），最新的在前</td></tr>
             <tr><td><code>POST /api/scenes/{id}/runs</code></td><td>以已发布版本运行：<code>inputs</code>、<code>engine</code>、<code>baseUrl</code>、<code>headless</code>（不写时运行的地方有图形界面就用有头模式）、<code>target</code>（运行位置，不写用默认）、<code>idempotencyKey</code>；验证也接受同样的字段</td></tr>
+            <tr><td><code>POST /api/scenes/{id}/batches</code></td><td>创建批量（M7.3）：<code>text</code>（粘贴的表格），或 <code>fileName</code> 与 base64 的 <code>fileContent</code>；选用的 <code>mapping</code>（入参 → 字段，null 是用默认值）、<code>onFailure</code>（continue／stop）、<code>concurrency</code>（1～10）、<code>engine</code>、<code>baseUrl</code>、<code>headless</code>、<code>target</code>、<code>idempotencyKey</code>；<code>start: true</code> 创建后直接开始。表格读不进来 422 <code>batch_table</code>；场景没发布 409</td></tr>
+            <tr><td><code>GET /api/batches</code>、<code>GET</code>、<code>PATCH</code>、<code>DELETE /api/batches/{批量}</code></td><td>批量清单（<code>scene</code>、<code>limit</code>；不含每一列）；一个批量与每一列（<code>cells</code>、换算后的 <code>inputs</code>、<code>problems</code>、<code>status</code>、<code>runId</code>、<code>output</code>、<code>attempts</code>、每一次的 <code>runs</code>）与各状态的列数 <code>counts</code>；还没开始时改字段对应与选项、删除（开始后 409 <code>batch_not_draft</code>）</td></tr>
+            <tr><td><code>POST /api/batches/{批量}/start</code>、<code>…/stop</code>、<code>…/rerun</code></td><td>开始（没有一列可以运行时 422 <code>batch_no_valid_rows</code>）；停下（取消排队中与运行中的列）；重跑：<code>rows</code>（列号，没写是没有通过的列）、<code>cells</code>（列号 → 字段 → 文字，先改保存格），批量要已经结束或停下，没有要重跑的列 422 <code>batch_nothing_to_rerun</code></td></tr>
+            <tr><td><code>GET /api/batches/{批量}/export?format=csv|xlsx</code></td><td>导出结果：原本的保存格加上状态、第几次、运行编号、每个出参与错误</td></tr>
             <tr><td><code>POST /api/files?name={文件名}</code></td><td>上传一个文件（M7c）：本体就是文件内容（不用 multipart），一段一段写入、边写边算 sha256；回 201 与 <code>file</code>（代号）、<code>name</code>、<code>size</code>、<code>sha256</code>、<code>mediaType</code>，前四项就是文件入参的值。超过单档上限 413 <code>file_too_large</code></td></tr>
             <tr><td><code>GET /api/files/{代号}</code>、<code>…/content</code></td><td>上传档的说明（<code>deleted</code>：过了保留期限，内容已删除）；下载内容</td></tr>
             <tr><td><code>GET /api/runs</code>、<code>GET /api/runs/{运行编号}</code></td><td>报告清单（<code>scene</code>、<code>category</code>、<code>status</code>、<code>purpose</code> 可重复）；单次状态、<code>result.json</code> 与文件清单；<code>video</code> 是录像的长度、大小、钉选、删除的时间与原因、视频网址（M12，没有录像时是 null）</td></tr>
@@ -404,7 +413,7 @@
             <dt>projects</dt><dd>项目（2026-10-23）：代号、名称、说明、排列顺序、创建时间</dd>
             <dt>scenes</dt><dd>id、名称与分类（取自最新版本）、所属领域、默认网址、最新与已发布的版本号码、封存、来源缺失</dd>
             <dt>revisions</dt><dd>场景、版本号码（唯一）、内容哈希、种类、状态、说明、发布时间；来源缺失、不能运行的问题、有没有哈希相符的通过验证记录</dd>
-            <dt>runs</dt><dd>运行编号、场景与版本、当时的名称与分类、目的、状态与阶段、有头或无头模式、入参与出参、错误、哈希、时间；试验场节点的串行运行与节点代号；运行位置、指定的 worker、实际运行的 worker 与租约；录像的长度与大小、钉选、删除的时间与原因（M12）</dd>
+            <dt>runs</dt><dd>运行编号、场景与版本、当时的名称与分类、目的、状态与阶段、有头或无头模式、入参与出参、错误、哈希、时间；试验场节点的串行运行与节点代号；运行位置、指定的 worker、实际运行的 worker 与租约；录像的长度与大小、钉选、删除的时间与原因（M12）；属于哪个批量的第几列（M7.3）</dd>
             <dt>roles</dt><dd>代号、名称、登录网址、确认网址与判断元素、浏览器、自动登录步骤、最近的状态与检查时间；所在领域、来源缺失</dd>
             <dt>recordings</dt><dd>录制编号、目标场景与版本、方式（新场景、接着现有步骤、整份换掉）与接续的版本、来源（录制或粘贴）、网址、浏览器、角色、状态、转不了的行</dd>
             <dt>workflows</dt><dd>组合场景：代号、所在领域、名称、说明、最新版本的定义（JSON）与版本号码、发布的版本、封存、来源缺失；属于哪个项目（2026-10-23，只在数据库）</dd>
@@ -413,6 +422,8 @@
             <dt>workers</dt><dd>远程 worker：代号、名称、权杖的哈希、禁用、上线时回报的信息（M10.1 加上 App 版本）、目前的运行、最后回报时间</dd>
             <dt>recorders</dt><dd>录制端（M10.2）：代号、名称、权杖的哈希、禁用、上线时回报的信息、最后回报时间；通过这台时另外显示的菜单（2026-10-22）</dd>
             <dt>device_invites</dt><dd>设备邀请（M10.1）：代码的哈希、App 种类、设备代号、产生时间、期限、使用时间</dd>
+            <dt>batches</dt><dd>批量运行（M7.3）：代号、场景与固定的版本、当时的名称、状态（draft、running、finished、stopped）、表格的标题、字段对应、文件名、选项（一列没通过时、同时几列、浏览器、网址、窗口、运行位置）、第几轮、停下的原因、时间、创建的 API 用户端、幂等键</dd>
+            <dt>batch_rows</dt><dd>批量的每一列：列号、保存格（标题 → 文字）、最近一次的运行、第几次、被选进哪一轮、排不进去的原因</dd>
             <dt>uploaded_files</dt><dd>上传的文件（M7c）：代号、sha256、文件名、大小、类型、上传与最后使用的时间、上传的 API 用户端；内容删除的时间与原因（没用到、过期、超过总量）</dd>
             <dt>settings</dt><dd>设置（默认运行位置、服务器代号与名称、文件夹的格式、录像）</dd>
           </dl>

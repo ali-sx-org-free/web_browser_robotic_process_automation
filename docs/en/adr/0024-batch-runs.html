@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:21474c8e47ca5d20">
+<title>ADR 0024 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0024" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0024: Data-driven runs are batch runs, and each row is one ordinary production run</h1>
+      <p>Upload or paste a table; each row is a set of inputs, and each row runs a published scenario revision once in production, with its own report, outputs and replay. A batch keeps the table, the column mapping and the options, and its scheduling is worked out again from the database every time. When it ends you can export the results and rerun only the rows that did not pass (editing those rows' cells first if needed).</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-11-13</dd>
+        <dt>Status</dt><dd>On 2026-11-06 18:21 America/Los_Angeles (PST, UTC−08:00) the user confirmed D9 of M7: data-driven runs are batch runs, one run per row with its own report, a summary that can be exported, and the option to rerun only the failed rows (see the <a href="../../../handoff/decisions.html#decisions">decision record</a>). The table formats, column mapping and conversion, scheduling and “rounds”, the server reading and writing xlsx itself, and the Agent API shape are implementation choices made during detailed design on 2026-11-13 (the user asked on 2026-11-13 18:12 to implement the rest of M7); they are recorded here and in the <a href="../../../handoff/tasks/20261113-m7-3-batch.html">task record</a> and can be adjusted when the PR is reviewed.</dd>
+        <dt>Scope</dt><dd>rpa-server (reading tables and exporting results, the batch service and scheduling, migration 0018, the API, the Agent API, the Portal's batch pages); rpa-core, rpa-runner, the Worker and the recorder are unchanged (each row is an ordinary production run)</dd>
+        <dt>Related</dt><dd><a href="0009-scenario-contract.html">ADR 0009</a> (scenario contract), <a href="0012-remote-workers.html">ADR 0012</a> (remote Workers and where runs happen), <a href="0017-agent-api.html">ADR 0017</a> (external Agent API), <a href="0018-layered-updates.html">ADR 0018</a> (layered updates), <a href="0021-flow-control.html">ADR 0021</a> (flow control in scenarios); <a href="../design/portal.html#batch">Management Portal › Batch runs</a>, <a href="../design/agent-api.html">External Agent API</a>; <a href="../../../handoff/tasks/20261113-m7-3-batch.html">task record</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>A common need is “do the same flow once for every entry in a list”: create orders one by one, set up accounts one by one. The <code>forEach</code> of M7.1 handles items one after another inside a single run, but an error in one entry has to be caught with <code>try</code>, the result is a single report, and afterwards you cannot tell which screen belonged to which entry. Creating orders one by one usually needs evidence for every entry, and a way to redo only the few that failed.</p>
+          <p>Production runs already have contract checks, reports, outputs, replay, run locations and the Agent's limits; what is missing is turning a table into many production runs and seeing the result of every row.</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>A row is one ordinary production run.</strong> A batch fixes the scenario's published revision when it is created; each row queues one run with the purpose execution (<code>runs.batch_id</code>, <code>batch_row</code>), with the same report, outputs, replay and run location as a manual run. The Worker, the recorder and the executor know nothing about batches.</li>
+            <li><strong>The table is stored as text.</strong> Paste it (tab- or comma-separated) or upload CSV, TSV or Excel (.xlsx, the first worksheet; dates become ISO text according to the cell format). The first row holds the headings; at most 1,000 rows, 50 columns and 5 MB, and 10,000 characters per cell. Cells are stored as text and only converted to inputs just before a row is queued.</li>
+            <li><strong>Columns are mapped by heading, and the mapping can be changed.</strong> A heading maps to the input with the same name (or the same name once case, spaces, underscores and hyphens are ignored); inputs with no column, and empty cells, use their defaults. Conversion: numbers may have thousands separators; yes/no values accept true/false, 1/0, yes/no and 是/否; lists and objects are written as JSON; text with <code>{{ }}</code> is passed on unchanged to dynamic values; file inputs cannot come from the table. The converted values are then checked against the scenario contract, and a row with problems is marked “data problem” and not run.</li>
+            <li><strong>Create first, then start.</strong> A new batch is “waiting to start”: you can change the column mapping and the options and see the check result of every row; once it starts they cannot change. Options: when a row does not pass, carry on or stop; how many rows to queue at once (1–10; how many actually run at once depends on how many Workers are free); browser, URL, headed/headless and run location as on the run form.</li>
+            <li><strong>Scheduling is worked out from the database.</strong> Whenever a run ends (including one cancelled while queued), the batch is looked at again: which rows are running, which rows of this round have not been queued, whether a row did not pass; then it fills up to “rows at once” or ends. The same notice arriving twice, or a server restart, does not lose the thread; each row's idempotency key is “batch-row-attempt”, so a row is never queued twice. A row that cannot be queued (for example because the scenario was archived) records why and counts as not passed.</li>
+            <li><strong>“Rounds” decide which rows run.</strong> Starting is round 1 and each rerun adds 1; only rows chosen for the current round are queued and counted as not passed. By default a rerun takes the rows that did not pass (failed, timed out, cancelled, needs login, could not be queued, data problem, never run); row numbers can be given instead; and the cells of those rows can be edited first (only existing columns; every run is still kept).</li>
+            <li><strong>Stopping does not undo anything.</strong> A manual stop, or “stop when a row does not pass”, queues no more rows, and a manual stop cancels the rows that are queued or running; external actions that already happened are not rolled back.</li>
+            <li><strong>The server produces the exports.</strong> CSV (UTF-8 with a BOM; values that start with <code>=</code>, <code>+</code>, <code>-</code> or <code>@</code> and are not numbers get a leading <code>'</code> so they are not taken as formulas) and Excel; the content is the original cells plus the status, the attempt, the run ID, every output and the error. The server reads and writes xlsx with the standard library instead of adding openpyxl.</li>
+            <li><strong>The Agent API uses the same machinery.</strong> In <code>POST /agent-api/v1/batches</code>, each entry of <code>rows</code> is a set of inputs (input name → value), and the batch starts right away; if any row has a problem the batch is not created (422, listing each row's problems). Rows queued at once count toward the limit on queued and running runs; a client sees and stops only the batches it created.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>The evidence for every row is exactly that of a manual run, so the run list, replay and the Agent's run endpoints need no change; the cost is that 1,000 rows are 1,000 run records and run folders, kept under the ordinary retention rules.</li>
+            <li>A batch neither blocks publishing a newer revision of the scenario nor switches to it: to use the new revision, create a new batch.</li>
+            <li>Every row opens a browser and logs in once (with a login role, using the saved login state); for working through items on one screen in one browser, <code>forEach</code> is still the tool.</li>
+            <li>“Rows at once” only decides how many are queued; one Worker runs one row at a time, so real parallelism needs several Workers.</li>
+            <li>The server gains two tables (<code>batches</code>, <code>batch_rows</code>) and two columns on <code>runs</code>, which needs a database migration (0018).</li>
+            <li>Reading and writing xlsx ourselves covers the common cases (the first worksheet, shared strings, inline strings, number and date formats); a formula gives the result Excel saved, and a formula without a saved result reads as empty.</li>
+            <li>The first version covers published scenarios only; batches of composite scenarios (composites in projects), scheduled triggers and a limit shared between batches wait for actual need.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>Alternatives not chosen</h2></div>
+        <div class="panel-body">
+          <table class="table">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Only <code>forEach</code>: read the table as a list and work through it in one run</td><td>An error in one row affects the whole run, there is a single report, and the failed rows cannot be redone on their own; the user chose batch runs (D9).</td></tr>
+              <tr><td>Make a batch a new run purpose, or run the rows one by one on the Worker</td><td>Reports, replay, run locations, the Agent's limits and the run list would all need separate handling, and the Worker protocol would change.</td></tr>
+              <tr><td>Convert every row to inputs when the batch is created and store them</td><td>Changing the mapping or a cell would mean recomputing and storing two copies, and after a change to the conversion rules an old batch would no longer show its original data.</td></tr>
+              <tr><td>Judge a round by “runs created after it started”</td><td>When rerunning chosen rows, rows that were neither chosen nor ever run cannot be told apart and get queued too; a row from an earlier round that could not be queued would make “stop when a row does not pass” stop at once.</td></tr>
+              <tr><td>Add openpyxl to the server to read and write Excel</td><td>The distribution's Python dependencies change, so the runtime ID changes and an upgrade needs the full installer; all that is needed is reading the text of the first worksheet and writing one simple sheet.</td></tr>
+              <tr><td>Parse files and build exports in the browser</td><td>The Agent API needs the same checks and exports; the rules live once, on the server.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

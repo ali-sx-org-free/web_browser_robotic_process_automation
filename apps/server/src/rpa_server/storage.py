@@ -20,6 +20,10 @@
 scenarioHash 用同一個演算法（:func:`rpa_core.dsl.sources.scenario_digest`），發布門檻靠它確認
 「通過驗證的就是要發布的版本」。
 
+子場景（M7.2，ADR 0023）：場景的 ``call`` 引用的場景版本，場景檔原樣複製在呼叫場景的版本目錄
+``calls/<子場景>/<版本>.yaml``，算進雜湊。這些檔案由 :meth:`Storage.check` 在檢查時帶入
+（:meth:`Storage._with_calls`），使用者不直接編輯；存檔用檢查結果的 ``files``。
+
 場景在哪個領域資料夾由 :meth:`Storage.place_scene` 登記（載入資料夾、新增場景、搬到其他領域時），
 所以只知道場景 id 的地方（佇列、遠端分派）照樣用 :meth:`Storage.revision_dir` 找到版本目錄。
 M11 之前的版本目錄在 ``scenes/<場景>/<版本>/``，第一次啟動時搬進領域資料夾（packs.py）。
@@ -38,6 +42,7 @@ from pathlib import Path
 from typing import Final
 
 from rpa_core.dsl import Issue, Scenario, validate_file
+from rpa_core.dsl.calls import MAX_CALLS, CallKey, call_file, data_call_refs, is_call_path
 from rpa_core.dsl.files import (
     ATTACHMENT_DIR,
     MAX_ATTACHMENT_BYTES,
@@ -47,12 +52,14 @@ from rpa_core.dsl.files import (
     is_attachment_path,
 )
 from rpa_core.dsl.sources import attachment_files, scenario_digest, scenario_sources
+from rpa_core.dsl.yaml_loader import YamlLoadError, load_yaml
 from rpa_core.pack import COMPOSITES_DIR, REVISIONS_DIR, SCENES_DIR
 from rpa_server.i18n import t
 from rpa_worker.protocol import is_artifact_path
 
 __all__ = [
     "SCENARIO_FILE",
+    "CallGate",
     "CheckedRevision",
     "Storage",
     "StorageConflictError",
@@ -67,6 +74,11 @@ _FILE_PATH: Final = re.compile(
 )
 _MAX_FILES: Final = 20
 _MAX_BYTES: Final = 1_000_000
+
+
+type CallGate = Callable[[str, int], str | None]
+"""新加的子場景能不能用（M7.2）：(子場景代號, 版本) → 不能用的原因，可以用時是 None。
+伺服器用它要求子場景是發布過的版本（見 Services）。"""
 
 
 class StorageConflictError(Exception):
@@ -254,13 +266,20 @@ class Storage:
         *,
         scene_id: str | None = None,
         attachments: Mapping[str, bytes] | None = None,
+        call_gate: CallGate | None = None,
     ) -> CheckedRevision:
         """檢查一組版本檔案：路徑、場景校驗、場景 id、是否有多餘的檔案。
 
         ``attachments`` 是場景附件（M7c，``files/檔名`` → 內容）：給了時一起檢查（檔名、大小、
         入參預設值用到的附件都在），雜湊也包含它們；沒給時（例如預覽一段）不檢查附件。
+
+        子場景（M7.2）：場景檔用到的 ``call`` 由這裡帶入 ``calls/`` 的檔案（見
+        :meth:`_with_calls`），送進來的 ``calls/`` 檔案不直接採用；結果的 ``files`` 是帶入之後的。
+        ``call_gate`` 檢查新加的子場景能不能用。
         """
+        files, call_problems = self._with_calls(files, call_gate)
         problems = self._check_paths(files) + _check_attachments(attachments or {})
+        problems += call_problems
         if problems:
             return CheckedRevision(dict(files), issues=tuple(problems))
         with tempfile.TemporaryDirectory(prefix="rpa-revision-") as temp:
@@ -292,6 +311,68 @@ class Storage:
                 return CheckedRevision(dict(files), issues=tuple(issues))
             digest = scenario_digest(folder / SCENARIO_FILE, scenario)
         return CheckedRevision(dict(files), scenario=scenario, digest=digest)
+
+    def _with_calls(
+        self, files: Mapping[str, str], gate: CallGate | None
+    ) -> tuple[dict[str, str], list[Issue]]:
+        """依場景檔的 ``call`` 重新決定 ``calls/`` 的檔案（M7.2）：(帶入之後的檔案, 問題)。
+
+        每個用到的子場景版本（含子場景自己呼叫的）：
+
+        - 這台有那個版本時，用它的場景檔（版本不可變，內容一定相同）。送進來的檔案裡還沒有
+          同樣內容的，是這次新加的：用 ``gate`` 確認可以用（發布過的版本）。
+        - 這台沒有那個版本（例如子場景所在的領域沒有同步過來）：沿用送進來的那一份
+          （上一個版本存下來的）；也沒有時回報問題。
+
+        沒用到的 ``calls/`` 檔案丟掉。場景檔讀不出來時原樣交給後面的校驗回報。
+        """
+        kept = {path: text for path, text in files.items() if not is_call_path(path)}
+        try:
+            data, _ = load_yaml(files.get(SCENARIO_FILE, ""))
+        except YamlLoadError:
+            return dict(files), []
+        problems: list[Issue] = []
+        seen: set[CallKey] = set()
+        pending = data_call_refs(data)
+        folders: list[Path] = []  # 已帶入的子場景的版本目錄：它們自己的 calls/ 也是來源
+        while pending and len(seen) <= MAX_CALLS:
+            key = pending.pop(0)
+            if key in seen:
+                continue
+            seen.add(key)
+            scene_id, number = key
+            relative = call_file(scene_id, number)
+            given = files.get(relative)
+            folder = self.revision_dir(scene_id, number)
+            text = _read_optional(folder / SCENARIO_FILE)
+            if text is not None:
+                folders.append(folder)
+                if text != given and gate is not None:
+                    reason = gate(scene_id, number)
+                    if reason is not None:
+                        problems.append(_issue("server.call_unusable", reason))
+                        continue
+            else:
+                text = given
+                for parent in folders:
+                    if text is not None:
+                        break
+                    text = _read_optional(parent / relative)
+            if text is None:
+                problems.append(
+                    _issue(
+                        "server.call_missing",
+                        t("revision.call_missing", scenario=scene_id, revision=number),
+                    )
+                )
+                continue
+            kept[relative] = text
+            try:
+                inner, _ = load_yaml(text)
+            except YamlLoadError:
+                continue  # 校驗會指出這個子場景讀不出來
+            pending.extend(data_call_refs(inner))
+        return kept, problems
 
     @staticmethod
     def _check_paths(files: Mapping[str, str]) -> list[Issue]:
@@ -404,6 +485,14 @@ def _read_text(path: Path) -> str:
     """讀回原本的內容（保留換行字元，不轉換 CRLF）。"""
     with path.open(encoding="utf-8", newline="") as handle:
         return handle.read()
+
+
+def _read_optional(path: Path) -> str | None:
+    """檔案的內容；不存在或讀不出來時是 None。"""
+    try:
+        return _read_text(path)
+    except (OSError, UnicodeDecodeError):
+        return None
 
 
 def _check_attachments(attachments: Mapping[str, bytes]) -> list[Issue]:

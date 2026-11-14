@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{#- 批次執行的清單（M7.3）：最近的批次，最新的在前。新的批次從場景頁的「批次執行」建立。 -#}
+{% block crumb %}{{ t("nav.batches") }}{% if scene %} › {{ scene }}{% endif %}{% endblock %}
+{% block description %}{{ t("batches.description") }}{% endblock %}
+{% block content %}
+<div class="stack">
+  {% if batches %}
+  <div class="table-scroll">
+    <table>
+      <thead><tr>
+        <th>{{ t("batches.col_batch") }}</th>
+        <th>{{ t("runs.col_scene") }}</th>
+        <th>{{ t("runs.col_revision") }}</th>
+        <th>{{ t("runs.col_status") }}</th>
+        <th class="numeric">{{ t("batches.col_rows") }}</th>
+        <th class="numeric">{{ t("status.passed") }}</th>
+        <th class="numeric">{{ t("batches.col_not_passed") }}</th>
+        <th>{{ t("runs.col_actions") }}</th>
+      </tr></thead>
+      <tbody>
+      {% for item in batches %}
+        <tr data-batch="{{ item.id }}">
+          <td><span class="tag mono">{{ item.id }}</span><span class="cell-sub">{{ m.time(item.created_at) }}{% if item.source %} · {{ item.source }}{% endif %}</span></td>
+          <td><a href="/scenes/{{ item.scene_id }}">{{ item.scene_id }}</a> {{ item.scene_name }}</td>
+          <td>v{{ item.revision }}</td>
+          <td>{{ m.badge(item.status, t("batch_status." + item.status)) }}</td>
+          <td class="numeric">{{ item.counts.get("total", 0) }}</td>
+          <td class="numeric">{{ item.counts.get("passed", 0) }}</td>
+          <td class="numeric">{{ item.counts.get("failed", 0) }}</td>
+          <td><a class="text-btn" href="/batches/{{ item.id }}">{{ t("runs.view") }}</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="notice">{{ t("batches.empty") }}</div>
+  {% endif %}
+</div>
+{% endblock %}

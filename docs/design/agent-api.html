@@ -34,7 +34,7 @@
   </div>
 
   <div class="stack">
-    <div class="notice">決策與沒有選的方案見 <a href="../adr/0017-agent-api.html">ADR 0017</a>；給 Agent 的呼叫方式見 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。設計 2026-10-23 由使用者確認，第一期同日實作，PR #79 於 2026-10-25 合併、隨 v0.6.0 發布（人工驗收未執行）；2026-10-24 使用者要求把專案與組合場景併入第一期，並給 Agent 寫<a href="../develop/agent-test-plan-guide.html">測試方案指南</a>與<a href="../develop/agent-test-report-guide.html">測試報告指南</a>；之後加上的組合運行匯總報告與檔案入參的 <code>files:write</code> 隨 v0.7.0 發布；Python 節點（main，尚未發布，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）的場景與運行沿用同一套端點，見 <a href="../develop/agent-api-guide.html#python-nodes">Agent 使用指南 › Python 節點</a>。端點以伺服器的 <code>/agent-api/v1/openapi.json</code> 為準，<code>/agent-api/v1/docs</code> 可以直接試。</div>
+    <div class="notice">決策與沒有選的方案見 <a href="../adr/0017-agent-api.html">ADR 0017</a>；給 Agent 的呼叫方式見 <a href="../develop/agent-api-guide.html">Agent 使用指南</a>。設計 2026-10-23 由使用者確認，第一期同日實作，PR #79 於 2026-10-25 合併、隨 v0.6.0 發布（人工驗收未執行）；2026-10-24 使用者要求把專案與組合場景併入第一期，並給 Agent 寫<a href="../develop/agent-test-plan-guide.html">測試方案指南</a>與<a href="../develop/agent-test-report-guide.html">測試報告指南</a>；之後加上的組合運行匯總報告與檔案入參的 <code>files:write</code> 隨 v0.7.0 發布；Python 節點（v0.9.0，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）的場景與運行沿用同一套端點，見 <a href="../develop/agent-api-guide.html#python-nodes">Agent 使用指南 › Python 節點</a>；流程控制（M7.1，#15）與組合場景的條件連線、同時執行、重複次數（#20）已合併到 main、尚未發布；子場景（M7.2，<a href="../adr/0023-sub-scenarios.html">ADR 0023</a>）存場景版本時由伺服器帶入子場景檔，版本的 <code>files</code> 會多出 <code>calls/</code>。端點以伺服器的 <code>/agent-api/v1/openapi.json</code> 為準，<code>/agent-api/v1/docs</code> 可以直接試。</div>
 
     <section class="panel" id="scope">
       <div class="panel-header"><h2>範圍</h2><span class="muted">Agent 從空白做到可以正式執行的場景</span></div>
@@ -199,7 +199,7 @@
             <tr><td><code>POST /debug/{sid}/snapshot</code></td><td>目前頁面的結構：無障礙樹、表單欄位、iframe 與分頁清單</td><td>debug＋回傳頁面內容</td><td>新（錄製端 App 要更新）</td></tr>
             <tr><td><code>POST /debug/{sid}/screenshot</code></td><td>截目前頁面，回傳圖片的下載路徑</td><td>debug＋回傳頁面內容</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/locate</code></td><td>測試定位器：找到幾個、前幾個的文字</td><td>debug</td><td>沿用</td></tr>
-            <tr><td><code>POST /debug/{sid}/steps/{index}</code></td><td>執行一步；有副作用而且跑過的要帶 <code>force</code>。區塊步驟（M7.1）整塊執行；<code>path</code>（例如 <code>["steps", 2, "steps", 0]</code>）單獨執行第 index 步裡面的一步，<code>choices</code>（迴圈的路徑 <code>steps/2</code> → 第幾項，從 0 起）是迴圈的目前項；回覆的 <code>steps</code> 是樹（<code>children</code>）</td><td>debug</td><td>沿用</td></tr>
+            <tr><td><code>POST /debug/{sid}/steps/{index}</code></td><td>執行一步；有副作用而且跑過的要帶 <code>force</code>。區塊步驟（M7.1）整塊執行；<code>path</code>（例如 <code>["steps", 2, "steps", 0]</code>）單獨執行第 index 步裡面的一步，<code>choices</code>（迴圈的路徑 <code>steps/2</code> → 第幾項，從 0 起）是迴圈的目前項；子場景的 <code>call</code>（M7.2）整個子場景一起執行；回覆的 <code>steps</code> 是樹（<code>children</code>）</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/run-to/{index}</code></td><td>從下一個還沒執行的步驟執行到第幾步，失敗就停</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/reload</code></td><td>換到剛存的新版本，瀏覽器與已執行的步驟保留（命令帶場景內容；錄製端的 App 要支援 <code>debugInlineLoad</code>，v0.6.3）</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/reset</code>、<code>DELETE /debug/{sid}</code></td><td>從頭開始、結束</td><td>debug</td><td>沿用</td></tr>
@@ -207,6 +207,8 @@
             <tr><td><code>POST /scenes/{id}/revisions/{n}/publish</code></td><td>發布驗證通過、雜湊相符的版本</td><td>scenes:publish</td><td>沿用</td></tr>
             <tr><td><code>POST /scenes/{id}/runs</code></td><td>正式執行已發布版本</td><td>runs:execute</td><td>沿用＋<code>workerId</code></td></tr>
             <tr><td><code>POST /runs/{id}/cancel</code>、<code>/rerun</code></td><td>取消；同樣的入參再跑一次</td><td>runs:execute</td><td>沿用</td></tr>
+            <tr><td><code>POST /batches</code></td><td>批次執行（M7.3，<a href="../adr/0024-batch-runs.html">ADR 0024</a>）：<code>sceneId</code>、<code>rows</code>（1～1,000 列，每一列是一組入參）、<code>onFailure</code>、<code>concurrency</code>、執行位置等選項；建立後直接開始。任何一列有問題 422 <code>batch_rows_invalid</code>；同時排入的列算在排隊上限裡</td><td>runs:execute</td><td>沿用</td></tr>
+            <tr><td><code>POST /batches/{id}/stop</code>、<code>/rerun</code></td><td>停下（取消排隊中與執行中的列）；重跑沒有通過的列（或 <code>rows</code> 指定的列）；只限自己建立的批次</td><td>runs:execute</td><td>沿用</td></tr>
             <tr><td><code>GET</code>、<code>POST /projects</code>，<code>GET</code>、<code>PATCH /projects/{id}</code></td><td>可用的專案與它的組合場景摘要；新增專案；改名稱與說明</td><td>projects:read／write</td><td>沿用專案空間</td></tr>
             <tr><td><code>GET /composites/library</code>、<code>POST /composites/check</code></td><td>可以放進組合場景的場景版本；不存檔檢查定義</td><td>projects:read</td><td>沿用</td></tr>
             <tr><td><code>GET /composites</code>、<code>/composites/{code}</code></td><td>組合場景摘要；定義、問題、版本、驗證紀錄、依賴、最近的執行</td><td>projects:read</td><td>沿用</td></tr>
@@ -228,6 +230,7 @@
             <tr><td><code>GET /runs/{id}</code></td><td>狀態（排隊、執行中、通過、失敗、逾時、已取消、需要登入）、目前階段、哪台 Worker、入參、出參（只有通過才有）、錯誤、開始與結束時間</td><td>一</td></tr>
             <tr><td><code>GET /runs?scene=&amp;status=&amp;purpose=&amp;mine=</code></td><td>這個用戶端看得到的運行（可用領域裡的場景）；<code>mine</code> 只列自己觸發的</td><td>一</td></tr>
             <tr><td><code>GET /runs/{id}/steps</code></td><td>每一步的狀態、開始與結束時間、錯誤、步驟後的網址；第二期起執行中也即時更新</td><td>一、二</td></tr>
+            <tr><td><code>GET /batches/{id}</code></td><td>批次執行（M7.3）：狀態、各狀態的列數、每一列的入參、狀態、運行代號、出參、錯誤與每一次的運行；只看得到自己建立的批次（別人的回 404）</td><td>一</td></tr>
             <tr><td><code>GET /runs/{id}/files/{path}</code></td><td>截圖、report.html、result.json、錄影等產物（受「回傳頁面內容」控制）</td><td>一</td></tr>
             <tr><td><code>GET /composite-runs/{id}</code>、<code>GET /composite-runs?project=&amp;composite=&amp;status=&amp;mine=</code></td><td>組合場景的執行：狀態、進度（共幾個節點、完成幾個、通過幾個、目前的節點）、每個節點的狀態與那次運行（再用 <code>/runs/{id}</code> 讀細節）；<code>reportUrl</code> 是匯總報告，<code>replayPath</code> 是人在 Portal 看合併回看的路徑</td><td>一</td></tr>
             <tr><td><code>GET /composite-runs/{id}/report</code></td><td>整次組合運行的匯總報告（2026-10-27）：結論（停在哪個節點的哪一步、錯誤、沒通過的斷言）、節點與步驟與斷言的通過數、時間軸、每個節點的入參（值與來源）、出參（值與流向）、步驟與斷言；截圖與節點報告的網址是本 API 的路徑，沒有頁面內容權限時是 null。寫測試報告時一次讀完，不必逐一讀節點</td><td>一</td></tr>
@@ -300,6 +303,7 @@
             <tr><td><code>api_clients</code></td><td>名稱、金鑰雜湊、權限範圍、可用領域、專案與錄製端、執行位置、限額、回傳頁面內容、到期、啟用、最後使用</td><td>一</td></tr>
             <tr><td><code>api_audit</code></td><td>時間、用戶端、動作、對象、結果碼、摘要；只增不改</td><td>一</td></tr>
             <tr><td><code>runs.client_id</code>、<code>workflow_runs.client_id</code></td><td>觸發這次運行或組合場景執行的用戶端（組合場景的節點也記下）</td><td>一</td></tr>
+            <tr><td><code>batches.client_id</code></td><td>建立這個批次的用戶端（M7.3）；批次每一列的運行也記在 <code>runs.client_id</code></td><td>一</td></tr>
             <tr><td><code>recorders.allow_agent</code>、<code>agent_headless_only</code></td><td>允不允許 Agent 調試、是否只允許無頭</td><td>一</td></tr>
             <tr><td><code>run_events</code></td><td>運行代號、序號、時間、種類、內容；跟著運行的保留規則清理</td><td>二</td></tr>
             <tr><td><code>runs.step_index</code>、<code>step_count</code></td><td>目前第幾步、共幾步</td><td>二</td></tr>

@@ -94,6 +94,21 @@ def _step_name(step: dict[str, object]) -> str:
     attempts = step.get("attempts")
     if isinstance(attempts, int) and attempts > 1:
         parts.append(f"<div class='muted'>{_e(t('report.attempts', n=attempts))}</div>")
+    call = step.get("call")
+    if isinstance(call, dict):
+        info = cast("dict[str, object]", call)
+        text = t(
+            "report.call",
+            scenario=info.get("scenario", "?"),
+            revision=info.get("revision", "?"),
+            name=info.get("name") or "",
+        )
+        checks = info.get("checks")
+        if isinstance(checks, list):
+            results = cast("list[dict[str, object]]", checks)
+            passed = sum(1 for check in results if check.get("passed") is True)
+            text += t("report.call_checks", passed=passed, total=len(results))
+        parts.append(f"<div class='muted'>{_e(text)}</div>")
     return "".join(parts)
 
 

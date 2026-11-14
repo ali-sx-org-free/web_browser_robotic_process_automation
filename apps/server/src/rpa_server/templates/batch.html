@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{#- 一個批次（M7.3，ADR 0024）：還沒開始時可以改欄位對應與選項；開始後看每一列的進度與結果，
+    結束後匯出、或只重跑沒有通過的列（重跑前可以改那幾列的儲存格）。執行中每幾秒檢查一次，有變化就重新整理。 -#}
+{% block crumb %}<a href="/batches">{{ t("nav.batches") }}</a> › {{ batch.id }}{% endblock %}
+{% block description %}<a href="/scenes/{{ batch.scene_id }}">{{ batch.scene_id }}</a> {{ batch.scene_name }} · v{{ batch.revision }} · {{ m.badge(batch.status, t("batch_status." + batch.status)) }}{% endblock %}
+{% block actions %}
+{% if batch.status == "draft" %}
+<button class="button" type="button" data-action="delete-batch">{{ t("batch.delete") }}</button>
+<button class="button primary" type="button" data-action="start-batch">{{ m.arrow() }} {{ t("batch.start", count=batch.counts.get("total", 0) - batch.counts.get("invalid", 0)) }}</button>
+{% else %}
+<a class="button" href="/api/batches/{{ batch.id }}/export?format=csv" download>{{ t("batch.export_csv") }}</a>
+<a class="button" href="/api/batches/{{ batch.id }}/export?format=xlsx" download>{{ t("batch.export_xlsx") }}</a>
+{% if batch.status == "running" %}
+<button class="button" type="button" data-action="stop-batch">{{ t("batch.stop") }}</button>
+{% else %}
+<button class="button primary" type="button" data-action="rerun-batch"{% if not batch.rows | selectattr("rerunnable") | list %} disabled{% endif %}>{{ t("batch.rerun") }}</button>
+{% endif %}
+{% endif %}
+{% endblock %}
+{% block content %}
+{% set editable = batch.status in ("finished", "stopped") %}
+<div class="stack" id="batch" data-batch="{{ batch.id }}" data-signature="{{ batch.status }}:{% for key, value in batch.counts | dictsort(true) %}{{ key }}={{ value }}{% if not loop.last %},{% endif %}{% endfor %}"{% if batch.status == "running" %} data-poll{% endif %}>
+  {% if batch.error %}<div class="notice warn">{{ batch.error }}</div>{% endif %}
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("batch.summary") }}</h2></div>
+    <div class="panel-body">
+      <dl class="spec-list">
+        <dt>{{ t("batch.rows") }}</dt>
+        <dd>{{ batch.counts.get("total", 0) }}{% for status in ("passed", "failed", "timed_out", "needs_login", "cancelled", "running", "queued", "pending", "invalid", "skipped") %}{% if batch.counts.get(status) %} · {{ m.badge(status, t("status." + status)) }} {{ batch.counts.get(status) }}{% endif %}{% endfor %}</dd>
+        <dt>{{ t("batch.source") }}</dt><dd>{{ batch.source or t("batch.source_pasted") }}</dd>
+        <dt>{{ t("batch.on_failure") }}</dt><dd>{{ t("batch.on_failure_" + batch.on_failure) }}</dd>
+        <dt>{{ t("batch.concurrency") }}</dt><dd>{{ batch.concurrency }}</dd>
+        <dt>{{ t("batch.times") }}</dt><dd>{{ m.time(batch.created_at) }}{% if batch.started_at %} → {{ m.time(batch.started_at) }}{% endif %}{% if batch.finished_at %} → {{ m.time(batch.finished_at) }}{% endif %}</dd>
+      </dl>
+    </div>
+  </section>
+
+  {% if batch.status == "draft" %}
+  <div class="two-col top" id="batch-settings">
+    <section class="panel">
+      <div class="panel-header"><h2>{{ t("batch.mapping") }}</h2></div>
+      <div class="panel-body"><p class="cell-sub">{{ t("batch.mapping_hint") }}</p></div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>{{ t("batch.input") }}</th><th>{{ t("batch.type") }}</th><th>{{ t("batch.column") }}</th></tr></thead>
+          <tbody>
+          {% for name, spec in scenario.inputs.items() %}
+            <tr>
+              <td><code>{{ name }}</code>{% if spec.default is none %} <span class="cell-sub">{{ t("batch.required") }}</span>{% endif %}</td>
+              <td>{{ spec.type }}</td>
+              <td>
+                <select data-mapping="{{ name }}">
+                  <option value="">{{ t("batch.column_none") }}</option>
+                  {% for column in batch.columns %}<option value="{{ column }}"{% if batch.mapping.get(name) == column %} selected{% endif %}>{{ column }}</option>{% endfor %}
+                </select>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% set unused = batch.columns | reject("in", used_columns) | list %}
+      {% if unused %}<div class="panel-body"><p class="cell-sub">{{ t("batch.unused_columns", names=unused | join(", ")) }}</p></div>{% endif %}
+    </section>
+    <section class="panel">
+      <div class="panel-header"><h2>{{ t("run_form.options") }}</h2></div>
+      <div class="panel-body stack">
+        <fieldset class="field choice">
+          <legend>{{ t("batch.on_failure") }}</legend>
+          <label><input type="radio" name="onFailure" value="continue"{% if batch.on_failure == "continue" %} checked{% endif %}> {{ t("batch.on_failure_continue") }}</label>
+          <label><input type="radio" name="onFailure" value="stop"{% if batch.on_failure == "stop" %} checked{% endif %}> {{ t("batch.on_failure_stop") }}</label>
+        </fieldset>
+        <label class="field">{{ t("batch.concurrency") }}
+          <input type="number" name="concurrency" min="1" max="10" value="{{ batch.concurrency }}">
+          <span class="cell-sub">{{ t("batch.concurrency_hint") }}</span>
+        </label>
+        <label class="field">{{ t("run_form.engine") }}
+          <select name="engine">
+            <option value="">{{ t("run_form.engine_default", engine=scenario.browser.engine) }}</option>
+            {% for engine in engines %}<option value="{{ engine }}"{% if batch.engine == engine %} selected{% endif %}>{{ engine }}</option>{% endfor %}
+          </select>
+        </label>
+        {{ m.location_field(locations, batch.target) }}
+        <fieldset class="field choice">
+          <legend>{{ t("run_form.window") }}</legend>
+          <label><input type="radio" name="headless" value="0"{% if batch.headless == false %} checked{% elif not display %} disabled{% endif %}> {{ t("run_form.window_headed") }}</label>
+          <label><input type="radio" name="headless" value="1"{% if batch.headless != false %} checked{% endif %}> {{ t("run_form.window_headless") }}</label>
+        </fieldset>
+        <label class="field">{{ t("run_form.base_url") }}
+          <input type="url" name="baseUrl" value="{{ batch.base_url or '' }}" placeholder="https://">
+        </label>
+        <div><button class="button" type="button" data-action="save-batch">{{ t("batch.save") }}</button></div>
+      </div>
+    </section>
+  </div>
+  {% endif %}
+
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("batch.table") }}</h2>{% if editable %}<span class="muted">{{ t("batch.rerun_hint") }}</span>{% endif %}</div>
+    <div class="table-scroll">
+      <table class="batch-rows">
+        <thead><tr>
+          <th class="numeric">{{ t("batch.export_row") }}</th>
+          {% for column in batch.columns %}<th>{{ column }}{% if column not in used_columns %} <span class="cell-sub">{{ t("batch.column_unused") }}</span>{% endif %}</th>{% endfor %}
+          <th>{{ t("runs.col_status") }}</th>
+          <th>{{ t("batch.run") }}</th>
+          <th>{{ t("batch.output") }}</th>
+          <th>{{ t("batch.problem") }}</th>
+        </tr></thead>
+        <tbody>
+        {% for row in batch.rows %}
+          <tr data-row="{{ row.number }}">
+            <td class="numeric">{{ row.number }}</td>
+            {% for column in batch.columns %}
+            <td>{% if editable and row.rerunnable %}<input class="compact" data-cell data-row="{{ row.number }}" data-column="{{ column }}" value="{{ row.cells.get(column, '') }}">{% else %}{{ row.cells.get(column, "") }}{% endif %}</td>
+            {% endfor %}
+            <td>{{ m.badge(row.status, t("status." + row.status)) }}{% if row.attempts > 1 %}<span class="cell-sub">{{ t("batch.attempts", count=row.attempts) }}</span>{% endif %}</td>
+            <td>{% if row.run %}<a class="mono" href="/runs/{{ row.run.id }}">{{ row.run.id }}</a>{% if row.run.duration_seconds is not none %}<span class="cell-sub">{{ "%.1f"|format(row.run.duration_seconds) }} s · {{ m.replay_link(row.run) }}</span>{% endif %}{% else %}—{% endif %}</td>
+            <td>{% if row.run and row.run.output %}<code class="cell-sub">{{ row.run.output | compact_json | truncate(160) }}</code>{% else %}—{% endif %}</td>
+            <td>{% if row.problems %}<ul class="checklist">{% for problem in row.problems %}<li>{{ problem.message }}</li>{% endfor %}</ul>{% elif row.error %}<span class="cell-sub">{{ row.error | truncate(200) }}</span>{% else %}—{% endif %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

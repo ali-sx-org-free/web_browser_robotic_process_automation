@@ -347,6 +347,10 @@ class RunRecord:
     """錄影（M12，見 rpa_server.videos.video_details）；從來沒有錄影時是 None。"""
     client_id: str | None = None
     """由哪個 API 用戶端觸發（M14）；人在 Portal 觸發的是 None。"""
+    batch_id: str | None = None
+    """屬於哪個批次（M7.3）。"""
+    batch_row: int | None = None
+    """批次的第幾列。"""
 
     @property
     def finished(self) -> bool:
@@ -382,6 +386,8 @@ class RunRecord:
             "workerId": self.worker_id,
             "video": self.video,
             "clientId": self.client_id,
+            "batchId": self.batch_id,
+            "batchRow": self.batch_row,
         }
 
 

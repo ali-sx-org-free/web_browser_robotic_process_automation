@@ -42,7 +42,6 @@ from rpa_core.dsl.features import (
     data_features,
     input_features,
     missing_features,
-    scenario_features,
 )
 from rpa_core.dsl.files import MAX_FILE_BYTES, MAX_RUN_BYTES, uploaded_ids
 from rpa_core.i18n import Locale, use_locale
@@ -551,8 +550,8 @@ class WorkerHub:
         return script if script is not None and script.uses_runtime else None
 
     def _needed(self, run: Run) -> frozenset[str]:
-        """這次執行用到的 DSL 擴充：場景，加上它的登入設定（檢查與自動登入在 worker 上跑），
-        以及這次的入參（動態值在 worker 上求值）。
+        """這次執行用到的 DSL 擴充：場景（含它的子場景，M7.2），加上它的登入設定（檢查與自動登入
+        在 worker 上跑），以及這次的入參（動態值在 worker 上求值）。
 
         版本不可變，所以依場景與版本快取；登入設定可能改、入參每次不同，不快取。
         """
@@ -562,7 +561,7 @@ class WorkerHub:
             return frozenset()
         needed = self._needs.get(key)
         if needed is None:
-            needed = self._needs[key] = scenario_features(scenario)
+            needed = self._needs[key] = self.queue.features(*key)
         needed |= input_features(run.input)
         if scenario.login is not None:
             login = self.roles.login_settings(scenario.login.role)

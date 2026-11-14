@@ -146,8 +146,8 @@ NAV: Final = (
         "operate",
         "OPERATIONS",
         "/runs",
-        # 運行回看併進運行報告（2026-10-25）：每一次運行的錄影從運行報告打開
-        (NavPage("runs", "/runs"),),
+        # 運行回看併進運行報告（2026-10-25）：每一次運行的錄影從運行報告打開；批次執行（M7.3）
+        (NavPage("runs", "/runs"), NavPage("batches", "/batches")),
     ),
     # 專案空間的二級選單由專案決定（_side_items）
     NavGroup("workspace", "PROJECTS", "/workspace", ()),
@@ -186,6 +186,10 @@ _BADGES: Final[Mapping[str, str]] = {
     "timed_out": "red",
     "cancelled": "amber",
     "draft": "amber",
+    # 批次執行（M7.3）：批次與每一列的狀態
+    "finished": "green",
+    "stopped": "amber",
+    "invalid": "red",
     "queued": "blue",
     "running": "blue",
     "validating": "blue",
@@ -578,6 +582,15 @@ def js_messages() -> dict[str, str]:
         "js.script_steps",
         "js.script_verify",
         "js.contract_based_on",
+        "js.batch_saved",
+        "js.batch_delete_title",
+        "js.batch_delete_body",
+        "js.batch_delete_action",
+        "js.batch_stop_title",
+        "js.batch_stop_body",
+        "js.batch_stop_action",
+        "js.batch_started",
+        "js.batch_rerun_started",
     )
     return {key.removeprefix("js."): page_t(key) for key in keys}  # 透過錄製端時換掉用詞
 

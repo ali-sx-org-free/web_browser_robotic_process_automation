@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0023 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0023" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0023：子場景是 DSL 的 call 步驟，子場景的固定版本跟著呼叫場景的版本存放</h1>
+      <p>場景用 <code>call</code> 在同一個瀏覽器、同一個分頁裡接著執行另一個場景的固定版本：入參照子場景的契約校驗，它自己的獨立斷言通過才把出參交回來。子場景那個版本的場景檔原樣複製在呼叫場景的版本裡、算進內容雜湊，所以呼叫場景自己就能執行，通過驗證的內容就是之後執行的內容。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-11-13</dd>
+        <dt>狀態</dt><dd>2026-11-06 18:21 America/Los_Angeles（PST，UTC−08:00）使用者確認 M7 的 D8：子場景在同一個瀏覽器、固定版本、自己的 verify 通過才交回出參（見<a href="../../handoff/decisions.html#decisions">決定紀錄</a>）。「子場景檔放在哪裡」、第一版的限制與 <code>append</code> 是 2026-11-13 細部設計時的實作選擇（使用者 2026-11-13 18:12 要求「把M7後續流程實作」），記在本頁與<a href="../../handoff/tasks/20261113-m7-2-subscenario.html">任務紀錄</a>，審閱 PR 時可以調整。</dd>
+        <dt>影響範圍</dt><dd>rpa-core（<code>call</code> 步驟、子場景的解析與檢查、場景的來源檔案與雜湊、擴充 <code>call</code>）、rpa-runner（執行、步驟紀錄、日誌、報告、逐步調試的子程序）、rpa-server（存檔時帶入子場景檔、派工與調試前比對擴充、回看、編輯頁）；Worker 的協定不改（版本的檔案原本就整個送過去）</dd>
+        <dt>相關</dt><dd><a href="0009-scenario-contract.html">ADR 0009</a>（場景契約）、<a href="0015-domain-folders-and-git.html">ADR 0015</a>（領域資料夾與發布門檻）、<a href="0021-flow-control.html">ADR 0021</a>（場景內的流程控制）、<a href="0022-composite-flow.html">ADR 0022</a>（組合場景的流程）；<a href="../design/dsl.html#call">場景 DSL › 子場景</a>、<a href="../design/portal.html#call">管理 Portal › 子場景</a>；<a href="../../handoff/tasks/20261113-m7-2-subscenario.html">任務紀錄</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>M7.1 讓場景可以分支與迴圈，但每個場景還是從頭寫到尾：同一段操作（例如「建立客戶」）在好幾個場景裡各寫一次。組合場景（M6）能把場景串起來，可是每個節點各自開瀏覽器、各自執行，接不了「同一個畫面上接著做」的流程，也不能放進迴圈逐筆呼叫。</p>
+          <p>發布門檻靠內容雜湊確認「通過驗證的就是要發布、要執行的版本」（ADR 0015）。如果執行時才去找子場景，子場景換版本、封存或沒同步到那台伺服器，呼叫場景的行為就會在沒有新版本的情況下改變；遠端 Worker 與錄製端也要另外拿子場景。</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>寫法是一個步驟。</strong><code>action: call</code>，<code>scenario</code>、<code>revision</code> 指定子場景的固定版本，<code>inputs</code> 給入參，<code>as</code> 把出參存成事實；<code>append: true</code> 把每次的出參累積成清單。可以放在區塊裡，可以 <code>onError: continue</code> 或被 <code>try</code> 接住；不能 retry、不能寫 timeout。</li>
+            <li><strong>契約照子場景自己的。</strong>入參在子場景的第一步之前照它的契約校驗；它的步驟跑完後立刻跑它自己的 verify，通過才產生出參。任何一段不通過，<code>call</code> 這一步失敗。呼叫場景的 verify 與發布門檻不變。</li>
+            <li><strong>同一個瀏覽器，各自的名稱空間。</strong>子場景從 call 指定的分頁接著做，用呼叫場景的瀏覽器、登入狀態與總期限；事實、迴圈變數、分頁名稱與截圖檔名各自獨立，子場景開了沒關的分頁在結束時關掉。</li>
+            <li><strong>子場景檔跟著呼叫場景的版本。</strong>子場景那個版本的場景檔原樣複製到 <code>calls/&lt;代號&gt;/&lt;版本&gt;.yaml</code>（子場景自己呼叫的也平放在這裡），列入場景的來源檔案、算進內容雜湊。沒有用到 <code>call</code> 的場景雜湊不變。</li>
+            <li><strong>伺服器在存檔時帶入。</strong>新加的 <code>call</code> 要引用發布過的版本（規則同組合場景的節點：場景在、沒封存，版本在、沒有問題、發布過）。上一個版本已經帶進來的子場景不再檢查：子場景之後封存或這台沒有它，呼叫場景照樣能改別的地方再存。送進來的 <code>calls/</code> 檔案不直接採用，這台有那個版本時一律用這台的。</li>
+            <li><strong>第一版的限制在校驗時檢查。</strong>子場景要是 DSL 場景；登入角色相同或不需要登入；Secrets 要在呼叫場景宣告；不能有檔案入參與出參；最多 3 層、10 個不同的子場景版本；不能繞回自己。</li>
+            <li><strong>紀錄依路徑對應。</strong>子場景的步驟紀錄接在 call 後面，<code>path</code> 過了 <code>"call"</code> 是子場景裡的位置；回看與報告從執行目錄快照裡的 <code>calls/</code> 找原文。</li>
+            <li><strong>擴充 <code>call</code>。</strong>連同子場景自己用到的擴充一起比對；看不懂的錄製端與 Worker 不會領到。<code>schemaVersion</code> 維持 1。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>呼叫場景的版本自己就完整：遠端 Worker、錄製端、<code>rpa run</code>、領域資料夾與 git 同步都不用另外處理子場景；驗證紀錄證明的內容包含子場景。</li>
+            <li>子場景出新版本不會自動套用：每個呼叫場景要改 <code>revision</code>、存成新版本、重新驗證與發布。這是刻意的（和組合場景固定節點版本相同），代價是子場景修正後要逐一更新呼叫它的場景；目前沒有「哪些場景用到這個子場景」的清單。</li>
+            <li>同一個子場景被好幾個場景呼叫時，場景檔在每個呼叫場景的版本裡各有一份（文字檔，通常幾 KB）。</li>
+            <li>帶進來的那一份和來源版本是否相同，只在這台有來源版本時由伺服器保證；從別處同步來的領域資料夾以呼叫場景自己的雜湊與驗證紀錄為準，<code>rpa pack check</code> 不另外比對來源。</li>
+            <li>逐步調試時 <code>call</code> 整個子場景一起執行，算有副作用；接著錄製（先重播既有步驟）還不支援用到 <code>call</code> 的場景。</li>
+            <li>子場景不能有檔案入參與出參；要傳檔案的流程先用組合場景。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="panel-body">
+          <table class="table">
+            <thead><tr><th>方案</th><th>沒有選的原因</th></tr></thead>
+            <tbody>
+              <tr><td>執行時才依代號與版本到伺服器找子場景</td><td>Worker 協定、錄製端、<code>rpa run</code> 與 git 同步都要另外處理；子場景不見時已發布的場景執行不了；雜湊不包含子場景，發布門檻證明不了實際執行的內容。</td></tr>
+              <tr><td>不固定版本，一律用子場景目前發布的版本</td><td>子場景一發布新版本，所有呼叫它的場景的行為就變了，卻沒有新的版本與驗證紀錄；使用者已決定固定版本（D8）。</td></tr>
+              <tr><td>存檔時把子場景的步驟展開進呼叫場景</td><td>子場景的入參、verify 與出參的界線不見了，步驟 id 與事實名稱會相撞，場景檔也不再看得出哪一段是子場景。</td></tr>
+              <tr><td>子場景和呼叫場景共用事實與變數</td><td>子場景就不能單獨驗證與重用：它的行為會隨呼叫的場景裡剛好有什麼事實而變。</td></tr>
+              <tr><td>子場景的出參在迴圈裡自動變成清單</td><td>和 extract 的規則不一致（M7.1 的 D3 選了明確寫 append）；單次呼叫也會拿到清單。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -296,6 +296,7 @@ def test_worker_info_to_json() -> None:
         # 管理 Portal 交出用到 iframe、新分頁、動態值的場景之前比對擴充能力
         "features": [
             "anyFrame",
+            "call",
             "download",
             "dynamicValues",
             "fileInputs",

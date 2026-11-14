@@ -52,6 +52,7 @@ from rpa_core.dsl import (
     UploadStep,
     WaitForStep,
 )
+from rpa_core.dsl.calls import CallKey, CallTable
 from rpa_core.dsl.files import (
     MAX_DROP_BYTES,
     clean_name,
@@ -61,6 +62,7 @@ from rpa_core.dsl.files import (
 )
 from rpa_core.dsl.steps import (
     MAX_ITERATIONS,
+    CallStep,
     ClosePageStep,
     Condition,
     ForEachStep,
@@ -71,6 +73,7 @@ from rpa_core.dsl.steps import (
     TryStep,
     upload_input_names,
 )
+from rpa_runner.contract import build_outputs, check_inputs, run_verify
 from rpa_runner.files import DOWNLOADS_DIR
 from rpa_runner.i18n import t
 from rpa_runner.templates import Context, render_native, render_tree
@@ -105,6 +108,8 @@ _CHOOSER_WAITS_MS: Final = (0, 10, 20)
 才送出事件。只等、不碰頁面（在頁面裡執行程式碼會卡在換頁中）。"""
 """可能開出選擇檔案視窗的動作（M7c）：結束時確認有沒有沒人處理的視窗。"""
 _NOT_RENDERED: Final = frozenset({"name", "files"})
+_CONTAINERS: Final = frozenset({"if", "forEach", "repeat", "try", "call"})
+"""裡面還有步驟的動作：區塊（M7.1）與 call（M7.2）。"""
 """步驟裡不代入 {{ }} 的欄位：name 是給人看的；upload 的 files 是入參的引用（M7c）。"""
 _TABLE_JS: Final = """
 (table) => {
@@ -205,6 +210,9 @@ class StepRecord:
     """迴圈跑完幾輪（forEach、repeat，M7.1）。"""
     caught: dict[str, str] | None = None
     """try 接住的失敗：``{"step": 失敗的步驟 id, "error": 錯誤}``（M7.1）。"""
+    call: dict[str, object] | None = None
+    """call 呼叫的子場景（M7.2）：``{"scenario", "revision", "name"}``，跑到獨立斷言時加上
+    ``checks``（每一條的名稱與結果），通過後加上 ``outputs``（出參的名稱）。"""
     number: int = 0
     """第幾筆紀錄（從 1 起）；不寫進 steps.json（順序就是編號）。"""
 
@@ -235,6 +243,7 @@ class StepRecord:
             "branch": self.branch,
             "iterations": self.iterations,
             "caught": self.caught,
+            "call": self.call,
         }
 
 
@@ -485,6 +494,10 @@ class _Run:
     """檔案入參 → 準備好的檔案（M7c）。"""
     workspace: Path | None = None
     """共用工作資料夾（ADR 0020）：download 步驟存檔的地方。"""
+    calls: CallTable = field(default_factory=dict[CallKey, Scenario])
+    """``call`` 用到的子場景（M7.2，見 rpa_core.dsl.calls）。"""
+    prefix: str = ""
+    """截圖檔名的開頭（M7.2）：子場景裡的截圖加上 call 步驟的 id，不和呼叫場景的同名檔案相撞。"""
 
     def execute(self, step: Step, timeout: int, record: StepRecord) -> None:
         page = self.tabs.get(step.page)
@@ -654,15 +667,17 @@ class _Run:
             case DownloadStep():
                 self._download(page, step, timeout, record)
             case ScreenshotStep():
-                name = f"{step.file or step.id}.png"
+                name = f"{self.prefix}{step.file or step.id}.png"
                 path = self.artifacts / name
                 if step.target is not None:
                     locate(page, step.target, timeout).screenshot(path=path, timeout=timeout)
                 else:
                     page.screenshot(path=path, full_page=step.full_page, timeout=timeout)
                 record.artifacts.append(name)
-            case IfStep() | ForEachStep() | RepeatStep() | TryStep():  # pragma: no cover
-                raise TypeError(step.action)  # 區塊由 _Flow 執行，不會走到這裡
+            case (
+                IfStep() | ForEachStep() | RepeatStep() | TryStep() | CallStep()
+            ):  # pragma: no cover
+                raise TypeError(step.action)  # 區塊與 call 由 _Flow 執行，不會走到這裡
 
 
 _DROP_JS: Final = """
@@ -874,7 +889,7 @@ class _Flow:
         """執行一步（含區塊）並更新紀錄；失敗時拋出，onError: continue 的不拋出。"""
         started = time.monotonic()
         record.started_at = time.time()
-        block = isinstance(step, IfStep | ForEachStep | RepeatStep | TryStep)
+        block = isinstance(step, IfStep | ForEachStep | RepeatStep | TryStep | CallStep)
         try:
             if block:
                 self.on_progress()  # 讓進度先看到區塊開始了
@@ -956,7 +971,9 @@ class _Flow:
                 self._repeat(step, record, scope)
             case TryStep():
                 self._try(step, record, scope)
-            case _:  # pragma: no cover - 只有上面四種區塊
+            case CallStep():
+                self._call(step, record, scope)
+            case _:  # pragma: no cover - 只有上面幾種區塊
                 raise TypeError(step.action)
 
     def _condition(self, condition: Condition, scope: _Scope) -> bool:
@@ -1028,12 +1045,108 @@ class _Flow:
                     continue
                 item.handled = "caught"
                 # 優先記最內層失敗的那一步；只有區塊失敗（例如條件出錯）時記那個區塊
-                if failed == "?" or item.action not in ("if", "forEach", "repeat", "try"):
+                if failed == "?" or item.action not in _CONTAINERS:
                     failed = item.id
             message = _first_line(error)
             record.caught = {"step": failed, "error": message}
             inner = scope.with_variables(error={"step": failed, "message": message})
             self._list(step.catch, record, inner, "catch")
+
+    # ------------------------------------------------------------ 子場景（M7.2）
+
+    def _call(self, step: CallStep, record: StepRecord, scope: _Scope) -> None:
+        """在同一個瀏覽器裡接著執行子場景：入參照它的契約 → 它的步驟 → 它的獨立斷言 → 出參存成事實。
+
+        子場景有自己的事實、分頁名稱與截圖檔名的開頭，看不到呼叫場景的迴圈變數；總期限、取消、
+        步驟紀錄的上限都和呼叫場景共用。子場景開了沒關的分頁在結束時關掉。任何一段不通過，
+        這一步失敗（可以被外層的 try 接住或 onError: continue）。
+        """
+        outer, outer_context = self.run, self.context
+        callee = outer.calls.get((step.scenario, step.revision))
+        if callee is None or callee.steps is None:
+            raise LookupError(
+                t("browser.call_missing", scenario=step.scenario, revision=step.revision)
+            )
+        record.call = {"scenario": step.scenario, "revision": step.revision, "name": callee.name}
+        values = self._values(scope)
+        given: dict[str, object] = {}
+        for name, raw in (step.inputs or {}).items():
+            value = render_native(raw, values) if isinstance(raw, str) else render_tree(raw, values)
+            spec = callee.inputs.get(name)
+            if (
+                spec is not None
+                and spec.type == "string"
+                and isinstance(value, int | float)
+                and not isinstance(value, bool)
+            ):
+                value = str(value)  # {{ loop.index }} 這類數字給文字入參時不用再轉
+            given[name] = value
+        inputs, problems = check_inputs(callee, given)
+        if problems:
+            raise ValueError(
+                t("browser.call_inputs", problems="；".join(item.message for item in problems))
+            )
+        tabs = outer.tabs
+        page = tabs.get(step.page)
+        secrets = cast("Mapping[str, object]", outer_context.get("secrets") or {})
+        context: dict[str, object] = {
+            "inputs": inputs,
+            "secrets": {name: secrets[name] for name in callee.secrets if name in secrets},
+            "env": outer_context.get("env") or {},
+        }
+        # 執行時另外指定了網址（環境）就全部用它；否則子場景用自己的 baseUrl，沒寫用呼叫場景的
+        overridden = outer.base_url != outer.scenario.browser.base_url
+        base_url = outer.base_url if overridden else callee.browser.base_url or outer.base_url
+        facts: dict[str, object] = {}
+        main, named = tabs.main, tabs.named
+        tabs.main, tabs.named = page, {}
+        self.run = _Run(
+            tabs,
+            callee,
+            base_url,
+            outer.artifacts,
+            facts,
+            {},
+            outer.workspace,
+            outer.calls,
+            f"{outer.prefix}{step.id}.",
+        )
+        self.context = context
+        try:
+            self._list(callee.steps, record, _Scope(catching=scope.catching), "call")
+        finally:
+            for tab in tabs.named.values():
+                if not tab.is_closed():
+                    with contextlib.suppress(Exception):
+                        tab.close()
+            tabs.main, tabs.named = main, named
+            if not page.is_closed():
+                tabs.last = page
+            self.run, self.context = outer, outer_context
+        full: Context = {**context, "facts": facts}
+        checks = run_verify(callee, full)
+        record.call["checks"] = [
+            {"name": check.name, "passed": check.passed, "error": check.error} for check in checks
+        ]
+        failed = [check.name for check in checks if not check.passed]
+        if failed:
+            raise AssertionError(t("browser.call_verify_failed", names="、".join(failed)))
+        outputs, output_problems = build_outputs(callee, full)
+        if output_problems:
+            raise ValueError(
+                t(
+                    "browser.call_outputs",
+                    problems="；".join(item.message for item in output_problems),
+                )
+            )
+        record.call["outputs"] = list(outputs)
+        if step.as_ is not None and step.append:
+            # 迴圈裡逐筆呼叫（同 extract 的 append）：每一次的出參加到清單尾端
+            previous = outer.facts.get(step.as_)
+            kept = cast("list[object]", previous) if isinstance(previous, list) else []
+            outer.facts[step.as_] = [*kept, outputs]
+        elif step.as_ is not None:
+            outer.facts[step.as_] = outputs
 
 
 def run_steps(
@@ -1050,6 +1163,7 @@ def run_steps(
     files: Mapping[str, Sequence[Path]] | None = None,
     after_step: Callable[[Page, StepRecord, int], None] | None = None,
     workspace: Path | None = None,
+    calls: CallTable | None = None,
 ) -> dict[str, object]:
     """依序執行步驟並更新 records，回傳頁面事實；某一步失敗就拋出，後面的步驟維持略過。
 
@@ -1059,10 +1173,20 @@ def run_steps(
     （download 步驟存檔的地方，ADR 0020）。
     ``after_step`` 在每一步（通過或失敗，不含區塊本身）之後、寫出進度之前呼叫：
     (最後用到的分頁, 紀錄, 第幾筆紀錄)，錄影時拍那一步做完的截圖（見 stepshots.py）；
-    它出錯不影響步驟的結果。
+    它出錯不影響步驟的結果。``calls`` 是 ``call`` 用到的子場景（M7.2），由
+    rpa_core.dsl.calls.load_calls 解析。
     """
     facts: dict[str, object] = {}
-    run = _Run(tabs or Tabs(page), scenario, base_url, artifacts, facts, files or {}, workspace)
+    run = _Run(
+        tabs or Tabs(page),
+        scenario,
+        base_url,
+        artifacts,
+        facts,
+        files or {},
+        workspace,
+        calls or {},
+    )
     _Flow(run, records, context, deadline, on_progress, after_step).top(scenario.steps or [])
     return facts
 
@@ -1083,16 +1207,27 @@ def run_step(
     path: StepPath = (),
     variables: Mapping[str, object] | None = None,
     collected: list[StepRecord] | None = None,
+    calls: CallTable | None = None,
 ) -> StepRecord:
     """只執行一步（調試工作階段用）：facts 就地更新；失敗不拋出，記在回傳的紀錄裡。
 
     ``tabs`` 是整個工作階段的分頁（M7b），新分頁在步驟之間一直都在；``files``、``workspace``
     見 run_steps。區塊整塊執行（M7.1）；``path`` 是這一步在場景檔裡的位置，``variables`` 是
     外層迴圈的變數（迴圈變數、loop、error），``collected`` 給了時收到這一步與區塊裡全部的紀錄。
+    ``call`` 整個子場景一起執行（M7.2）；``calls`` 見 run_steps。
     """
     record = StepRecord(step.id, step.action, step.name, path=path, number=1)
     records = [record]
-    run = _Run(tabs or Tabs(page), scenario, base_url, artifacts, facts, files or {}, workspace)
+    run = _Run(
+        tabs or Tabs(page),
+        scenario,
+        base_url,
+        artifacts,
+        facts,
+        files or {},
+        workspace,
+        calls or {},
+    )
     flow = _Flow(run, records, context, deadline, lambda: None, None, cursor=1)
     with contextlib.suppress(Exception):
         flow.execute(step, record, _Scope(dict(variables or {})))

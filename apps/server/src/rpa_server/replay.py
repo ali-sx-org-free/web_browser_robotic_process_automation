@@ -26,8 +26,9 @@ from urllib.parse import quote
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from rpa_core.dsl import validate_file
-from rpa_core.dsl.steps import BRANCHES, walk_steps
+from rpa_core.dsl import validate_file, validate_text
+from rpa_core.dsl.calls import MAX_CALL_DEPTH, call_file
+from rpa_core.dsl.steps import BRANCHES, CallStep, walk_steps
 from rpa_core.dsl.yaml_loader import Position, YamlLoadError, load_yaml
 from rpa_core.dsl.yaml_writer import flow
 from rpa_runner.files import (
@@ -59,6 +60,9 @@ _DETAIL_FIELDS: Final = (
     "title",
     "count",
     "state",
+    "scenario",
+    "revision",
+    "inputs",
 )
 
 
@@ -129,26 +133,48 @@ def _snapshot(folder: Path) -> Path | None:
 def _definitions(
     snapshot: Path | None,
 ) -> tuple[dict[_Path, dict[str, object]], dict[_Path, tuple[int, str]]]:
-    """快照裡各步驟（含區塊裡的，M7.1）的定義（JSON，不含裡面的步驟）與原文，以路徑為鍵。"""
-    if snapshot is None:
-        return {}, {}
-    scenario = validate_file(snapshot).scenario
+    """快照裡各步驟（含區塊裡的，M7.1）的定義（JSON，不含裡面的步驟）與原文，以路徑為鍵。
+
+    子場景（M7.2）：``call`` 的子場景在快照的 ``calls/`` 裡；它的步驟的紀錄路徑是 call 的路徑
+    加上 ``"call"`` 再接子場景裡的位置（例如 ``("steps", 2, "call", 0)``），原文取自子場景檔。
+    """
+    steps: dict[_Path, dict[str, object]] = {}
+    sources: dict[_Path, tuple[int, str]] = {}
+    if snapshot is not None:
+        _collect(snapshot, snapshot.parent, None, steps, sources, 0)
+    return steps, sources
+
+
+def _collect(
+    file: Path,
+    base: Path,
+    prefix: _Path | None,
+    steps: dict[_Path, dict[str, object]],
+    sources: dict[_Path, tuple[int, str]],
+    depth: int,
+) -> None:
+    """把一個場景檔的步驟加進 ``steps``、``sources``；``prefix`` 是外層 call 的路徑加 ``"call"``
+    （最外層的場景是 None），``base`` 是快照的資料夾。"""
     text = ""
     with contextlib.suppress(OSError, UnicodeDecodeError):
-        text = snapshot.read_text(encoding="utf-8")
+        text = file.read_text(encoding="utf-8-sig")
+    # 子場景檔旁邊沒有 calls/（都平放在快照的 calls/ 裡）：只校驗文字，子場景由下面接著走
+    found = validate_file(file) if prefix is None else validate_text(text)
+    scenario = found.scenario
     values: Mapping[_Path, Position] = {}
     with contextlib.suppress(YamlLoadError):
         values = load_yaml(text)[1].values
     lines = text.splitlines()
-    steps: dict[_Path, dict[str, object]] = {}
-    sources: dict[_Path, tuple[int, str]] = {}
     for path, step, _ in walk_steps(scenario.steps if scenario is not None else None):
+        key = path if prefix is None else (*prefix, *path[1:])
         dumped = step.model_dump(mode="json", by_alias=True, exclude_unset=True)
-        steps[path] = {key: value for key, value in dumped.items() if key not in BRANCHES}
+        steps[key] = {name: value for name, value in dumped.items() if name not in BRANCHES}
         source = _source_at(lines, values, path)
         if source is not None:
-            sources[path] = source
-    return steps, sources
+            sources[key] = source
+        if isinstance(step, CallStep) and depth < MAX_CALL_DEPTH:
+            inner = base / call_file(step.scenario, step.revision)
+            _collect(inner, base, (*key, "call"), steps, sources, depth + 1)
 
 
 def _record_path(record: Mapping[str, object], index: int) -> _Path:
@@ -420,7 +446,8 @@ def _steps(
         definition = definitions.get(path, {})
         line, text = sources.get(path, (None, None))
         where, detail = _describe(definition)
-        name = definition.get("as")
+        # 子場景裡的步驟（M7.2）的事實是子場景自己的，不在這次執行的 facts.json 裡
+        name = None if "call" in path[::2] else definition.get("as")
         steps.append(
             {
                 "index": index + 1,
@@ -460,6 +487,8 @@ def _steps(
                 "branch": record.get("branch"),
                 "iterations": record.get("iterations"),
                 "caught": record.get("caught"),
+                # 子場景（M7.2）：call 呼叫的場景版本、它的獨立斷言與出參名稱
+                "call": record.get("call"),
             }
         )
     _add_depths(steps)
@@ -608,7 +637,7 @@ def build_replay(
         (
             step
             for step in unhandled
-            if step.get("action") not in ("if", "forEach", "repeat", "try")
+            if step.get("action") not in ("if", "forEach", "repeat", "try", "call")
         ),
         None,
     )

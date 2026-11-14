@@ -182,7 +182,7 @@ POST /agent-api/v1/debug/a1b2c3d4e5f6/run-to/3
 → {"steps": [… {"index": 3, "id": "submit", "status": "failed", "error": "…"}], …}</pre>
         <p>瀏覽器與已執行的步驟會保留，<code>run-to</code> 只執行還沒執行過的步驟，失敗就停。改好再存一版、<code>reload</code>、<code>run-to</code>，直到每一步都是 <code>passed</code>。想從頭重跑用 <code>reset</code>。</p>
         <p>錄製端在另一台電腦時，<code>reload</code> 要伺服器與錄製端都是 0.6.3 以上：0.6.2 以前在錄製端換版本一定回 422 <code>revision_invalid</code>「場景校驗失敗」（伺服器把自己的檔案路徑交給錄製端，錄製端讀不到）。伺服器已更新、錄製端還沒更新時回 422 <code>recorder_outdated</code>；這時請人更新錄製端，或改用 <code>POST /scenes/{id}/debug</code> 帶新的 <code>revision</code> 與 <code>"restart": true</code> 重新開始（從第 1 步重跑，有副作用的步驟會再做一次）。</p>
-        <div class="notice warn">點擊、填寫、選擇、勾選、按鍵是有副作用的步驟，會在目標系統上真的發生。執行過一次的有副作用步驟用 <code>POST /debug/{sid}/steps/{index}</code> 再執行時回 409 <code>confirm_required</code>，必須帶 <code>{"force": true}</code>；只在確定重做不會造成重複資料時才這樣做。<code>run-to</code> 的目標在下一個還沒執行的步驟之前時回 409 <code>already_executed</code>。區塊步驟（M7.1）整塊執行；裡面有任何有副作用的步驟，整塊就算有副作用。要單獨執行區塊裡的一步，帶 <code>{"path": ["steps", 2, "steps", 0]}</code>；迴圈裡的一步用 <code>{"choices": {"steps/2": 1}}</code> 指定用第幾項（從 0 起）。</div>
+        <div class="notice warn">點擊、填寫、選擇、勾選、按鍵是有副作用的步驟，會在目標系統上真的發生。執行過一次的有副作用步驟用 <code>POST /debug/{sid}/steps/{index}</code> 再執行時回 409 <code>confirm_required</code>，必須帶 <code>{"force": true}</code>；只在確定重做不會造成重複資料時才這樣做。<code>run-to</code> 的目標在下一個還沒執行的步驟之前時回 409 <code>already_executed</code>。區塊步驟（M7.1）整塊執行；裡面有任何有副作用的步驟，整塊就算有副作用。要單獨執行區塊裡的一步，帶 <code>{"path": ["steps", 2, "steps", 0]}</code>；迴圈裡的一步用 <code>{"choices": {"steps/2": 1}}</code> 指定用第幾項（從 0 起）。子場景的 <code>call</code>（M7.2）是一步，整個子場景一起執行，算有副作用；不能用 <code>path</code> 單獨執行子場景裡的一步。</div>
 
         <h3>5. 補齊入參、出參與獨立斷言</h3>
         <p>用 <code>GET</code>／<code>PUT /scenes/{id}/sections/steps</code>、<code>verify</code>、<code>inputs</code>、<code>outputs</code> 只讀寫一段（<code>{"baseRevision": n, "text": "verify:\n  - …"}</code>；場景檔整份寫成 JSON 時，段落的原文也是 JSON，例如 <code>{"verify": [ … ]}</code>，存檔後整份還是 JSON），或 <code>PUT /scenes/{id}/contract</code> 以表格形式改入參與出參；每次都會存成新版本。已經有 Playwright（Python）腳本時，可以用 <code>POST /scenes/{id}/import {"source": "…", "mode": "replace"}</code> 轉成 DSL，轉不了的寫在 <code>warnings</code>。完成後 <code>DELETE /debug/{sid}</code> 結束工作階段，釋放錄製端。</p>
@@ -229,7 +229,7 @@ POST /agent-api/v1/scenes/order-import/revisions/3/validate
     </section>
 
     <section class="panel" id="python-nodes">
-      <div class="panel-header"><h2>Python 節點</h2><span class="muted"><a href="../adr/0020-python-nodes.html">ADR 0020</a>；main 上、尚未發布</span></div>
+      <div class="panel-header"><h2>Python 節點</h2><span class="muted"><a href="../adr/0020-python-nodes.html">ADR 0020</a>；v0.9.0 起</span></div>
       <div class="panel-body">
         <p>瀏覽器做不到的工作（合併 Excel、整理資料、呼叫 API）寫成 Python 節點：場景檔寫 <code>script:</code> 與 <code>runtime: "1"</code>，自動化由 <code>automation.py</code> 完成，成功照樣由獨立斷言判定（規格見 <a href="../design/dsl.html#python">DSL › Python 節點</a>）。伺服器支援時 <code>GET /meta</code> 的 <code>dslFeatures</code> 有 <code>pythonNodes</code>、<code>jsonInputs</code>、<code>fileOutputs</code>、<code>download</code>。</p>
 <pre class="source">POST /agent-api/v1/scenes/merge-sales/revisions
@@ -240,9 +240,32 @@ POST /agent-api/v1/scenes/order-import/revisions/3/validate
         <ul class="points">
           <li><strong>存檔</strong>：<code>files</code> 一起放場景檔、<code>automation.py</code>，以及 <code>assertion.py</code>（沒有用 <code>verify</code> 時）與 <code>script.files</code> 列的檔案，路徑相對於場景檔；沒有被場景檔用到的檔案會被拒絕。<code>POST /dsl/check</code> 只收場景檔，還沒放進來的腳本會報成 <code>dsl.script.missing</code>，以存檔時的檢查為準。</li>
           <li><strong>不能逐步調試</strong>：<code>POST /scenes/{id}/debug</code> 回 422 <code>debug_script</code>。直接驗證執行，看運行的步驟、事實與 <code>automation.log</code>。</li>
-          <li><strong>交給有運行環境的 Worker</strong>：只派給帶了 RPA Python 運行環境 1、平台在 <code>platforms</code> 裡的 Worker，不需要瀏覽器。運行環境附在 main 起的 RPA Worker 與 Linux 分發包；v0.8.0 以前的 App 沒有，<code>GET /workers</code> 的 <code>features</code> 也沒有 <code>pythonNodes</code>，這時運行會一直排隊。</li>
+          <li><strong>交給有運行環境的 Worker</strong>：只派給帶了 RPA Python 運行環境 1、平台在 <code>platforms</code> 裡的 Worker，不需要瀏覽器。運行環境附在 v0.9.0 起的 RPA Worker 與 Linux 分發包；v0.8.0 以前的 App 沒有，<code>GET /workers</code> 的 <code>features</code> 也沒有 <code>pythonNodes</code>，這時運行會一直排隊。</li>
           <li><strong>資料與檔案</strong>：<code>type: array</code>、<code>object</code> 的入參值直接寫 JSON，上游同型別的出參可以接到下游。腳本寫進 <code>run.output_dir</code> 的檔案與 file 出參在運行的檔案清單裡，用 <code>GET /runs/{id}/files/outputs/…</code> 下載；組合場景裡 file 出參可以接到下游 DSL 場景的 file 入參（同一台 Worker 的共用工作資料夾）。</li>
           <li><strong>不能用登入角色</strong>：運行環境模式的場景寫 <code>login</code> 會被校驗擋下（這一版不支援）。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="batches">
+      <div class="panel-header"><h2>批次執行</h2><span class="muted">M7.3；<a href="../adr/0024-batch-runs.html">ADR 0024</a></span></div>
+      <div class="panel-body">
+        <p>同一個場景要對一份清單的每一筆各正式執行一次（逐筆建單、逐個開帳號）時，用批次執行：每一列是一次一般的正式執行，各有報告、出參與回看；一列失敗不影響其他列，之後可以只重跑沒有通過的列。在同一個畫面裡逐項做、要共用一個瀏覽器時，改在場景裡用 <code>forEach</code>。</p>
+<pre class="source">POST /agent-api/v1/batches                       （需要 runs:execute）
+{"sceneId": "order-create",
+ "rows": [{"customer": "王小明", "quantity": 2}, {"customer": "陳大華"}],
+ "onFailure": "continue", "concurrency": 2, "idempotencyKey": "orders-1105"}
+→ 202 {"id": "batch-20261105-…", "status": "running", "revision": 3,
+       "counts": {"total": 2, "queued": 2}, "rows": [{"number": 1, "status": "queued", "runId": "order-create-…", …}, …],
+       "portalPath": "/batches/batch-20261105-…"}
+
+GET /agent-api/v1/batches/batch-20261105-…        （需要 runs:read）</pre>
+        <ul class="points">
+          <li><strong>一列一組入參</strong>：鍵是入參名稱；沒寫或空字串的入參用預設值。用的是場景目前發布的版本（建立時固定）。任何一列不符合契約或寫了場景沒有的入參，整批不建立，回 422 <code>batch_rows_invalid</code>，<code>problems</code> 的每一項有 <code>row</code>（從 1 起；寫了場景沒有的入參時是 null）、<code>input</code> 與 <code>message</code>。</li>
+          <li><strong>同時幾列</strong>：<code>concurrency</code> 是 1～10，算在排隊與執行中的上限裡（超過時 429 <code>limit_reached</code>）；同一台 Worker 一次一列。<code>onFailure: "stop"</code> 時一列沒通過就不再排新的列。</li>
+          <li><strong>看結果</strong>：<code>GET /batches/{id}</code> 的 <code>status</code> 是 running、finished 或 stopped；<code>counts</code> 是每種狀態幾列；每一列有 <code>status</code>、<code>runId</code>、<code>output</code>、<code>error</code>、<code>attempts</code> 與每一次的 <code>runs</code>。報告、步驟、檔案照一般運行用 <code>/runs/{runId}</code> 讀。</li>
+          <li><strong>停下與重跑</strong>：<code>POST /batches/{id}/stop</code> 取消排隊中與執行中的列（已經在目標系統完成的動作不會復原）；結束或停下後 <code>POST /batches/{id}/rerun</code> 重跑沒有通過的列，或用 <code>{"rows": [2, 5]}</code> 指定。改資料再跑、匯出 CSV／Excel 在 Portal 的批次頁（<code>portalPath</code>）。</li>
+          <li><strong>只看得到自己的</strong>：別的用戶端建立的批次回 404 <code>batch_not_found</code>。同一個 <code>idempotencyKey</code> 回傳同一個批次。</li>
         </ul>
       </div>
     </section>

@@ -1109,6 +1109,152 @@
     });
   }
 
+  // ---------------------------------------------------------------- 批次執行（M7.3）
+
+  // 檔案 → base64（分段轉，避免大檔超過參數上限）
+  async function fileBase64(file) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = '';
+    for (let start = 0; start < bytes.length; start += 0x8000) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(start, start + 0x8000));
+    }
+    return btoa(binary);
+  }
+
+  // 批次的選項（新的批次表單與還沒開始的批次頁共用）
+  function batchOptions(root) {
+    const field = name => qs('[name="' + name + '"]', root);
+    const failure = qs('[name="onFailure"]:checked', root);
+    const headless = qs('[name="headless"]:checked', root);
+    return {
+      onFailure: failure ? failure.value : 'continue',
+      concurrency: Number(field('concurrency').value) || 1,
+      engine: field('engine').value || null,
+      baseUrl: field('baseUrl').value.trim() || null,
+      headless: headless ? headless.value === '1' : null,
+      target: chosenTarget(root),
+    };
+  }
+
+  function bindBatchForm() {
+    const form = qs('#batch-form');
+    if (!form) return;
+    bindTargetChoice(form);
+    const key = newKey();
+    const button = qs('[data-action="create-batch"]', form);
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const body = {...batchOptions(form), idempotencyKey: key};
+      const file = qs('[name="file"]', form).files[0];
+      button.disabled = true;
+      if (file) {
+        body.fileName = file.name;
+        body.fileContent = await fileBase64(file);
+      } else {
+        body.text = qs('[name="text"]', form).value;
+      }
+      const result = await api('POST', '/api/scenes/' + path(form.dataset.scene) + '/batches', body);
+      if (result.ok) {
+        location.href = '/batches/' + path(result.data.id);
+        return;
+      }
+      button.disabled = false;
+      listItems(qs('#problem-list'), [errorMessage(result)]);
+    });
+  }
+
+  function bindBatch() {
+    const root = qs('#batch');
+    if (!root) return;
+    const url = '/api/batches/' + path(root.dataset.batch);
+    const settings = qs('#batch-settings');
+    if (settings) bindTargetChoice(settings);
+    const action = name => qs('[data-action="' + name + '"]');
+
+    // 還沒開始：欄位對應與選項存回去（開始前也先存一次）
+    async function save() {
+      if (!settings) return true;
+      const mapping = {};
+      qsa('[data-mapping]', settings).forEach(select => {
+        mapping[select.dataset.mapping] = select.value || null;
+      });
+      const result = await api('PATCH', url, {...batchOptions(settings), mapping});
+      if (!result.ok) toast(errorMessage(result));
+      return result.ok;
+    }
+    const saveButton = action('save-batch');
+    if (saveButton) {
+      saveButton.addEventListener('click', async () => {
+        if (!(await save())) return;
+        flash(messages.batch_saved);
+        location.reload();
+      });
+    }
+    const start = action('start-batch');
+    if (start) {
+      start.addEventListener('click', async () => {
+        start.disabled = true;
+        if (!(await save())) { start.disabled = false; return; }
+        const result = await api('POST', url + '/start');
+        if (!result.ok) { start.disabled = false; return toast(errorMessage(result)); }
+        flash(messages.batch_started);
+        location.reload();
+      });
+    }
+    const remove = action('delete-batch');
+    if (remove) {
+      remove.addEventListener('click', () => {
+        confirmDialog(messages.batch_delete_title, messages.batch_delete_body, messages.batch_delete_action, async () => {
+          const result = await api('DELETE', url);
+          $('#dialog').close();
+          if (!result.ok) return toast(errorMessage(result));
+          location.href = '/batches';
+        });
+      });
+    }
+    const stop = action('stop-batch');
+    if (stop) {
+      stop.addEventListener('click', () => {
+        confirmDialog(messages.batch_stop_title, messages.batch_stop_body, messages.batch_stop_action, async () => {
+          const result = await api('POST', url + '/stop');
+          $('#dialog').close();
+          if (!result.ok) return toast(errorMessage(result));
+          location.reload();
+        });
+      });
+    }
+    // 重跑沒有通過的列：改過的儲存格一起送
+    const rerun = action('rerun-batch');
+    if (rerun) {
+      rerun.addEventListener('click', async () => {
+        const cells = {};
+        qsa('[data-cell]').forEach(input => {
+          if (input.value === input.defaultValue) return;
+          const row = input.dataset.row;
+          cells[row] = cells[row] || {};
+          cells[row][input.dataset.column] = input.value;
+        });
+        rerun.disabled = true;
+        const result = await api('POST', url + '/rerun', {cells});
+        if (!result.ok) { rerun.disabled = false; return toast(errorMessage(result)); }
+        flash(messages.batch_rerun_started);
+        location.reload();
+      });
+    }
+    // 執行中：每 3 秒看一次，狀態或各狀態的列數變了就重新整理（簽章與頁面上的寫法相同：鍵排序、key=value 以逗號連接）
+    if (!root.hasAttribute('data-poll')) return;
+    const timer = setInterval(async () => {
+      const result = await api('GET', url);
+      if (!result.ok) return;
+      const counts = result.data.counts || {};
+      const signature = result.data.status + ':' + Object.keys(counts).sort().map(key => key + '=' + counts[key]).join(',');
+      if (signature !== root.dataset.signature) {
+        clearInterval(timer);
+        location.reload();
+      }
+    }, 3000);
+  }
+
   // ---------------------------------------------------------------- 執行詳情
 
   function bindRun() {
@@ -4064,6 +4210,8 @@
   bindEditor();
   bindSceneAnchors(bindScripts());
   bindRunForm();
+  bindBatchForm();
+  bindBatch();
   bindAttachments();
   bindRun();
   bindRoles();

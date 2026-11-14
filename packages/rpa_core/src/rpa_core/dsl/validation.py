@@ -6,6 +6,7 @@ from typing import Any, Final
 
 from pydantic import ValidationError
 
+from rpa_core.dsl.calls import check_calls
 from rpa_core.dsl.checks import CrossIssue
 from rpa_core.dsl.contract import spec_json_schema
 from rpa_core.dsl.fields import catalog
@@ -50,7 +51,8 @@ def validate_data(
     """校驗已經轉成 Python 資料的場景（例如從 JSON 讀出來的）。
 
     ``source`` 是 YAML 的位置對照；有的話每個問題都會帶上行號與列號。
-    ``base_dir`` 是場景檔所在的資料夾；有的話會檢查 Python 腳本場景的腳本檔是否存在。
+    ``base_dir`` 是場景檔所在的資料夾；有的話會檢查 Python 腳本場景的腳本檔是否存在，以及
+    ``call`` 引用的子場景（M7.2，``calls/`` 裡的場景檔在不在、能不能被這個場景呼叫、入參對不對）。
     """
     cross: list[CrossIssue] = []
     try:
@@ -67,6 +69,9 @@ def validate_data(
                 cross.append(
                     CrossIssue(("script", "files", index), "script.file_missing", {"value": name})
                 )
+    if base_dir is not None and not cross and scenario.steps is not None:
+        # 場景本身有問題時先不看子場景：問題一次太多，而且子場景的檢查要用到正確的契約
+        cross.extend(check_calls(base_dir, scenario))
     issues = tuple(
         sorted(
             (issue_from_cross(issue, data, source) for issue in cross),
