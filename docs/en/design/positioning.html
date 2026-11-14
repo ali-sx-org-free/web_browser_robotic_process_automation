@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:0886cd68345373bd">
+<meta name="translation-source" content="sha256:2448bc4250d1fb73">
 <title>Positioning · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -62,7 +62,7 @@
       <div class="panel-body">
         <dl class="spec-list">
           <dt>Scenario</dt><dd>A repeatable sequence of browser actions described in a declarative DSL; work a browser cannot do is written as a Python node (below). The platform's core asset, with a stable id and a category; both kinds follow the same scenario contract and publishing gate (<a href="../adr/0009-scenario-contract.html">ADR 0009</a>).</dd>
-          <dt>Python node</dt><dd>A scenario whose scenario file comes with Python scripts (<code>script:</code>). With <code>script.runtime</code> it runs in the RPA Python runtime built by the platform, without a browser, for Excel, files, data and API calls; without it, it is in compatibility mode and can still drive Playwright itself (<a href="../adr/0020-python-nodes.html">ADR 0020</a>; on main, not yet released).</dd>
+          <dt>Python node</dt><dd>A scenario whose scenario file comes with Python scripts (<code>script:</code>). With <code>script.runtime</code> it runs in the RPA Python runtime built by the platform, without a browser, for Excel, files, data and API calls; without it, it is in compatibility mode and can still drive Playwright itself (<a href="../adr/0020-python-nodes.html">ADR 0020</a>; from v0.9.0).</dd>
           <dt>Revision</dt><dd>An immutable version of a scenario: draft → validating → passed or failed → published. Any change requires validating again, and the published revision must be the one that passed.</dd>
           <dt>Step</dt><dd>One action in a scenario, such as opening a URL, clicking, filling in a field or extracting data. Every step has a stable <code>id</code>.</dd>
           <dt>Target</dt><dd>Describes which element on the page to act on. It can have several candidates, tried in order of priority.</dd>

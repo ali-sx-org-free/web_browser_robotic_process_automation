@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>文檔站對齊 main（v0.9.1、M7.1 與組合場景流程） · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>文檔站對齊 main（v0.9.1、M7.1 與組合場景流程）</h1><p>把 <code>docs/</code> 裡還停在 v0.8.0 的版本與狀態改成和 main <code>3ba4e39</code> 一致：v0.9.0、v0.9.1 兩次發布，以及之後合併、尚未發布的 M7.1 流程控制（PR #15）與組合場景的條件連線、同時執行、重複次數（PR #20）。只改文件，不改程式。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261113-docs-refresh-v0-9；2026-11-13 18:30 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 專案對話（2026-11-13 18:12 America/Los_Angeles（PST，UTC−08:00），原文）：「剛合并了最新分支已經審閲PR15和合并，你拉下最新的代碼。把M7後續流程實作。同時把main分支文檔更新到最新版本。」本任務是最後一句。完成＝<code>docs/</code> 各頁的版本與狀態和 main 的實作、已合併的 PR、已發布的 Release 一致；繁中、英文同步並 stamp，簡中由工具產生；文檔測試通過；人工驗收照各任務紀錄寫，不寫成已驗收。</dd>
+        <dt>範圍／不包含</dt><dd><code>docs/</code> 的繁中與英文頁（簡中由 bootstrap 產生）；<code>handoff/index.html</code> 補上 M11 之後的狀態列與目前的下一步；任務索引回填組合場景流程已合併。已隨各 PR 更新、和程式一致的內容不動（場景 DSL 的流程控制、管理 Portal 的條件連線、ADR 0021／0022、Agent 使用指南）。不包含：程式與 <code>schema/</code>；<code>handoff/</code> 其他頁（驗收紀錄、未完成工作、決定）的逐項回填；M7.2 子場景的文件（在 <code>feat/m7-subscenario</code>）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>文檔更新：Claude（Fable 5.2）；審閱與合併：使用者。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>docs/index.html</code>、<code>docs/roadmap.html</code>、<code>docs/adr/index.html</code>、<code>docs/assets/nav.js</code>（頁首標籤）；<code>docs/design/</code> 的 architecture、tech-stack、desktop、positioning、portal（開頭）、agent-api（開頭）；<code>docs/develop/</code> 的 setup、remote-worker、operations、agent-api-guide；<code>docs/en/</code> 的同一頁；<code>handoff/index.html</code>、本頁、任務索引。共用檔案（任務索引、<code>nav.js</code>、路線圖）由本任務整合；開工時沒有開著的 PR。M7.2 的分支從本分支開，路線圖的 M7 列之後由那個分支接著改。</dd>
+        <dt>狀態</dt><dd>實作完成、待審閱（PR #23）。繁中與英文已 stamp；簡中已由 bootstrap 產生（<code>0fed4c3</code>）；最新 head 的 CI 見 PR。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>docs/refresh-v0-9</code>，從 <code>3ba4e39</code>（origin/main，Merge PR #22）開；PR #23（base main）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>推送到 <code>docs/refresh-v0-9</code>；以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端工作區 Linux x86_64、系統 Python 3.13.18。不能安裝套件：沒有 OpenCC，簡中靠提交訊息的 <code>[bootstrap]</code> 產生。GitHub 用 REST API（<code>gh api</code>）查 PR 與 Release。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>盤點（main 3ba4e39）：</strong>上一次文檔對齊（舊倉庫 #114、新倉庫 PR #5）停在 v0.8.0 加「main 上、尚未發布的 Python 節點」。之後：v0.9.0（2026-11-10 16:15 America/Los_Angeles（PST，UTC−08:00）發布：Python 節點、新倉庫網址）、v0.9.1（2026-11-10 23:45 發布：登入角色的元素引導 #13、JSON 寫法的場景檔 #12；從 v0.9.0 升級各平台只要更新檔）；v0.9.1 之後合併、尚未發布：場景排序與 DAG 畫布 #18（2026-11-11 16:50）、M7.1 流程控制 #15（2026-11-13 17:57）、組合場景的條件連線、同時執行與重複次數 #20（2026-11-13 18:10），另有只改測試的 #19、#22 與只改文件的 #16。時間依 GitHub 的 <code>merged_at</code>、<code>published_at</code> 換算。首頁、路線圖、系統架構、技術選型、產品定位、桌面端分發、管理 Portal 與 Agent API 的開頭、開發環境、遠端 Worker、部署與操作、Agent 使用指南還寫 v0.8.0 或把 Python 節點寫成「main 上、尚未發布」；路線圖的 M7 寫「M7.1 實作中」、組合場景流程寫「未合併」；ADR 數量寫 19（實際 21，多了 0021、0022）。</li>
+        <li><strong>已完成：</strong>首頁（版本 v0.9.1、里程碑 8 項進行中／3 項未開始、ADR 21 項）、路線圖（目前狀態；M10、M12、M7c、M14、M7 的版本與狀態；「里程碑之外的改動」的 Python 節點改 v0.9.0，補上 #13、#12、#18，#20 改成已合併）、ADR 索引數量、頁首標籤 v0.9.1；系統架構、技術選型、產品定位、Agent API 與管理 Portal 的開頭把 Python 節點改成 v0.9.0 起，並註明流程控制與組合場景流程在 main、尚未發布；桌面端分發（目前版本、發布歷史、v0.9.1 的發布檔大小、升級路徑、桌面端相關修改）；開發環境、遠端 Worker、部署與操作、Agent 使用指南的「main 起」改成「v0.9.0 起」，升級說明改成「v0.8.0 以前升到 v0.9.0／v0.9.1 要完整安裝包，v0.9.0 → v0.9.1 只要更新檔」。英文同一頁同步並 stamp。<code>handoff/index.html</code> 補上 M11 以後的狀態列與目前的下一步。</li>
+        <li><strong>未完成／阻礙：</strong>簡中與 <code>i18n.py check</code> 交給 bootstrap 與 CI（本機沒有 OpenCC）；使用者審閱、合併。</li>
+        <li><strong>決定：</strong>實作選擇，沿用前兩次文檔對齊：狀態以 GitHub 的合併紀錄、Release 與各任務紀錄為準；「已合併」「自動測試通過」「人工驗收通過」分開寫。v0.9.0 的 Release 說明沒有「從 v0.8.0 升級」那一段（新倉庫沒有上一個 Release），升級路徑依 <a href="20261110-release-0-9-0.html">v0.9.0</a>、<a href="20261110-release-0-9-1.html">v0.9.1</a> 的發布紀錄寫；錄製端要不要完整安裝包寫「以裝置頁顯示的為準」，不推測。Python 節點的人工驗收照 v0.9.0 發布紀錄寫「一～五由使用者回報完成，驗收六沒有紀錄」。發布檔大小取自 v0.9.1 Release 的資產（十進位 MB）。</li>
+        <li><strong>下一個具體動作：</strong>確認 bootstrap 產生的簡中與最新 head 的 CI；使用者審閱、合併。M7.2 的 PR 疊在本分支上，先合併本 PR。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody><tr><td>本分支（文件改完、提交前；基準 <code>3ba4e39</code>＋工作區差異）；雲端 Linux、系統 Python 3.13.18</td><td><code>python3 tools/i18n.py stamp</code>（每個改過的英文頁）；<code>python3 -m pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code>；本頁、任務索引與 <code>handoff/index.html</code> 的相對連結</td><td>383 passed、1 failed：失敗的是 <code>tests/i18n/test_generated.py::test_simplified_chinese_is_generated</code>（本機沒有 OpenCC，簡中由 bootstrap 產生）；<code>git diff --check</code> 通過</td><td>沒有 OpenCC，簡中與 <code>i18n.py check</code> 交給 bootstrap 與 CI；只改文件，不跑程式與瀏覽器測試</td></tr>
+          <tr><td><code>9510992</code>；GitHub Actions（PR #23）</td><td>CI、伺服器分發包、桌面端建置、RPA Python 運行環境、一鍵安裝腳本</td><td>CI 的「測試（Python 3.12／3.13）」只有 <code>test_simplified_chinese_is_generated</code> 失敗（3.13：1 failed、2406 passed、6 skipped），其他工作與流程通過</td><td>簡中當時還沒產生</td></tr>
+          <tr><td><code>0fed4c3</code>（bootstrap 機器人的提交：簡中與 <code>uv.lock</code>）</td><td>同上</td><td>五個流程都是 <code>action_required</code>、沒有執行（機器人的提交照例如此）</td><td>由下一次推送的 CI 一起驗證，見追加紀錄</td></tr></tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：見追加紀錄。人工驗收：不適用（只改文件）。審閱者／SHA／發現與處理：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>尚未交出。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-11-13 20:12 America/Los_Angeles（PST，UTC−08:00），Claude：PR #23（<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/23">連結</a>）開好；<code>9510992</code> 的 CI 只有「簡中不是最新」失敗，bootstrap 提交 <code>0fed4c3</code> 產生了簡中與 <code>uv.lock</code>，它的流程停在 <code>action_required</code>。本提交只回填這一段，推送後的 CI 會連同 <code>0fed4c3</code> 一起驗證。</li>
+        <li>2026-11-13 18:14～18:30 America/Los_Angeles（PST，UTC−08:00），Claude：開工。重新 clone（<code>--depth 50</code>，再 <code>git fetch --depth=300 origin main</code>）；沒有開著的 PR；從 <code>3ba4e39</code> 開 <code>docs/refresh-v0-9</code>。盤點 <code>docs/</code> 各頁（繁中與英文各搜尋 v0.8.0、「main 上／main 起」「尚未發布」「未合併」「實作中」）與 PR #12～#22、Release v0.9.0、v0.9.1。改完後 stamp 英文頁。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

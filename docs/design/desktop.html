@@ -33,7 +33,7 @@
       <h1>桌面端分發</h1>
       <p>M10：伺服器與資料庫部署在一台電腦（可以是沒有螢幕的 Linux），錄製者與執行機各裝一個桌面 App，貼上邀請就能用。App 的視窗沿用伺服器現有的頁面；錄製、逐步調試、人工登入的瀏覽器開在操作的那台電腦。決策見 <a href="../adr/0014-desktop-apps.html">ADR 0014</a>。</p>
     </div>
-    <span class="badge green">M10.0～M10.2 已完成；目前 v0.8.0</span>
+    <span class="badge green">M10.0～M10.2 已完成；目前 v0.9.1</span>
   </div>
 
   <div class="stack">
@@ -44,7 +44,7 @@
           <thead><tr><th>元件</th><th>macOS</th><th>Windows</th><th>說明</th></tr></thead>
           <tbody>
             <tr><td>RPA 錄製端</td><td><span class="badge green">已交付</span>（v0.3.0 起）</td><td><span class="badge">保留方案</span></td><td>錄製、逐步調試、人工登入，以及 Portal 的其他功能；Apple 晶片（arm64）</td></tr>
-            <tr><td>RPA Worker</td><td><span class="badge green">已交付</span>（v0.5.0 起）</td><td><span class="badge green">已交付</span>（v0.2.0 起）</td><td>執行場景（含有頭模式、錄影）；Windows x64、macOS（Apple 晶片）。main 起附帶 RPA Python 運行環境，也執行 Python 節點（<a href="../adr/0020-python-nodes.html">ADR 0020</a>，尚未發布）</td></tr>
+            <tr><td>RPA Worker</td><td><span class="badge green">已交付</span>（v0.5.0 起）</td><td><span class="badge green">已交付</span>（v0.2.0 起）</td><td>執行場景（含有頭模式、錄影）；Windows x64、macOS（Apple 晶片）。v0.9.0 起附帶 RPA Python 運行環境，也執行 Python 節點（<a href="../adr/0020-python-nodes.html">ADR 0020</a>）</td></tr>
             <tr><td>伺服器（rpa serve）</td><td colspan="2"><span class="badge blue">Linux 分發包</span>：Linux（RHEL 衍生版）用自帶 Python 的 tar.gz（x64、arm64），解壓後執行 <code>install.sh</code>，可用 systemd 開機啟動（<a href="../develop/setup.html#linux-package">分發包</a>）；也可以從原始碼安裝（<code>scripts/setup-linux.sh</code>）。macOS、Windows 照舊從原始碼安裝，一鍵安裝腳本</td><td>先在使用者自己的電腦調試；現在也放在沒有螢幕的 Linux 主機（見<a href="../develop/operations.html">部署與操作</a>）</td></tr>
             <tr><td>資料庫</td><td colspan="2"><span class="badge">不另做二進位</span></td><td>SQLite 內嵌在伺服器裡；正式環境的 PostgreSQL 用官方安裝包或 Docker（M8、M9）</td></tr>
           </tbody>
@@ -351,7 +351,7 @@
             <li><strong>認證管理員。</strong>權杖經由 keyring 存在 Windows 認證管理員；不能用時退回 <code>pairing.json</code>（只有本人能讀寫）並記在日誌。第一步存在檔案裡的權杖自動搬過去。</li>
             <li><strong>不跳主控台視窗。</strong>視窗程式啟動的主控台子程序（<code>rpa-child</code>、<code>taskkill</code>）加上 <code>CREATE_NO_WINDOW</code>；下載瀏覽器直接啟動 Playwright 的 driver，不經過 <code>rpa-child</code>。</li>
             <li><strong>沒有 WebView2、登出與關機。</strong>沒有 WebView2 Runtime 時說明怎麼安裝，在那之前只用通知區接任務。Windows 登出或關機時立刻取消執行中的任務並回報（最多等 3 秒，不擋住關機）；來不及時由租約判定失聯（<a href="../adr/0012-remote-workers.html">ADR 0012</a>）。</li>
-            <li><strong>資料位置。</strong>工作資料、設定與日誌在 <code>%LOCALAPPDATA%\rpa\worker</code>（日誌會輪替，不記權杖與邀請代碼），Firefox 預熱範本照舊在 <code>%LOCALAPPDATA%\rpa\cache</code>，瀏覽器在 Playwright 預設的 <code>%LOCALAPPDATA%\ms-playwright</code>。main 起：組合運行的共用工作資料夾在 <code>%LOCALAPPDATA%\rpa\worker\work\workspaces</code>（組合運行結束就刪，錯過通知時一天後在上線時清掉），RPA Python 運行環境第一次用到時解壓到 <code>%LOCALAPPDATA%\rpa\cache\python</code>（<a href="../adr/0020-python-nodes.html">ADR 0020</a>）。</li>
+            <li><strong>資料位置。</strong>工作資料、設定與日誌在 <code>%LOCALAPPDATA%\rpa\worker</code>（日誌會輪替，不記權杖與邀請代碼），Firefox 預熱範本照舊在 <code>%LOCALAPPDATA%\rpa\cache</code>，瀏覽器在 Playwright 預設的 <code>%LOCALAPPDATA%\ms-playwright</code>。v0.9.0 起：組合運行的共用工作資料夾在 <code>%LOCALAPPDATA%\rpa\worker\work\workspaces</code>（組合運行結束就刪，錯過通知時一天後在上線時清掉），RPA Python 運行環境第一次用到時解壓到 <code>%LOCALAPPDATA%\rpa\cache\python</code>（<a href="../adr/0020-python-nodes.html">ADR 0020</a>）。</li>
             <li><strong>CI。</strong>Windows 的建置工作先跑桌面端的單元測試（登錄檔、單一執行、認證管理員用真的）；<code>--smoke-test</code> 打開真的 WebView2 視窗與通知區圖示；端到端先靜默安裝，用裝好的 App 以 <code>--no-window</code> 配對並執行 BA-001 → BA-002，再在 App 執行中升級、解除安裝（<a href="#installer">安裝檔</a>）。視窗程式沒有標準輸出，<code>--version</code>、<code>--self-test</code> 改用 <code>rpa-child</code>。</li>
             <li><strong>M9a 剩下的三項併入 M10.1：</strong>執行報告的「執行位置」篩選、場景網址是本機位址時的提醒、等待 worker 的提示。</li>
             <li><strong>macOS 版（2026-10-22，ADR 0014 的保留方案）。</strong>同一份程式（<code>rpa_desktop.gui</code>），Apple 晶片，DMG 拖進「應用程式」，沒有安裝檔；功能和上面相同，差別在系統的部分（<code>rpa_desktop.macos</code>）：
@@ -380,13 +380,13 @@
           <li><strong>瀏覽器。</strong>第一次啟動用 App 內附的 Playwright driver 下載，版本必定相符；放在 Playwright 預設的使用者快取。可以在設定填內部鏡像（<code>PLAYWRIGHT_DOWNLOAD_HOST</code>）。錄製端必要 Chromium、選用 Firefox；Worker 同。</li>
           <li><strong>Python 腳本場景。</strong>相容模式（沒有 <code>script.runtime</code>）打包後用 App 內的 Python 執行，只能 import 標準函式庫與 App 內附的套件（Playwright、Pydantic 等）。運行環境模式的 Python 節點（<a href="../adr/0020-python-nodes.html">ADR 0020</a>）用 RPA Worker 附帶的 RPA Python 運行環境：App 的 <code>runtimes/</code> 放這個平台的壓縮檔，第一次用到時解壓到快取的 <code>python/版本-平台/</code> 並自我檢查，之後沿用。運行環境的版本屬於外殼（環境代號算它的檔名），換版本要用完整的安裝包；腳本介面 <code>rpa_script</code> 屬於程式碼層，由 Runner 交給運行環境（App 收進它的原始碼），跟著更新檔更新。錄製端不附帶。自我測試在 RPA Worker 上多執行一個範例 Python 節點（<code>scenarios/examples/python-node</code>：解壓運行環境、用 pandas 合併出 Excel）。</li>
           <li><strong>CI。</strong>新增桌面端建置流程：macOS（Apple 晶片）建錄製端、Windows 建 Worker；建好後跑<strong>自我測試</strong>：用打包後的 App 下載 Chromium、啟動測試網站，以無頭模式跑 BA-001，確認打包後的子程序路徑真的能用。產物（DMG、安裝檔）掛在該次建置上。</li>
-          <li><strong>大小（M10.0 在 CI 實測）。</strong>錄製端的 DMG 68 MB（App 解壓後 166 MB）；Worker 的 zip 58 MB（解壓後 139 MB）。第一次下載的 Chromium（含無頭版）解壓後約 570 MB（macOS）～710 MB（Windows）；Firefox 另計。v0.8.0 的發布檔：錄製端 DMG 約 90 MB、Worker 的 DMG 約 89 MB、Windows 安裝檔約 63 MB、zip 約 80 MB；main 起 RPA Worker 另附 RPA Python 運行環境的壓縮檔（約 60～75 MB，ADR 0020）。</li>
+          <li><strong>大小（M10.0 在 CI 實測）。</strong>錄製端的 DMG 68 MB（App 解壓後 166 MB）；Worker 的 zip 58 MB（解壓後 139 MB）。第一次下載的 Chromium（含無頭版）解壓後約 570 MB（macOS）～710 MB（Windows）；Firefox 另計。v0.8.0 的發布檔：錄製端 DMG 約 90 MB、Worker 的 DMG 約 89 MB、Windows 安裝檔約 63 MB、zip 約 80 MB。v0.9.0 起 RPA Worker 另附 RPA Python 運行環境的壓縮檔（約 60～75 MB，ADR 0020）；v0.9.1 的發布檔：錄製端 DMG 約 91 MB、Worker 的 DMG 約 164 MB、Windows 安裝檔約 122 MB、zip 約 139 MB。</li>
         </ul>
       </div>
     </section>
 
     <section class="panel" id="release-flow">
-      <div class="panel-header"><h2>從原始碼到安裝檔</h2><span class="muted">目前 v0.8.0（2026-10-29 06:53 PDT 發布）；之前 v0.7.1、v0.7.0、v0.6.3、v0.6.2、v0.6.1、v0.6.0、v0.5.0、v0.4.0、v0.3.0、v0.2.0</span></div>
+      <div class="panel-header"><h2>從原始碼到安裝檔</h2><span class="muted">目前 v0.9.1（2026-11-10 23:45 PST 發布）；之前 v0.9.0、v0.8.0、v0.7.1、v0.7.0、v0.6.3、v0.6.2、v0.6.1、v0.6.0、v0.5.0、v0.4.0、v0.3.0、v0.2.0</span></div>
       <div class="diagram">
         <svg class="arch" viewBox="0 0 1000 144" role="img" aria-labelledby="rel-title rel-desc">
           <title id="rel-title">從原始碼到安裝檔</title>
@@ -413,7 +413,7 @@
           <rect class="box key" x="406" y="24" width="180" height="104" rx="8"/>
           <text class="step" x="420" y="42">3</text>
           <text class="title" x="434" y="42">打標籤</text>
-          <text class="mono" x="420" y="64">v0.8.0</text>
+          <text class="mono" x="420" y="64">v0.9.1</text>
           <text class="sub" x="420" y="82">必須在 main 上</text>
           <text class="sub" x="420" y="100">和套件版本一致</text>
           <path class="link" d="M390 76H404" marker-end="url(#rel-arrow)"/>
@@ -433,7 +433,7 @@
           <path class="link" d="M784 76H798" marker-end="url(#rel-arrow)"/>
         </svg>
       </div>
-      <div class="diagram-caption">伺服器：Linux 用同一個版本的分發包（「伺服器分發包」流程建置，發布時一起附上）；其他系統用同一個版本的原始碼更新。v0.6.0 起每個版本多一個約 2 MB 的簽章更新檔 <code>RPA-Update-&lt;版本&gt;.zip</code>，執行環境沒變時伺服器與裝置只要它（見<a href="#updates">更新</a>）；0.5.0 以前要先用 0.6.0 的完整包安裝一次。各版的已知問題記在 Release 說明與發布的任務紀錄（例如 <a href="../../handoff/tasks/20261029-release-0-8-0.html">v0.8.0</a>）。v0.6.3～v0.8.0 從上一版升級時，各平台都只要更新檔（v0.6.2 的錄製端與 Worker 要完整的安裝包）。main 上的 Python 節點讓 RPA Worker 與伺服器分發包多附 RPA Python 運行環境，環境代號跟著變：從 v0.8.0 升到下一個版本時，這兩樣要用完整的安裝包；錄製端不附帶運行環境，照 Release 說明的「從 v0.8.0 升級」（<a href="#updates">更新</a>）。</div>
+      <div class="diagram-caption">伺服器：Linux 用同一個版本的分發包（「伺服器分發包」流程建置，發布時一起附上）；其他系統用同一個版本的原始碼更新。v0.6.0 起每個版本多一個約 2 MB 的簽章更新檔 <code>RPA-Update-&lt;版本&gt;.zip</code>，執行環境沒變時伺服器與裝置只要它（見<a href="#updates">更新</a>）；0.5.0 以前要先用 0.6.0 的完整包安裝一次。各版的已知問題記在 Release 說明與發布的任務紀錄（例如 <a href="../../handoff/tasks/20261110-release-0-9-1.html">v0.9.1</a>）。v0.6.3～v0.8.0 從上一版升級時，各平台都只要更新檔（v0.6.2 的錄製端與 Worker 要完整的安裝包）。v0.9.0 起 Python 節點讓 RPA Worker 與伺服器分發包多附 RPA Python 運行環境，環境代號跟著變：從 v0.8.0 以前的版本升到 v0.9.0 或 v0.9.1 時，這兩樣要用完整的安裝包；錄製端不附帶運行環境，要不要完整的安裝包以裝置頁顯示的為準。v0.9.0 升到 v0.9.1 各平台都只要更新檔（<a href="#updates">更新</a>）。</div>
     </section>
 
     <div class="two-col">
@@ -469,7 +469,7 @@
       <div class="panel-header"><h2>更新</h2><span class="muted">v0.6.0 起；<a href="../adr/0018-layered-updates.html">ADR 0018</a></span></div>
       <div class="panel-body prose">
         <ul>
-          <li><strong>分層。</strong>程式層是我們自己的工作區套件（v0.8.0 是七個，main 起多了 <code>rpa-script</code>；各平台共用一份，約 2.4 MB）；執行環境是 Python、執行時的第三方套件與 PyInstaller 外殼，各平台一份，算成一個環境代號。main 起 RPA Worker 與伺服器分發包另把附帶的 RPA Python 運行環境算進代號（壓縮檔的檔名，含運行環境的版本，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）。代號相同才能只換程式層，不同就要完整的安裝包；瀏覽器照舊只在 Playwright 版本改變時重新下載。</li>
+          <li><strong>分層。</strong>程式層是我們自己的工作區套件（v0.8.0 是七個，v0.9.0 起多了 <code>rpa-script</code>；各平台共用一份，約 2.4 MB）；執行環境是 Python、執行時的第三方套件與 PyInstaller 外殼，各平台一份，算成一個環境代號。v0.9.0 起 RPA Worker 與伺服器分發包另把附帶的 RPA Python 運行環境算進代號（壓縮檔的檔名，含運行環境的版本，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）。代號相同才能只換程式層，不同就要完整的安裝包；瀏覽器照舊只在 Playwright 版本改變時重新下載。</li>
           <li><strong>伺服器。</strong>分發包的 <code>bin/rpa update RPA-Update-&lt;版本&gt;.zip</code> 驗證簽章與每個檔案，裝成新的版本資料夾、換掉 <code>current</code>；<code>bin/rpa serve</code> 等到沒有進行中的錄製、逐步調試、人工登入、本機執行，用新版本重新啟動，起不來時退回上一版並還原遷移前的 SQLite 備份。從 clone 執行的伺服器不能用更新檔，要先改用分發包一次。</li>
           <li><strong>裝置跟著伺服器。</strong>Worker 與錄製端上線時向伺服器檢查（Worker API 與 Client API 各有一個更新端點），下載伺服器現在的版本（不一定是最新版），驗證後放在 App 的資料夾（Windows <code>%LOCALAPPDATA%\rpa\worker\app\</code>、macOS <code>~/Library/Application Support/rpa/{worker,recorder}/app/</code>），App 本身不被修改，macOS 的簽章也不受影響。</li>
           <li><strong>套用的時機。</strong>Worker 做完目前的任務、暫停領取後自己重新啟動；錄製端不打斷錄製與調試，提示關掉再開啟就會套用。新的一層連續起不來時退回上一層，裝置頁標出失敗，同一個版本不再自動安裝。裝置頁可以關掉「自動更新裝置」（預設開）。</li>
@@ -520,7 +520,7 @@
           </tbody>
         </table>
       </div>
-      <div class="panel-body"><p class="muted">M10.2 之後和桌面端有關的修改：伺服器沒有瀏覽器時「檢查」交給錄製端、人工登入在開視窗的那台確認、看得懂的登入錯誤（#50）；人工登入的 Firefox 在背景不再停住（#51）；App 回報看得懂的 DSL 擴充，舊 App 拿不到用了新寫法的場景（M7a，#62）；Worker 錄影，Windows 上取消時先只結束瀏覽器，讓影片寫完（M12，#61）。2026-10-22：macOS 版 Worker（保留方案提前做，見<a href="#worker">RPA Worker</a>）、Linux 伺服器分發包（#70），隨 v0.5.0 發布。v0.6.0：分層熱更新，伺服器把更新分發給裝置（#83，<a href="../adr/0018-layered-updates.html">ADR 0018</a>）；v0.6.2：同一個執行環境每次建置都是同一個環境代號，裝置才能熱更新（#88）；v0.6.3：在錄製端調試時可以換版本（#90）。v0.7.0：Worker 的「檔案入參可以讀的資料夾」、Worker 與錄製端下載檔案入參（M7c，#97）；v0.7.1：頁面的靜態檔網址帶內容雜湊，錄製端的視窗在伺服器更新後也載入新的播放器（#103）；v0.8.0：錄影時每一步做完拍縮小的截圖（#106）。main（尚未發布）：RPA Worker 附帶 RPA Python 運行環境，自我測試多執行一個範例 Python 節點；Worker 回報帶了哪些運行環境，派工依此決定（#109，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）。</p></div>
+      <div class="panel-body"><p class="muted">M10.2 之後和桌面端有關的修改：伺服器沒有瀏覽器時「檢查」交給錄製端、人工登入在開視窗的那台確認、看得懂的登入錯誤（#50）；人工登入的 Firefox 在背景不再停住（#51）；App 回報看得懂的 DSL 擴充，舊 App 拿不到用了新寫法的場景（M7a，#62）；Worker 錄影，Windows 上取消時先只結束瀏覽器，讓影片寫完（M12，#61）。2026-10-22：macOS 版 Worker（保留方案提前做，見<a href="#worker">RPA Worker</a>）、Linux 伺服器分發包（#70），隨 v0.5.0 發布。v0.6.0：分層熱更新，伺服器把更新分發給裝置（#83，<a href="../adr/0018-layered-updates.html">ADR 0018</a>）；v0.6.2：同一個執行環境每次建置都是同一個環境代號，裝置才能熱更新（#88）；v0.6.3：在錄製端調試時可以換版本（#90）。v0.7.0：Worker 的「檔案入參可以讀的資料夾」、Worker 與錄製端下載檔案入參（M7c，#97）；v0.7.1：頁面的靜態檔網址帶內容雜湊，錄製端的視窗在伺服器更新後也載入新的播放器（#103）；v0.8.0：錄影時每一步做完拍縮小的截圖（#106）。v0.9.0：RPA Worker 附帶 RPA Python 運行環境，自我測試多執行一個範例 Python 節點；Worker 回報帶了哪些運行環境，派工依此決定（#109，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）；App 的「下載新版」與安裝檔改用新倉庫的網址。v0.9.1：登入角色「在瀏覽器裡點選」的視窗開在錄製端（#13）。main（尚未發布）：App 回報看得懂流程控制（擴充 <code>flow</code>，M7.1，#15），舊的 App 拿不到用了流程控制的場景。</p></div>
     </section>
 
     <div class="two-col">
