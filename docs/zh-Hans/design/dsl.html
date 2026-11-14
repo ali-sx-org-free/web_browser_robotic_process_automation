@@ -369,6 +369,7 @@ steps:
             <tr><td><code>openPage</code></td><td>自己开一个新分页（M7.1）</td><td><strong>as</strong>、url、waitUntil</td><td>同一个浏览器工作阶段（同一个登录状态）；as 是分页名称，和 popup 共用；url 规则同 goto；不能写 page</td></tr>
             <tr><td><code>closePage</code></td><td>关掉分页（M7.1）</td><td><strong>page</strong></td><td>一开始的分页不能关；循环里关掉后可以用同一个名称再开</td></tr>
             <tr><td><code>if</code>、<code>forEach</code>、<code>repeat</code>、<code>try</code></td><td>区块步骤（M7.1）</td><td>见<a href="#flow">流程控制</a></td><td>里面再放步骤</td></tr>
+            <tr><td><code>call</code></td><td>调用子场景（M7.2）</td><td><strong>scenario</strong>、<strong>revision</strong>、inputs、as、append</td><td>见<a href="#call">子场景</a>；在同一个浏览器接着运行另一个场景的固定版本</td></tr>
           </tbody>
         </table>
       </div>
@@ -381,7 +382,7 @@ steps:
           <dt>extract 的 fields</dt><dd>每个元素抽成一笔记录，键是字段名称，值可写 target（相对于该元素）、get、attribute。有 fields 时不写外层的 get。</dd>
         </dl>
       </div>
-      <div class="diagram-caption">expect 是步骤内的防护，verify 才决定是否发布出参。iframe 用定位器的 <a href="#locators">frame</a>（M7a），新分页用步骤的 <a href="#tabs">popup 与 page</a>（M7b），上传见<a href="#upload">上传文件</a>（M7c），条件、循环、错误处理与自己开的分页见<a href="#flow">流程控制</a>（M7.1）。</div>
+      <div class="diagram-caption">expect 是步骤内的防护，verify 才决定是否发布出参。iframe 用定位器的 <a href="#locators">frame</a>（M7a），新分页用步骤的 <a href="#tabs">popup 与 page</a>（M7b），上传见<a href="#upload">上传文件</a>（M7c），条件、循环、错误处理与自己开的分页见<a href="#flow">流程控制</a>（M7.1），调用另一个场景见<a href="#call">子场景</a>（M7.2）。</div>
     </section>
 
     <section class="panel" id="flow">
@@ -405,7 +406,7 @@ steps:
           <dt id="condition">条件</dt><dd>if 的 <code>condition</code>、repeat 的 <code>while</code>／<code>until</code>，写法沿用 <a href="#actions">expect</a>，差别是不成立不算失败：有 <code>target</code> 时检查元素的 <code>state</code>（visible、hidden、attached、detached、enabled、disabled、checked、unchecked、editable）、<code>text</code>、<code>value</code>、<code>count</code> 其一；没有 target 时检查 <code>url</code> 或 <code>title</code>；<code>match</code> 同字符串匹配。或写 <code>expression: '{{ … }}'</code>，结果是真值就成立（入参、事实、循环变量都能用；不能再写其他字段）。<code>wait</code> 是最多等多久让条件成立（毫秒，默认 0 只看当下），成立就马上结束；<code>not: true</code> 反过来判断；<code>page</code> 指定在哪个分页判断。visible／hidden 看前 20 个符合的元素有没有看得见的；其他状态与文字看第一个。<strong>判断本身出错</strong>（例如 <code>{{ }}</code> 用到没有值的事实）算这个区块失败，不当成不成立。</dd>
           <dt>循环变量</dt><dd>forEach 的 <code>as: order</code> 之后，循环里用 <code>{{ order.title }}</code>；另有最内层循环的 <code>{{ loop.index }}</code>（从 1 起）、<code>loop.count</code>（repeat 的 while／until 没有）、<code>loop.first</code>、<code>loop.last</code>。repeat 也有 loop。catch 里有 <code>{{ error.step }}</code>（失败那一步的 id）与 <code>{{ error.message }}</code>。名称不能用 inputs、secrets、facts、env、loop、error，也不能和外层的循环变量相同；只能在那个循环（catch）里用，校验时就会检查。</dd>
           <dt>事实</dt><dd>循环里 extract 的事实每一轮覆盖，结束后是最后一轮的值；要累积就写 <a href="#actions">append</a>。分支与循环里产生的事实，之后的步骤可以用（校验依场景文件的顺序），但运行时真的没有值（例如那个分支没走到）就在用到它的那一步失败。</dd>
-          <dt>上限</dt><dd>forEach 最多 1,000 项，repeat 的 times 与 max 最多 1,000，区块最多嵌套 5 层，一次运行最多 10,000 笔步骤记录（超过算失败，onError 与 try 也接不住）；每一轮都受总期限限制。更多笔数据请用批量运行（M7.3）。</dd>
+          <dt>上限</dt><dd>forEach 最多 1,000 项，repeat 的 times 与 max 最多 1,000，区块最多嵌套 5 层，一次运行最多 10,000 笔步骤记录（超过算失败，onError 与 try 也接不住）；每一轮都受总期限限制。更多笔数据请用批量运行（M7.3）。<a href="#call">子场景</a>里的步骤也算在这次运行的记录里。</dd>
           <dt>记录、日志与回看</dt><dd>steps.json 依运行顺序：最外层的步骤一开始就列出，区块里的步骤运行到才添加，紧接在区块后面；每笔多了 <code>path</code>（在场景文件的位置）、<code>parent</code>（外层区块是第几笔）、<code>iteration</code>（第几轮）、<code>attempts</code>、<code>handled</code>（<code>continued</code>、<code>caught</code>）、<code>condition</code>、<code>branch</code>、<code>iterations</code>、<code>caught</code>。automation.log 在区块开始与结束各写一行，里面的步骤缩进并标出第几轮；报告与回看依层缩进，失败后继续与被接住的失败标黄色。</dd>
           <dt>兼容性</dt><dd>用到流程控制（区块、openPage／closePage、onError、retry、<code>append: true</code>）的场景有扩充 <code>flow</code>，0.8.x 以前的录制端与 Worker 不会领到；没用到的场景哈希与结果都不变。</dd>
         </dl>
@@ -438,6 +439,31 @@ steps:
   - { id: read-total, action: extract, page: report, target: { testId: total }, as: total, retry: { times: 2 } }
   - { id: close-report, action: closePage, page: report }</pre>
         <p class="muted">完整可运行的示例在 <code>scenarios/examples/flow/</code>（搭配本机测试网站的 <code>/flow</code>）。录制录不出条件与循环：先录成直线的草稿，再把需要的部分包进区块；Portal 的场景编辑页有「插入流程模板」。录制稿的 <code>page1 = context.new_page()</code> 转成 openPage，新分页的 <code>close()</code> 转成 closePage。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="call">
+      <div class="panel-header"><h2>子场景 <code>call</code></h2><span class="muted">M7.2，<a href="../adr/0023-sub-scenarios.html">ADR 0023</a></span></div>
+      <div class="panel-body">
+        <p><code>call</code> 在同一个浏览器、同一个分页里接着运行另一个场景的<strong>固定版本</strong>，适合把「先建客户、再在同一个画面建订单」这种会重复用到的一段拆成自己的场景。和组合场景的差别：组合场景的每个节点各自开浏览器、各自运行；子场景共用登录与画面。</p>
+<pre class="source">  - id: create-customer
+    action: call
+    scenario: cust-new          # 子场景的代号
+    revision: 4                 # 固定版本；在管理 Portal 保存时要是发布过的
+    inputs:                     # 给子场景的入参；没给的用它的默认值
+      name: '{{ inputs.customer }}'
+    as: customer                # 子场景的出参 → {{ facts.customer.customerId }}</pre>
+        <dl class="spec-list">
+          <dt>契约</dt><dd>子场景的入参照它自己的契约校验（类型、限制、默认值与动态值）；它的步骤跑完后<strong>立刻跑它自己的 verify</strong>，通过才把出参存成事实 <code>facts.名称</code>（一个对象，字段是子场景的出参）。入参不符、步骤失败、verify 不通过或出参不符时，<code>call</code> 这一步失败，可以被外层的 <a href="#flow">try</a> 接住或写 <a href="#on-error">onError: continue</a>。调用场景自己的 verify 与发布门槛不变。</dd>
+          <dt>字段</dt><dd><code>inputs</code> 的值可以用 <code>{{ }}</code>；整个值只有一个 <code>{{ }}</code> 时保留清单、对象、数字的类型（数字给文字入参时自动转成文字）。<code>as</code> 只在子场景有出参时写。<code>append: true</code> 把每一次的出参加到清单尾端，循环里逐笔调用时收集全部的结果（同 extract 的 append，要写 as）。<code>page</code> 是子场景从哪个分页开始。不能写 timeout（超时由子场景里的步骤各自决定，没写用子场景的 <code>defaults.timeout</code>）、不能 retry。<code>call</code> 可以放在区块里。</dd>
+          <dt>各自独立的部分</dt><dd>子场景看不到调用场景的事实、循环变量与标签页名称，它的事实也不会盖掉调用场景同名的事实；步骤 id 只要在各自的场景里唯一。子场景开了没关的分页在它结束时关掉；子场景里的截图文件名前面加上 call 的 id（例如 <code>create-customer.evidence.png</code>）。</dd>
+          <dt>沿用调用场景的部分</dt><dd>浏览器种类、窗口大小、有头无头、登录状态、总期限（子场景自己的 <code>deadline</code> 不用）、步骤记录的上限。网址：运行时另外指定了网址（管理 Portal 的运行设置、<code>--base-url</code>）就全部用它；否则子场景用自己的 <code>browser.baseUrl</code>，没写用调用场景的。</dd>
+          <dt>限制（第一版）</dt><dd>子场景要是 DSL 场景（不是 Python 节点）；登录角色和调用场景相同，或子场景不需要登录；子场景用到的 Secrets 调用场景也要声明；不能有 <code>type: file</code> 的入参与出参；最多 3 层、10 个不同的子场景版本；不能直接或间接调用自己（不管版本）。这些都在校验时检查。</dd>
+          <dt id="call-files">子场景文件放在哪里</dt><dd>子场景那个版本的场景文件原样拷贝在调用场景的版本里：<code>calls/&lt;子场景代号&gt;/&lt;版本&gt;.yaml</code>（子场景自己调用的也平放在这里），<strong>算进调用场景的内容哈希</strong>。所以调用场景自己就能运行，子场景之后出新版本、封存都不影响已经存好的调用场景；要用子场景的新版本，改 <code>revision</code> 存成新版本、重新验证。在管理 Portal 保存时由服务器从发布过的版本带入（见<a href="portal.html#call">管理 Portal › 子场景</a>）；手写的场景文件夹自己放。<code>rpa validate</code>、<code>rpa run</code> 从场景文件旁边的 <code>calls/</code> 找。</dd>
+          <dt>记录、日志与回看</dt><dd>steps.json 里 <code>call</code> 一笔，子场景的步骤紧接在后面、<code>parent</code> 指到它；<code>path</code> 过了 <code>"call"</code> 是子场景里的位置（例如 <code>["steps", 2, "call", 0]</code>）。call 那一笔多了 <code>call</code>：<code>scenario</code>、<code>revision</code>、<code>name</code>，跑到独立断言时加上 <code>checks</code>（每一条的名称与结果），通过后加上 <code>outputs</code>（出参的名称）。automation.log、报告与回看把子场景的步骤缩进在 call 下面。</dd>
+          <dt>兼容性</dt><dd>用到 <code>call</code> 的场景有扩充 <code>call</code>（连同子场景自己用到的扩充），0.9.x 以前的录制端与 Worker 不会领到；没用到的场景哈希与结果都不变，<code>schemaVersion</code> 维持 1。</dd>
+        </dl>
+        <p class="muted">完整可运行的示例在 <code>scenarios/examples/call/</code>：创建后接着查询、循环里逐笔调用并收集每次的出参。逐步调试时 <code>call</code> 整个子场景一起运行；要一步一步看子场景，打开子场景自己的调试。</p>
       </div>
     </section>
 
