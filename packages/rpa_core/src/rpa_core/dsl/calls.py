@@ -14,9 +14,11 @@
 - 管理 Portal 存檔時由伺服器從發布過的版本複製進來；手寫的場景資料夾（例如
   ``scenarios/examples/call/``）自己放。
 
-限制（第一版）：子場景要是 DSL 場景；登入角色和呼叫場景相同或不需要登入；用到的 Secrets
-呼叫場景也要宣告；不能有 ``type: file`` 的入參與出參；最多 :data:`MAX_CALL_DEPTH` 層、
-:data:`MAX_CALLS` 個不同的子場景版本；不能繞回自己。
+限制：子場景要是 DSL 場景；登入角色和呼叫場景相同或不需要登入；用到的 Secrets 呼叫場景也要
+宣告；最多 :data:`MAX_CALL_DEPTH` 層、:data:`MAX_CALLS` 個不同的子場景版本；不能繞回自己。
+子場景的 ``type: file`` 入參一律由 ``call`` 用 ``{{ }}`` 給（呼叫場景自己的檔案入參，或共用
+工作資料夾裡的檔案），子場景的預設檔案不帶過來；``type: file`` 出參是共用工作資料夾裡的檔案
+（M7 收尾，2026-11-14）。
 
 這個模組只讀檔與檢查，不依賴瀏覽器；執行在 rpa_runner.browser。
 """
@@ -254,10 +256,6 @@ def _contract(
     missing = [name for name in callee.secrets if name not in caller.secrets]
     if missing:
         yield CrossIssue(at, "call.secrets", {**names, "names": ", ".join(missing)})
-    files = [name for name, spec in callee.inputs.items() if spec.type == "file"]
-    files += [name for name, spec in callee.outputs.items() if spec.type == "file"]
-    if files:
-        yield CrossIssue(at, "call.files", {**names, "names": ", ".join(files)})
     given = step.inputs or {}
     # 子場景自己呼叫的子場景出了問題時，路徑只能指到最外層的 call，欄位就不往下指
     for name, value in given.items():
@@ -265,6 +263,10 @@ def _contract(
         field: DataPath = at if nested else (*path, "inputs", name)
         if spec is None:
             yield CrossIssue(field, "call.input_unknown", {**names, "name": name})
+            continue
+        if spec.type == "file":
+            if not _file_expression(value, multiple=bool(spec.multiple)):
+                yield CrossIssue(field, "call.file_value", {**names, "name": name})
             continue
         if isinstance(value, str) and "{{" in value:
             continue  # 執行時代入後才知道
@@ -275,7 +277,12 @@ def _contract(
         for rule in rules:
             yield CrossIssue(field, "call.input_invalid", {**names, "name": name, "rule": rule})
     for name, spec in callee.inputs.items():
-        if name not in given and spec.default is None:
+        if name not in given and spec.type == "file":
+            # 子場景的預設檔案（附件、那台電腦上的路徑）不跟著帶過來：一律由呼叫的場景給
+            yield CrossIssue(
+                at if nested else (*path, "inputs"), "call.file_missing", {**names, "name": name}
+            )
+        elif name not in given and spec.default is None:
             yield CrossIssue(
                 at if nested else (*path, "inputs"),
                 "call.input_missing",
@@ -283,6 +290,19 @@ def _contract(
             )
     if step.as_ is not None and not callee.outputs:
         yield CrossIssue(at if nested else (*path, "as"), "call.no_outputs", dict(names))
+
+
+def _file_expression(value: object, *, multiple: bool) -> bool:
+    """給子場景檔案入參的值是不是 ``{{ }}``（多檔的入參可以寫成清單，每一項都是 ``{{ }}``）。
+
+    執行時要能換成呼叫場景這邊的檔案：呼叫場景自己的檔案入參，或共用工作資料夾裡的檔案
+    （download 步驟、前一個子場景的檔案出參）；直接寫附件、路徑或上傳檔不行。
+    """
+    if isinstance(value, str):
+        return "{{" in value
+    if multiple and isinstance(value, list) and value:
+        return all(isinstance(item, str) and "{{" in item for item in cast("list[object]", value))
+    return False
 
 
 def call_files(base_dir: Path, scenario: Scenario) -> list[str]:

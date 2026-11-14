@@ -167,6 +167,8 @@
   "steplog.caught": "接住 {step} 的失敗：{error}",
   "browser.call_missing": "找不到子場景 {scenario} 第 {revision} 版（場景資料夾的 calls/ 裡沒有）",
   "browser.call_inputs": "給子場景的入參有問題：{problems}",
+  "browser.call_file_single": "子場景的檔案入參 {name} 只收一個檔案，給了 {count} 個",
+  "browser.call_file_unknown": "子場景的檔案入參 {name}：「{file}」不是呼叫場景的檔案入參，也不是共用工作資料夾裡的檔案（download 步驟或前一個子場景產出的）",
   "browser.call_verify_failed": "子場景的獨立斷言沒有通過：{names}",
   "browser.call_outputs": "子場景的出參有問題：{problems}",
   "steplog.call": "子場景 {scenario} 第 {revision} 版",

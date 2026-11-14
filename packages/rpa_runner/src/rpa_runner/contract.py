@@ -5,7 +5,7 @@
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
@@ -93,13 +93,15 @@ def check_inputs(
     *,
     now: datetime | None = None,
     pick: Pick | None = None,
+    skip: Collection[str] = (),
 ) -> tuple[dict[str, object], list[Problem]]:
     """實際執行開始時展開一次、校驗這次的結果；腳本與報告共用回傳的運行態入參。
 
     同一次執行的所有日期共用同一個現在，每個 random 只抽一次；重新執行才重新求值。
     存檔、排隊與互動子程序啟動前使用 prepare_inputs，保留原始寫法給執行裝置。
+    ``skip`` 的入參不看（call 給子場景的檔案入參另外準備，見 rpa_runner.callfiles）。
     """
-    return _check_inputs(scenario, values, resolve=True, now=now, pick=pick)
+    return _check_inputs(scenario, values, resolve=True, now=now, pick=pick, skip=skip)
 
 
 def _check_inputs(
@@ -109,6 +111,7 @@ def _check_inputs(
     resolve: bool,
     now: datetime | None = None,
     pick: Pick | None = None,
+    skip: Collection[str] = (),
 ) -> tuple[dict[str, object], list[Problem]]:
     problems: list[Problem] = []
     resolved: dict[str, object] = {}
@@ -117,6 +120,8 @@ def _check_inputs(
         if name not in scenario.inputs:
             problems.append(Problem(name, t("contract.input_unknown", name=name)))
     for name, spec in scenario.inputs.items():
+        if name in skip:
+            continue
         if name in values:
             value = values[name]
         elif spec.default is not None:

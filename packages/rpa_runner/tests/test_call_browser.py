@@ -15,7 +15,7 @@ from rpa_core.i18n import use_locale
 from rpa_runner.files import AUTOMATION_LOG, REPORT, SCENARIO_DIR
 from rpa_runner.run import RunResult, execute
 from testsite.browsers import ENGINES, require_engine
-from testsite.server import running
+from testsite.server import export_csv, running
 
 pytestmark = pytest.mark.browser
 
@@ -313,3 +313,92 @@ outputs:
     assert steps["inner"][0]["path"] == ["steps", 0, "call", 0]
     assert steps["submit"][0]["path"] == ["steps", 0, "call", 0, "call", 3]
     assert steps["submit"][0]["parent"] == 2
+
+
+# ---------------------------------------------------------------- 檔案入參與出參（M7 收尾）
+
+EXAMPLES = CALL.parent / "browser-python"
+
+
+def test_sub_scenarios_pass_files_both_ways(site: str, engine: str, tmp_path: Path) -> None:
+    """子場景下載的檔案（file 出參）交給下一個子場景上傳；呼叫場景自己的檔案入參也可以交進去。"""
+    text = """\
+inputs:
+  sheet: { type: file, accept: [.csv] }
+steps:
+  - id: get-report
+    action: call
+    scenario: download-sales
+    revision: 1
+    inputs: { month: 2026-11 }
+    as: sales
+  - id: upload-downloaded
+    action: call
+    scenario: upload-summary
+    revision: 1
+    inputs: { summary: '{{ facts.sales.report }}' }
+    as: first
+  - id: upload-given
+    action: call
+    scenario: upload-summary
+    revision: 1
+    inputs: { summary: '{{ inputs.sheet }}' }
+    as: second
+verify:
+  - { name: 兩個都上傳了, value: '{{ facts.second.receivedName }}', notEmpty: true }
+outputs:
+  report: { type: file, from: '{{ facts.sales.report }}' }
+  first: { type: string, from: '{{ facts.first.receivedName }}' }
+  second: { type: string, from: '{{ facts.second.receivedName }}' }
+"""
+    sheet = tmp_path / "給的檔案.csv"
+    sheet.write_text("a,b\n1,2\n", encoding="utf-8")
+    path = write(
+        tmp_path / "scene",
+        text,
+        download_sales__1=(EXAMPLES / "download-sales.yaml").read_text(encoding="utf-8"),
+        upload_summary__1=(EXAMPLES / "upload-summary.yaml").read_text(encoding="utf-8"),
+    )
+    result = execute(
+        path,
+        {"sheet": {"path": str(sheet)}},
+        out_root=tmp_path / "runs",
+        base_url=site,
+        engine=engine,
+        input_folders=[tmp_path],
+    )
+    assert result.status == "passed", (result.error, result.problems)
+    assert result.output is not None
+    name, body = export_csv("2026-11")
+    assert result.output["first"] == name
+    assert result.output["second"] == "給的檔案.csv"
+    report = cast("dict[str, object]", result.output["report"])
+    assert report["name"] == name
+    assert (result.directory / "outputs" / name).read_bytes() == body
+    steps = by_id(result)
+    assert [step["files"] for step in steps["choose"]] == [[name], ["給的檔案.csv"]]
+    assert call_info(steps["get-report"][0])["outputs"] == ["report"]
+
+
+def test_a_non_file_value_fails_the_call(site: str, engine: str, tmp_path: Path) -> None:
+    text = """\
+steps:
+  - { id: get-report, action: call, scenario: download-sales, revision: 1, as: sales }
+  - id: upload-wrong
+    action: call
+    scenario: upload-summary
+    revision: 1
+    inputs: { summary: '{{ facts.sales }}' }
+"""
+    path = write(
+        tmp_path / "scene",
+        text,
+        download_sales__1=(EXAMPLES / "download-sales.yaml").read_text(encoding="utf-8"),
+        upload_summary__1=(EXAMPLES / "upload-summary.yaml").read_text(encoding="utf-8"),
+    )
+    result = execute(path, {}, out_root=tmp_path / "runs", base_url=site, engine=engine)
+    assert result.status == "failed"
+    steps = by_id(result)
+    assert steps["upload-wrong"][0]["status"] == "failed"
+    assert "不是呼叫場景的檔案入參" in str(steps["upload-wrong"][0]["error"])
+    assert "choose" not in steps  # 入參有問題時子場景一步都沒有跑
