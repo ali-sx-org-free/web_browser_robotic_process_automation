@@ -559,7 +559,6 @@
   "recording.script_no_continue": "這是 Python 節點，只能重新錄製。",
   "recording.url_continue": "接著錄製時從現有步驟最後的畫面開始，不用起始網址。",
   "recording.continue_needs": "接著錄製之前要先執行現有的步驟，但入參 {names} 沒有預設值；請在場景頁設定預設值，或改用「重新錄製」",
-  "recording.continue_call": "這個場景用到子場景（call），還不能接著錄製；請在場景檔裡直接編輯，或把要錄的部分錄成另一個場景再用 call 接起來",
   "recording.replay_failed": "先執行現有步驟時在 {step} 失敗：{message}。請先用逐步調試修好，或改用「重新錄製」",
   "recording.kind_new": "新場景",
   "recording.kind_continue": "接著錄製",

@@ -3,6 +3,8 @@
 test_call_browser.py 與 test_calls_flow.py。"""
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 from typing import cast
 
@@ -210,3 +212,30 @@ def test_replay_maps_records_into_the_sub_scenario(tmp_path: Path) -> None:
         "{ label: 標題, exact: true }",
         "/?view=query",
     ]
+
+
+def test_continue_recording_replays_with_the_sub_scenarios(app: FastAPI, client: Client) -> None:
+    """M7 收尾：用到 call 的場景也能接著錄製；子程序收到 --calls（版本的 calls/ 包成 JSON）。"""
+    prepared(app, client)
+    body(save(client), 201)
+    recordings = services(app).recordings
+    recordings.display = True
+    seen: list[list[str]] = []
+
+    def launcher(command: list[str], **_options: object) -> "subprocess.Popen[str]":
+        seen.append(list(command))
+        return subprocess.Popen([sys.executable, "-c", "pass"], text=True)
+
+    recordings.launcher = launcher
+
+    started = body(
+        client.post("/api/recordings", json={"target": {"sceneId": "order"}, "engine": "chromium"}),
+        202,
+    )
+
+    assert (started["mode"], started["baseRevision"]) == ("continue", 2)
+    command = seen[0]
+    assert command[1:3] == ["-m", "rpa_runner.record"]
+    bundle = json.loads(Path(command[command.index("--calls") + 1]).read_text(encoding="utf-8"))
+    source = cast("JsonObject", body(client.get("/api/scenes/ba-001/revisions/1"))["files"])
+    assert bundle == {SUB_FILE: source["scenario.yaml"]}

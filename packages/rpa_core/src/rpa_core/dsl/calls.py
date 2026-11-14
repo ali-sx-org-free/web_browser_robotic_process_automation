@@ -21,6 +21,7 @@
 這個模組只讀檔與檢查，不依賴瀏覽器；執行在 rpa_runner.browser。
 """
 
+import json
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -55,6 +56,8 @@ __all__ = [
     "data_call_refs",
     "is_call_path",
     "load_calls",
+    "read_call_bundle",
+    "write_call_files",
 ]
 
 CALLS_DIR: Final = "calls"
@@ -78,6 +81,28 @@ def call_file(scenario_id: str, revision: int) -> str:
 def is_call_path(path: str) -> bool:
     """相對路徑在 ``calls/`` 底下（伺服器管理的檔案，使用者不直接編輯）。"""
     return path == CALLS_DIR or path.startswith(f"{CALLS_DIR}/")
+
+
+def read_call_bundle(path: Path) -> dict[object, object]:
+    """伺服器交給子程序的子場景檔（JSON：``calls/…`` 的相對路徑 → 內容）。"""
+    data: object = json.loads(path.read_text(encoding="utf-8"))
+    return cast("dict[object, object]", data) if isinstance(data, dict) else {}
+
+
+def write_call_files(folder: Path, files: Mapping[object, object]) -> None:
+    """把子場景檔寫到場景檔旁邊；只收 ``calls/`` 底下、不往上層走的路徑。
+
+    逐步調試與接著錄製的子程序可能在錄製端，只收到場景檔與這份 JSON（M7.2）。
+    """
+    for name, text in files.items():
+        if not isinstance(name, str) or not isinstance(text, str):
+            continue
+        parts = name.split("/")
+        if not is_call_path(name) or any(part in ("", ".", "..") for part in parts):
+            continue
+        target = folder.joinpath(*parts)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
 
 
 def call_refs(steps: Sequence[Step] | None) -> list[tuple[DataPath, CallStep]]:

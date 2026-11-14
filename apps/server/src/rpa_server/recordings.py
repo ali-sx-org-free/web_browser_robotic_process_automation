@@ -29,8 +29,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.dsl import Scenario
-from rpa_core.dsl.calls import call_refs
-from rpa_core.dsl.features import scenario_features
+from rpa_core.dsl.calls import is_call_path
 from rpa_core.i18n import Locale, use_locale
 from rpa_core.recording import Conversion, ConversionError, convert_recording, merge_recording
 from rpa_runner.commands import module_command, playwright_command
@@ -61,6 +60,8 @@ MODES: Final = ("continue", "replace")
 """既有場景的新版本：接在既有步驟後面，或整份換成錄製的草稿。"""
 _BASE_FILE: Final = "base.yaml"
 """接著錄製時要先執行的版本（場景檔的複本）。"""
+_CALLS_FILE: Final = "calls.json"
+"""接著錄製時交給子程序的子場景檔（M7.2）。"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -265,8 +266,10 @@ class RecordingService:
         if checked.kind == "continue":
             replay = self._replay(checked.scene_id)
             if via is not None and self.hosts is not None:
-                # 接著錄製要在錄製端重播既有步驟：用到它的 App 看不懂的寫法時先說明（M7a）
-                self.hosts.check(via, engine=engine, features=scenario_features(replay.scenario))
+                # 接著錄製要在錄製端重播既有步驟：用到它的 App 看不懂的寫法時先說明（M7a）；
+                # 子場景用到的寫法也算（M7.2），舊的 App 不認得 --calls
+                features = self.services.revision_features(checked.scene_id, replay.number)
+                self.hosts.check(via, engine=engine, features=features)
         elif start_url is None:
             raise invalid("recording_url_invalid", t("error.recording_url_invalid", value=""))
         elif portal is not None and points_to_portal(start_url, portal):
@@ -321,9 +324,6 @@ class RecordingService:
         """接著錄製：目前版本的場景與入參（用預設值；缺預設值時不能先執行既有步驟）。"""
         number = self.services.get_scene(scene_id).latest_number
         scenario = self.services.revision_scenario(scene_id, number)
-        if call_refs(scenario.steps):
-            # 接著錄製要先重播既有的步驟；重播的子程序只收到場景檔，沒有子場景（M7.2）
-            raise invalid("recording_continue_call", t("recording.continue_call"))
         defaults = {
             name: spec.default for name, spec in scenario.inputs.items() if spec.default is not None
         }
@@ -331,15 +331,16 @@ class RecordingService:
         if problems:
             names = ", ".join(problem.name for problem in problems)
             raise invalid("recording_continue_needs", t("recording.continue_needs", names=names))
-        text = self.services.revision_files(scene_id, number)[SCENARIO_FILE]
+        files = self.services.revision_files(scene_id, number)
         # 保留動態值寫法，接著錄製的子程序才依錄製端當地時間求值。
         return _Replay(
             number,
             scenario,
-            text,
+            files[SCENARIO_FILE],
             defaults,
             self.services.get_scene(scene_id).base_url,
             self.services.storage.revision_dir(scene_id, number),
+            {path: text for path, text in files.items() if is_call_path(path)},
         )
 
     def _replay_command(
@@ -368,6 +369,12 @@ class RecordingService:
             command += ["--base-url", replay.base_url]
         if storage is not None:
             command += ["--storage-state", str(storage)]
+        if replay.calls:
+            # 子場景（M7.2）：calls/ 的檔案包成一個 JSON 檔（在錄製端時跟著命令送過去）
+            (folder / _CALLS_FILE).write_text(
+                json.dumps(replay.calls, ensure_ascii=False), encoding="utf-8"
+            )
+            command += ["--calls", str(folder / _CALLS_FILE)]
         # 檔案入參（M7c）：預設值的附件以網頁要看到的檔名準備好，交給回放既有步驟
         prepared = self.services.uploads.prepare(
             replay.scenario, replay.inputs, replay.revision_dir, folder / "input-files"
@@ -642,6 +649,8 @@ class _Replay:
     base_url: str | None
     revision_dir: Path
     """版本資料夾：檔案入參的預設值（場景附件）在它的 files/（M7c）。"""
+    calls: dict[str, str]
+    """用到的子場景檔（M7.2）：``calls/…`` 的相對路徑 → 內容；沒用到時是空的。"""
 
 
 def _has_actions(source: str) -> bool:
