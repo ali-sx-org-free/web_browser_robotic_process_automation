@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Final, Literal, cast
 from urllib.parse import urlsplit
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -298,8 +298,8 @@ class BatchService:
             batch = self._batch(session, batch_id)
             if batch.status != "draft":
                 raise conflict("batch_not_draft", t("error.batch_not_draft", id=batch_id))
-            for row in session.scalars(select(BatchRow).where(BatchRow.batch_id == batch_id)):
-                session.delete(row)
+            # 先直接刪掉每一列再刪批次（兩張表之間沒有 relationship，ORM 不會自動排刪除的順序）
+            session.execute(delete(BatchRow).where(BatchRow.batch_id == batch_id))
             session.delete(batch)
             session.commit()
 

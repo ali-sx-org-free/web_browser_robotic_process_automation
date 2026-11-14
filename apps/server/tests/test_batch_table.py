@@ -78,7 +78,10 @@ def zipped(files: dict[str, str]) -> bytes:
 
 def xlsx(rows: list[list[object]], number_formats: dict[str, str] | None = None) -> bytes:
     """照 Excel 存檔的樣子寫一個工作表：文字是共用字串，數字、是非照原樣，日期與時間是序號，
-    ``number_formats``（儲存格 → 數字格式）寫成自訂格式。不用 openpyxl：伺服器的依賴沒有它，測試環境也不一定有。"""
+    ``number_formats``（儲存格 → 數字格式）寫成自訂格式。
+
+    不用 openpyxl：伺服器的依賴沒有它，測試環境也不一定有。
+    """
     formats = number_formats or {}
     codes = sorted(set(formats.values()))
     style_of = {code: index + 1 for index, code in enumerate(codes)}
