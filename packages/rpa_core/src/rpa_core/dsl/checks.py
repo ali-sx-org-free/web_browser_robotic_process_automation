@@ -5,7 +5,7 @@
   （沒有出參時可以都不寫），用 verify 時出參要有 from
 - 出參：DSL 場景的每個出參都要有 from，有出參就要有 verify（獨立斷言通過才發布）
 - 步驟 id（含區塊裡的步驟）、secrets 名稱、extract 與 download 的 as 不能重複；
-  好幾步寫同一個 as 時，每一步都要是 ``extract`` 加 ``append: true``（M7.1）
+  好幾步寫同一個 as 時，每一步都要寫 ``append: true``（M7.1 的 ``extract``、M7.2 的 ``call``）
 - goto 的網址以 / 開頭時，要有 browser.baseUrl
 - 新分頁（M7b）：page 要是「之前」某一步的 popup（或 M7.1 的 openPage）開出來的分頁；名稱不能
   重複；最外層 closePage 關掉之後不能再用
@@ -36,7 +36,6 @@ from rpa_core.dsl.steps import (
     MAX_NESTING,
     ClosePageStep,
     Condition,
-    ExtractStep,
     ForEachStep,
     IfStep,
     OpenPageStep,
@@ -163,7 +162,7 @@ def _duplicate_names(scenario: "Scenario") -> Iterator[CrossIssue]:
         fact = fact_name(step)
         if fact is None:
             continue
-        append = isinstance(step, ExtractStep) and step.append is True
+        append = getattr(step, "append", None) is True  # extract、call 的累積寫法
         if fact not in seen_facts:
             seen_facts[fact] = (path, append)
             continue

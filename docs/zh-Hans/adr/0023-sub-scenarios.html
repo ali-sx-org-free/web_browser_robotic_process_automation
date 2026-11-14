@@ -1,0 +1,88 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/adr/0023-sub-scenarios.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0023 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0023" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0023：子场景是 DSL 的 call 步骤，子场景的固定版本跟着调用场景的版本存放</h1>
+      <p>场景用 <code>call</code> 在同一个浏览器、同一个分页里接着运行另一个场景的固定版本：入参照子场景的契约校验，它自己的独立断言通过才把出参交回来。子场景那个版本的场景文件原样拷贝在调用场景的版本里、算进内容哈希，所以调用场景自己就能运行，通过验证的内容就是之后运行的内容。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-11-13</dd>
+        <dt>状态</dt><dd>2026-11-06 18:21 America/Los_Angeles（PST，UTC−08:00）用户确认 M7 的 D8：子场景在同一个浏览器、固定版本、自己的 verify 通过才交回出参（见<a href="../../../handoff/decisions.html#decisions">决定记录</a>）。「子场景文件放在哪里」、第一版的限制与 <code>append</code> 是 2026-11-13 细部设计时的实现选择（用户 2026-11-13 18:12 要求「把M7后续流程实现」），记在本页与<a href="../../../handoff/tasks/20261113-m7-2-subscenario.html">任务记录</a>，审阅 PR 时可以调整。</dd>
+        <dt>影响范围</dt><dd>rpa-core（<code>call</code> 步骤、子场景的解析与检查、场景的来源文件与哈希、扩充 <code>call</code>）、rpa-runner（运行、步骤记录、日志、报告、逐步调试的子进程）、rpa-server（保存时带入子场景文件、派工与调试前比较扩充、回看、编辑页）；Worker 的协定不改（版本的文件原本就整个送过去）</dd>
+        <dt>相关</dt><dd><a href="0009-scenario-contract.html">ADR 0009</a>（场景契约）、<a href="0015-domain-folders-and-git.html">ADR 0015</a>（领域文件夹与发布门槛）、<a href="0021-flow-control.html">ADR 0021</a>（场景内的流程控制）、<a href="0022-composite-flow.html">ADR 0022</a>（组合场景的流程）；<a href="../design/dsl.html#call">场景 DSL › 子场景</a>、<a href="../design/portal.html#call">管理 Portal › 子场景</a>；<a href="../../../handoff/tasks/20261113-m7-2-subscenario.html">任务记录</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>M7.1 让场景可以分支与循环，但每个场景还是从头写到尾：同一段操作（例如「创建客户」）在好几个场景里各写一次。组合场景（M6）能把场景串起来，可是每个节点各自开浏览器、各自运行，接不了「同一个画面上接着做」的流程，也不能放进循环逐笔调用。</p>
+          <p>发布门槛靠内容哈希确认「通过验证的就是要发布、要运行的版本」（ADR 0015）。如果运行时才去找子场景，子场景换版本、封存或没同步到那台服务器，调用场景的行为就会在没有新版本的情况下改变；远程 Worker 与录制端也要另外拿子场景。</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>决策</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>写法是一个步骤。</strong><code>action: call</code>，<code>scenario</code>、<code>revision</code> 指定子场景的固定版本，<code>inputs</code> 给入参，<code>as</code> 把出参存成事实；<code>append: true</code> 把每次的出参累积成清单。可以放在区块里，可以 <code>onError: continue</code> 或被 <code>try</code> 接住；不能 retry、不能写 timeout。</li>
+            <li><strong>契约照子场景自己的。</strong>入参在子场景的第一步之前照它的契约校验；它的步骤跑完后立刻跑它自己的 verify，通过才产生出参。任何一段不通过，<code>call</code> 这一步失败。调用场景的 verify 与发布门槛不变。</li>
+            <li><strong>同一个浏览器，各自的命名空间。</strong>子场景从 call 指定的分页接着做，用调用场景的浏览器、登录状态与总期限；事实、循环变量、分页名称与截图文件名各自独立，子场景开了没关的分页在结束时关掉。</li>
+            <li><strong>子场景文件跟着调用场景的版本。</strong>子场景那个版本的场景文件原样拷贝到 <code>calls/&lt;代号&gt;/&lt;版本&gt;.yaml</code>（子场景自己调用的也平放在这里），列入场景的来源文件、算进内容哈希。没有用到 <code>call</code> 的场景哈希不变。</li>
+            <li><strong>服务器在保存时带入。</strong>新加的 <code>call</code> 要引用发布过的版本（规则同组合场景的节点：场景在、没封存，版本在、没有问题、发布过）。上一个版本已经带进来的子场景不再检查：子场景之后封存或这台没有它，调用场景照样能改别的地方再存。送进来的 <code>calls/</code> 文件不直接采用，这台有那个版本时一律用这台的。</li>
+            <li><strong>第一版的限制在校验时检查。</strong>子场景要是 DSL 场景；登录角色相同或不需要登录；Secrets 要在调用场景声明；不能有文件入参与出参；最多 3 层、10 个不同的子场景版本；不能绕回自己。</li>
+            <li><strong>记录依路径对应。</strong>子场景的步骤记录接在 call 后面，<code>path</code> 过了 <code>"call"</code> 是子场景里的位置；回看与报告从运行目录快照里的 <code>calls/</code> 找原文。</li>
+            <li><strong>扩充 <code>call</code>。</strong>连同子场景自己用到的扩充一起比较；看不懂的录制端与 Worker 不会领到。<code>schemaVersion</code> 维持 1。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>后果</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>调用场景的版本自己就完整：远程 Worker、录制端、<code>rpa run</code>、领域文件夹与 git 同步都不用另外处理子场景；验证记录证明的内容包含子场景。</li>
+            <li>子场景出新版本不会自动应用：每个调用场景要改 <code>revision</code>、存成新版本、重新验证与发布。这是刻意的（和组合场景固定节点版本相同），代价是子场景修正后要逐一更新调用它的场景；目前没有「哪些场景用到这个子场景」的清单。</li>
+            <li>同一个子场景被好几个场景调用时，场景文件在每个调用场景的版本里各有一份（文字档，通常几 KB）。</li>
+            <li>带进来的那一份和来源版本是否相同，只在这台有来源版本时由服务器保证；从别处同步来的领域文件夹以调用场景自己的哈希与验证记录为准，<code>rpa pack check</code> 不另外比较来源。</li>
+            <li>逐步调试时 <code>call</code> 整个子场景一起运行，算有副作用；接著录制（先重播既有步骤）还不支持用到 <code>call</code> 的场景。</li>
+            <li>子场景不能有文件入参与出参；要传文件的流程先用组合场景。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>没有选的方案</h2></div>
+        <div class="panel-body">
+          <table class="table">
+            <thead><tr><th>方案</th><th>没有选的原因</th></tr></thead>
+            <tbody>
+              <tr><td>运行时才依代号与版本到服务器找子场景</td><td>Worker 协定、录制端、<code>rpa run</code> 与 git 同步都要另外处理；子场景不见时已发布的场景运行不了；哈希不包含子场景，发布门槛证明不了实际运行的内容。</td></tr>
+              <tr><td>不固定版本，一律用子场景目前发布的版本</td><td>子场景一发布新版本，所有调用它的场景的行为就变了，却没有新的版本与验证记录；用户已决定固定版本（D8）。</td></tr>
+              <tr><td>保存时把子场景的步骤展开进调用场景</td><td>子场景的入参、verify 与出参的界线不见了，步骤 id 与事实名称会相撞，场景文件也不再看得出哪一段是子场景。</td></tr>
+              <tr><td>子场景和调用场景共用事实与变量</td><td>子场景就不能单独验证与重用：它的行为会随调用的场景里刚好有什么事实而变。</td></tr>
+              <tr><td>子场景的出参在循环里自动变成清单</td><td>和 extract 的规则不一致（M7.1 的 D3 选了明确写 append）；单次调用也会拿到清单。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

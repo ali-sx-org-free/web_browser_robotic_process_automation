@@ -61,6 +61,144 @@
       "title": "BrowserConfig",
       "type": "object"
     },
+    "CallStep": {
+      "additionalProperties": false,
+      "description": "呼叫子場景（M7.2）：在同一個瀏覽器、同一個分頁裡接著執行另一個場景的固定版本。\n\n子場景的入參照它自己的契約校驗；它的步驟跑完後立刻跑它自己的 ``verify``，通過才把出參\n存成事實 ``facts.名稱``（一個物件，欄位是子場景的出參）。子場景的事實、迴圈變數與分頁名稱\n都是它自己的，看不到呼叫場景的。``page`` 是子場景從哪個分頁開始（沒寫是一開始的分頁）。\n逾時由子場景裡的步驟各自決定；不能 retry（子場景多半有副作用）。",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 3600000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "action": {
+          "const": "call",
+          "title": "Action",
+          "type": "string"
+        },
+        "scenario": {
+          "title": "Scenario",
+          "type": "string"
+        },
+        "revision": {
+          "maximum": 1000000,
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "inputs": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inputs"
+        },
+        "as": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "As"
+        },
+        "append": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Append"
+        }
+      },
+      "required": [
+        "id",
+        "action",
+        "scenario",
+        "revision"
+      ],
+      "title": "CallStep",
+      "type": "object"
+    },
     "CheckStep": {
       "additionalProperties": false,
       "description": "勾選或取消勾選核取方塊、選項按鈕；已經是指定的狀態時不動作（不像 click 會切換）。",
@@ -1277,6 +1415,7 @@
           "items": {
             "discriminator": {
               "mapping": {
+                "call": "#/$defs/CallStep",
                 "check": "#/$defs/CheckStep",
                 "click": "#/$defs/ClickStep",
                 "closePage": "#/$defs/ClosePageStep",
@@ -1352,6 +1491,9 @@
               },
               {
                 "$ref": "#/$defs/TryStep"
+              },
+              {
+                "$ref": "#/$defs/CallStep"
               }
             ]
           },
@@ -1560,6 +1702,7 @@
           "items": {
             "discriminator": {
               "mapping": {
+                "call": "#/$defs/CallStep",
                 "check": "#/$defs/CheckStep",
                 "click": "#/$defs/ClickStep",
                 "closePage": "#/$defs/ClosePageStep",
@@ -1635,6 +1778,9 @@
               },
               {
                 "$ref": "#/$defs/TryStep"
+              },
+              {
+                "$ref": "#/$defs/CallStep"
               }
             ]
           },
@@ -1648,6 +1794,7 @@
               "items": {
                 "discriminator": {
                   "mapping": {
+                    "call": "#/$defs/CallStep",
                     "check": "#/$defs/CheckStep",
                     "click": "#/$defs/ClickStep",
                     "closePage": "#/$defs/ClosePageStep",
@@ -1723,6 +1870,9 @@
                   },
                   {
                     "$ref": "#/$defs/TryStep"
+                  },
+                  {
+                    "$ref": "#/$defs/CallStep"
                   }
                 ]
               },
@@ -2718,6 +2868,7 @@
           "items": {
             "discriminator": {
               "mapping": {
+                "call": "#/$defs/CallStep",
                 "check": "#/$defs/CheckStep",
                 "click": "#/$defs/ClickStep",
                 "closePage": "#/$defs/ClosePageStep",
@@ -2793,6 +2944,9 @@
               },
               {
                 "$ref": "#/$defs/TryStep"
+              },
+              {
+                "$ref": "#/$defs/CallStep"
               }
             ]
           },
@@ -3227,6 +3381,7 @@
           "items": {
             "discriminator": {
               "mapping": {
+                "call": "#/$defs/CallStep",
                 "check": "#/$defs/CheckStep",
                 "click": "#/$defs/ClickStep",
                 "closePage": "#/$defs/ClosePageStep",
@@ -3302,6 +3457,9 @@
               },
               {
                 "$ref": "#/$defs/TryStep"
+              },
+              {
+                "$ref": "#/$defs/CallStep"
               }
             ]
           },
@@ -3313,6 +3471,7 @@
           "items": {
             "discriminator": {
               "mapping": {
+                "call": "#/$defs/CallStep",
                 "check": "#/$defs/CheckStep",
                 "click": "#/$defs/ClickStep",
                 "closePage": "#/$defs/ClosePageStep",
@@ -3388,6 +3547,9 @@
               },
               {
                 "$ref": "#/$defs/TryStep"
+              },
+              {
+                "$ref": "#/$defs/CallStep"
               }
             ]
           },
@@ -3894,6 +4056,7 @@
           "items": {
             "discriminator": {
               "mapping": {
+                "call": "#/$defs/CallStep",
                 "check": "#/$defs/CheckStep",
                 "click": "#/$defs/ClickStep",
                 "closePage": "#/$defs/ClosePageStep",
@@ -3969,6 +4132,9 @@
               },
               {
                 "$ref": "#/$defs/TryStep"
+              },
+              {
+                "$ref": "#/$defs/CallStep"
               }
             ]
           },

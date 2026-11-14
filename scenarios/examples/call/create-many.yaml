@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=../../../schema/scenario.v1.json
+#
+# 子場景（M7.2）加迴圈（M7.1）：forEach 對每個標題呼叫一次「建立一筆紀錄」。
+# call 寫 append: true，每一次的出參（一個物件）累積成清單 facts.created。
+# 其中一筆沒建成時整次執行停下；要「失敗的略過、其他照做」，在 call 那一步寫 onError: continue。
+
+schemaVersion: 1
+id: call-create-many
+name: 逐筆呼叫子場景
+category: 範例
+description: 對入參 titles 的每一個標題呼叫子場景建立紀錄，出參是全部的編號。
+
+inputs:
+  titles:
+    type: array
+    default: [文具, 紙張, 碳粉]
+
+outputs:
+  recordIds:
+    type: array
+    from: "{{ facts.created | map(attribute='recordId') | list }}"
+
+browser:
+  baseUrl: http://127.0.0.1:8765
+
+defaults:
+  timeout: 10000
+deadline: 90000
+
+steps:
+  - id: each-title
+    name: 每一個標題
+    action: forEach
+    items: '{{ inputs.titles }}'
+    as: title
+    steps:
+      - id: create
+        action: call
+        scenario: call-create-record
+        revision: 1
+        inputs:
+          title: '{{ title }}'
+          quantity: '{{ loop.index }}'
+        as: created
+        append: true
+
+verify:
+  - name: 每一個標題都建立了一筆
+    value: '{{ facts.created | length }}'
+    equals: '{{ inputs.titles | length }}'

@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=../../../schema/scenario.v1.json
+#
+# 子場景（M7.2）：call 在同一個瀏覽器、同一個分頁裡接著執行另一個場景的固定版本。
+# 這裡先呼叫「建立一筆紀錄」，它的出參存成 facts.created；再接著在同一個分頁查詢那一筆。
+# 子場景的內容放在旁邊的 calls/call-create-record/1.yaml（跟著這個場景的版本存放）。
+
+schemaVersion: 1
+id: call-create-and-check
+name: 建立後接著查詢
+category: 範例
+description: 用子場景建立一筆紀錄，再用它回傳的編號在同一個瀏覽器查詢，確認查到的是同一筆。
+
+inputs:
+  title:
+    type: string
+    default: 子場景範例
+
+outputs:
+  recordId:
+    type: string
+    from: '{{ facts.found.recordId }}'
+
+browser:
+  baseUrl: http://127.0.0.1:8765
+
+defaults:
+  timeout: 10000
+deadline: 60000
+
+steps:
+  - id: create
+    name: 建立紀錄（子場景）
+    action: call
+    scenario: call-create-record
+    revision: 1
+    inputs:
+      title: '{{ inputs.title }}'
+      quantity: 5
+    as: created
+
+  - id: open-query
+    action: goto
+    url: /?view=query
+    waitUntil: domcontentloaded
+
+  - id: fill-id
+    action: fill
+    target: { label: 紀錄編號, exact: true }
+    value: '{{ facts.created.recordId }}'
+
+  - id: search
+    action: click
+    target: { role: button, name: 查詢, exact: true }
+
+  - id: wait-receipt
+    action: waitFor
+    target: { css: '#receipt' }
+
+  - id: read-record
+    action: extract
+    target: { css: '#receipt' }
+    as: found
+    fields:
+      recordId: { target: { css: '#record-id' } }
+      title: { target: { css: '#record-title' } }
+      quantity: { target: { css: '#record-quantity' } }
+
+verify:
+  - name: 查到的是剛建立的那一筆
+    value: '{{ facts.found.recordId }}'
+    equals: '{{ facts.created.recordId }}'
+  - name: 標題與入參相同
+    value: '{{ facts.found.title }}'
+    equals: '{{ inputs.title }}'
+  - name: 數量是呼叫時給的 5
+    value: '{{ facts.found.quantity }}'
+    equals: '5'

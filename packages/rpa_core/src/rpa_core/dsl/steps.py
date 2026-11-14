@@ -13,6 +13,10 @@ iframe 在 M7a 以定位器的 frame 支援（見 locators.py）；新分頁（�
 條件（:class:`Condition`）沿用 ``expect`` 的欄位，加上 ``expression``、``wait``、``not``；
 每一步可以寫 ``onError: continue``，沒有副作用的動作可以寫 ``retry``；``openPage``／``closePage``
 自己開關分頁；``extract`` 的 ``append`` 在迴圈裡累積資料。巢狀的走訪見 :func:`walk_steps`。
+
+子場景（M7.2，ADR 0023）：``call`` 在同一個瀏覽器、同一個分頁裡接著執行另一個場景的固定版本，
+它的出參存成事實。子場景的內容跟著呼叫場景的版本存放（``calls/``），解析與檢查在
+rpa_core.dsl.calls。
 """
 
 import re
@@ -44,6 +48,7 @@ __all__ = [
     "MAX_ITERATIONS",
     "MAX_NESTING",
     "RETRYABLE_ACTIONS",
+    "CallStep",
     "CheckStep",
     "ClickStep",
     "ClosePageStep",
@@ -649,6 +654,38 @@ class ClosePageStep(StepBase):
         return self
 
 
+class CallStep(StepBase):
+    """呼叫子場景（M7.2）：在同一個瀏覽器、同一個分頁裡接著執行另一個場景的固定版本。
+
+    子場景的入參照它自己的契約校驗；它的步驟跑完後立刻跑它自己的 ``verify``，通過才把出參
+    存成事實 ``facts.名稱``（一個物件，欄位是子場景的出參）。子場景的事實、迴圈變數與分頁名稱
+    都是它自己的，看不到呼叫場景的。``page`` 是子場景從哪個分頁開始（沒寫是一開始的分頁）。
+    逾時由子場景裡的步驟各自決定；不能 retry（子場景多半有副作用）。
+    """
+
+    action: Literal["call"]
+    scenario: Slug
+    """子場景的代號。"""
+    revision: Annotated[int, Field(ge=1, le=1_000_000)]
+    """子場景的固定版本；管理 Portal 存檔時要是發布過的版本。"""
+    inputs: dict[Identifier, JsonValue] | None = None
+    """給子場景的入參：名稱 → 值，可以用 ``{{ }}``（整個值只有一個時保留清單、物件、數字的型別）。
+    沒給的用子場景的預設值。"""
+    as_: Identifier | None = Field(default=None, alias="as")
+    """把子場景的出參存成頁面事實 ``facts.名稱``；子場景沒有出參時不寫。"""
+    append: bool | None = None
+    """true：每次呼叫把出參（一個物件）加到事實的清單尾端，迴圈裡逐筆呼叫時收集每一次的結果；
+    要寫 ``as``。好幾步可以寫同一個 ``as``，條件是它們都寫了 append。"""
+
+    @model_validator(mode="after")
+    def _check(self) -> Self:
+        if self.timeout is not None:
+            raise dsl_error("call.timeout_not_allowed", at=["timeout"])
+        if self.append and self.as_ is None:
+            raise dsl_error("field.requires", at=["append"], field="append", other="as")
+        return self
+
+
 Step = Annotated[
     GotoStep
     | ClickStep
@@ -667,7 +704,8 @@ Step = Annotated[
     | IfStep
     | ForEachStep
     | RepeatStep
-    | TryStep,
+    | TryStep
+    | CallStep,
     Field(discriminator="action"),
 ]
 """任一種步驟，依 action 區分。"""
@@ -694,6 +732,7 @@ ACTIONS: Final = (
     "forEach",
     "repeat",
     "try",
+    "call",
 )
 """支援的動作。"""
 
@@ -703,15 +742,15 @@ BLOCK_ACTIONS: Final = frozenset({"if", "forEach", "repeat", "try"})
 BRANCHES: Final = ("then", "else", "steps", "catch")
 """區塊步驟裡放步驟清單的欄位（YAML 的鍵）。"""
 
-FACT_ACTIONS: Final = ("extract", "download")
-"""會產生頁面事實（``as``）的動作。"""
+FACT_ACTIONS: Final = ("extract", "download", "call")
+"""會產生頁面事實（``as``）的動作；``call`` 沒寫 ``as`` 時不產生。"""
 
 type StepPath = tuple[str | int, ...]
 """步驟在場景資料裡的路徑，例如 ``("steps", 2, "then", 0)``。"""
 
 
 def fact_name(step: object) -> str | None:
-    """這一步產生的頁面事實名稱（extract、download 的 ``as``）；其他步驟是 None。"""
+    """這一步產生的頁面事實名稱（extract、download、call 的 ``as``）；其他步驟是 None。"""
     if getattr(step, "action", None) in FACT_ACTIONS:
         name = getattr(step, "as_", None)
         return name if isinstance(name, str) else None

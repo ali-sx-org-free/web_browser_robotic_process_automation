@@ -165,6 +165,12 @@
   "steplog.branch_none": "Condition not met, skipped",
   "steplog.iterations": "Ran {n} rounds",
   "steplog.caught": "Caught the failure of {step}: {error}",
+  "browser.call_missing": "Cannot find sub-scenario {scenario} revision {revision} (not in calls/ of the scenario folder)",
+  "browser.call_inputs": "The inputs given to the sub-scenario have problems: {problems}",
+  "browser.call_verify_failed": "The sub-scenario's independent checks did not pass: {names}",
+  "browser.call_outputs": "The sub-scenario's outputs have problems: {problems}",
+  "steplog.call": "Sub-scenario {scenario} revision {revision}",
+  "steplog.call_checks": "Sub-scenario independent checks: {passed}/{total} passed",
   "steplog.attempts": "Succeeded on attempt {n} (retry)",
   "debug.loop_empty": "The list of loop {id} is empty, so the steps inside have no current item",
   "debug.sample_error": "(sample error while debugging)",
@@ -177,5 +183,7 @@
   "report.branch.else": "Condition not met, took else",
   "report.branch.none": "Condition not met, skipped",
   "report.iterations": "{n} rounds",
+  "report.call": "Sub-scenario {scenario} revision {revision} ({name})",
+  "report.call_checks": "; independent checks {passed}/{total} passed",
   "report.attempts": "Succeeded on attempt {n} (retry)"
 }

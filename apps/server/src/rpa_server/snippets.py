@@ -1,4 +1,4 @@
-"""場景編輯頁的「插入流程範本」（M7.1，ADR 0021）。
+"""場景編輯頁的「插入流程範本」（M7.1，ADR 0021；M7.2 加上 call）。
 
 每一段都是最外層 ``steps`` 底下的一步（兩格縮排的 ``- id: …``），插在游標所在的那一行之前；
 定位器用 ``testId: change-me``，提醒使用者改成實際的定位器。內容只有 DSL，不含要翻譯的文字。
@@ -69,6 +69,14 @@ FLOW_SNIPPETS: Final = {
   - id: close-other
     action: closePage
     page: other
+""",
+    "call": """\
+  - id: call-sub
+    action: call
+    scenario: change-me
+    revision: 1
+    inputs: { name: change-me }
+    as: result
 """,
 }
 """範本的鍵 → YAML 內容。"""

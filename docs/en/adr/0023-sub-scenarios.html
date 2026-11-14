@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:1b05ade5148bf5ef">
+<title>ADR 0023 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0023" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0023: A sub-scenario is the DSL's call step, and its fixed revision is stored with the calling scenario's revision</h1>
+      <p>A scenario uses <code>call</code> to carry on in the same browser and the same tab with a fixed revision of another scenario: the inputs are checked against the sub-scenario's contract, and its outputs come back only when its own independent checks pass. The scenario file of that revision is copied unchanged into the calling scenario's revision and counts toward its content hash, so the calling scenario runs on its own and what passed validation is what runs later.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-11-13</dd>
+        <dt>Status</dt><dd>On 2026-11-06 18:21 America/Los_Angeles (PST, UTC−08:00) the user confirmed D8 of M7: a sub-scenario runs in the same browser, at a fixed revision, and hands its outputs back only when its own verify passes (see the <a href="../../../handoff/decisions.html#decisions">decision record</a>). Where the sub-scenario file lives, the limits of the first version and <code>append</code> are implementation choices made during detailed design on 2026-11-13 (the user asked on 2026-11-13 18:12 to implement the rest of M7); they are recorded here and in the <a href="../../../handoff/tasks/20261113-m7-2-subscenario.html">task record</a> and can be adjusted when the PR is reviewed.</dd>
+        <dt>Scope</dt><dd>rpa-core (the <code>call</code> step, resolving and checking sub-scenarios, a scenario's source files and hash, the <code>call</code> extension), rpa-runner (execution, step records, the log, the report, the step-by-step debugging child process), rpa-server (bringing sub-scenario files in when saving, comparing extensions before dispatch and debugging, replay, the edit page); the Worker protocol is unchanged (a revision's files were already sent as a whole)</dd>
+        <dt>Related</dt><dd><a href="0009-scenario-contract.html">ADR 0009</a> (scenario contract), <a href="0015-domain-folders-and-git.html">ADR 0015</a> (domain folders and the publish gate), <a href="0021-flow-control.html">ADR 0021</a> (flow control in scenarios), <a href="0022-composite-flow.html">ADR 0022</a> (flow in composite scenarios); <a href="../design/dsl.html#call">Scenario DSL › Sub-scenarios</a>, <a href="../design/portal.html#call">Management Portal › Sub-scenarios</a>; <a href="../../../handoff/tasks/20261113-m7-2-subscenario.html">task record</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>M7.1 lets a scenario branch and loop, but every scenario is still written from start to finish: the same stretch of work (“create a customer”, say) is written again in each scenario that needs it. Composite scenarios (M6) chain scenarios together, but every node opens its own browser and runs on its own, so they cannot carry on “on the same screen”, and they cannot be called once per item inside a loop.</p>
+          <p>The publish gate relies on the content hash to confirm that what passed validation is what gets published and run (ADR 0015). If sub-scenarios were looked up at run time, a new revision, archiving, or a sub-scenario not synced to that server would change the calling scenario's behaviour without a new revision of it; remote Workers and Recorders would also have to fetch sub-scenarios separately.</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>It is written as one step.</strong> <code>action: call</code>; <code>scenario</code> and <code>revision</code> name the fixed revision, <code>inputs</code> gives the inputs, <code>as</code> stores the outputs as a fact, and <code>append: true</code> collects the outputs of every call in a list. It can sit inside blocks, can have <code>onError: continue</code> and can be caught by <code>try</code>; it cannot retry or have timeout.</li>
+            <li><strong>The contract is the sub-scenario's own.</strong> Inputs are checked against its contract before its first step; when its steps finish, its own verify runs straight away, and only then are outputs produced. If any part does not pass, the <code>call</code> step fails. The calling scenario's verify and the publish gate are unchanged.</li>
+            <li><strong>One browser, separate namespaces.</strong> The sub-scenario carries on in the tab the call names, with the calling scenario's browser, login state and deadline; facts, loop variables, tab names and screenshot file names are kept apart, and tabs the sub-scenario left open are closed when it ends.</li>
+            <li><strong>The sub-scenario file travels with the calling scenario's revision.</strong> The scenario file of that revision is copied unchanged to <code>calls/&lt;ID&gt;/&lt;revision&gt;.yaml</code> (those the sub-scenario calls itself sit flat in the same folder), is listed among the scenario's source files and counts toward the content hash. Scenarios that do not use <code>call</code> keep their hash.</li>
+            <li><strong>The server brings it in when saving.</strong> A newly added <code>call</code> must point at a published revision (the same rule as composite scenario nodes: the scenario exists and is not archived, the revision exists, has no problem and was published). Sub-scenarios already brought in by the previous revision are not checked again: if a sub-scenario is archived later or this server no longer has it, the calling scenario can still be edited elsewhere and saved. <code>calls/</code> files sent to the server are not taken as they are; when this server has that revision, its copy is always used.</li>
+            <li><strong>The limits of the first version are checked by validation.</strong> The sub-scenario must be a DSL scenario; the login role is the same or it needs no login; its Secrets must be declared by the calling scenario; no file inputs or outputs; at most 3 levels and 10 different sub-scenario revisions; no looping back to itself.</li>
+            <li><strong>Records map by path.</strong> The sub-scenario's step records follow the call; after <code>"call"</code>, <code>path</code> is the position inside the sub-scenario. Replay and the report find the source text in <code>calls/</code> of the run folder's snapshot.</li>
+            <li><strong>The <code>call</code> extension.</strong> It is compared together with whatever the sub-scenarios use; Recorders and Workers that do not understand it are not given the scenario. <code>schemaVersion</code> stays 1.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>A calling scenario's revision is complete by itself: remote Workers, Recorders, <code>rpa run</code>, domain folders and git sync need nothing extra for sub-scenarios, and what a validation record proves includes the sub-scenarios.</li>
+            <li>A new revision of a sub-scenario does not apply by itself: every calling scenario has to change <code>revision</code>, save a new revision, and validate and publish again. This is deliberate (the same as pinning node revisions in composite scenarios); the cost is updating each calling scenario after a sub-scenario is fixed, and there is no list yet of which scenarios use a sub-scenario.</li>
+            <li>When several scenarios call the same sub-scenario, each calling scenario's revision holds its own copy of the file (text, usually a few KB).</li>
+            <li>The server only guarantees that the copy equals the source revision when it has that source revision; for domain folders synced from elsewhere, the calling scenario's own hash and validation records are what count, and <code>rpa pack check</code> does not compare against the source.</li>
+            <li>In step-by-step debugging a <code>call</code> runs the whole sub-scenario at once and counts as having side effects; continuing a recording (which replays the existing steps first) does not support scenarios that use <code>call</code> yet.</li>
+            <li>Sub-scenarios cannot have file inputs or outputs; flows that pass files should use composite scenarios for now.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>Alternatives not chosen</h2></div>
+        <div class="panel-body">
+          <table class="table">
+            <thead><tr><th>Alternative</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Look the sub-scenario up on the server by ID and revision at run time</td><td>The Worker protocol, Recorders, <code>rpa run</code> and git sync would all need extra handling; a published scenario could not run once its sub-scenario is gone; the hash would not include the sub-scenario, so the publish gate could not prove what actually runs.</td></tr>
+              <tr><td>No fixed revision: always use the sub-scenario's currently published revision</td><td>Publishing a new revision of a sub-scenario would change the behaviour of every scenario that calls it, with no new revision or validation record for them; the user decided on fixed revisions (D8).</td></tr>
+              <tr><td>Expand the sub-scenario's steps into the calling scenario when saving</td><td>The boundary of the sub-scenario's inputs, verify and outputs would be lost, step ids and fact names would clash, and the scenario file would no longer show which part is a sub-scenario.</td></tr>
+              <tr><td>Share facts and variables between the sub-scenario and the calling scenario</td><td>The sub-scenario could no longer be validated and reused by itself: its behaviour would depend on which facts the calling scenario happens to have.</td></tr>
+              <tr><td>Turn the sub-scenario's outputs into a list automatically inside loops</td><td>Inconsistent with the rule for extract (D3 of M7.1 chose an explicit append), and a single call would get a list too.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

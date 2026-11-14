@@ -29,6 +29,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.dsl import Scenario
+from rpa_core.dsl.calls import call_refs
 from rpa_core.dsl.features import scenario_features
 from rpa_core.i18n import Locale, use_locale
 from rpa_core.recording import Conversion, ConversionError, convert_recording, merge_recording
@@ -320,6 +321,9 @@ class RecordingService:
         """接著錄製：目前版本的場景與入參（用預設值；缺預設值時不能先執行既有步驟）。"""
         number = self.services.get_scene(scene_id).latest_number
         scenario = self.services.revision_scenario(scene_id, number)
+        if call_refs(scenario.steps):
+            # 接著錄製要先重播既有的步驟；重播的子程序只收到場景檔，沒有子場景（M7.2）
+            raise invalid("recording_continue_call", t("recording.continue_call"))
         defaults = {
             name: spec.default for name, spec in scenario.inputs.items() if spec.default is not None
         }

@@ -27,9 +27,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final, cast
 
 from rpa_core.dsl import Scenario, Step
+from rpa_core.dsl.calls import is_call_path
 from rpa_core.dsl.dynamic import escape
-from rpa_core.dsl.features import input_features, scenario_features
-from rpa_core.dsl.steps import branches
+from rpa_core.dsl.features import input_features
+from rpa_core.dsl.steps import CallStep, branches
 from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import Locale, use_locale
 from rpa_runner.browser import DEFAULT_STEP_TIMEOUT_MS
@@ -63,12 +64,15 @@ IDLE_SECONDS: Final = 15 * 60.0
 """閒置這麼久就關閉工作階段。"""
 START_SECONDS: Final = 180.0
 """等瀏覽器啟動最多這麼久（第一次用 Firefox 要建立預熱設定檔）。"""
-SIDE_EFFECTS: Final = frozenset({"click", "fill", "select", "check", "press"})
-"""有副作用的動作：執行過之後再執行要確認。"""
+SIDE_EFFECTS: Final = frozenset({"click", "fill", "select", "check", "press", "call"})
+"""有副作用的動作：執行過之後再執行要確認。子場景（call，M7.2）裡多半有點擊與填寫，
+整個算有副作用。"""
 ENGINES: Final = ("chromium", "firefox")
 _ACTIVE: Final = frozenset({"starting", "ready", "busy"})
 SNAPSHOT: Final = "debugSnapshot"
 """讀頁面結構：錄製端的 App 要回報支援這個功能（M14，見 rpa_worker.environment.CAPABILITIES）。"""
+CALLS_FILE: Final = "calls.json"
+"""工作階段資料夾裡交給子程序的子場景檔（M7.2）：``calls/…`` 的相對路徑 → 內容。"""
 INLINE_LOAD: Final = "debugInlineLoad"
 """換版本的 ``load`` 命令直接帶場景內容（v0.6.3）：在錄製端調試時，那台的 App 要支援。"""
 _SNAPSHOT_KEYS: Final = ("url", "title", "tabs", "frames", "fields", "aria", "truncated")
@@ -163,6 +167,8 @@ def _state(
     )
     if text is None and step.action in ("goto", "openPage"):
         text = cast("str | None", getattr(step, "url", None))
+    if isinstance(step, CallStep):
+        text = f"{step.scenario} v{step.revision}"  # 子場景整個一起執行（M7.2）
     state = StepState(index, step.id, step.action, step.name, text, path=path, key=key, depth=depth)
     for branch, inner in branches(step):
         for position, child in enumerate(inner):
@@ -206,7 +212,7 @@ def _apply(state: StepState, record: Mapping[str, object]) -> None:
 
 def _timeout(scenario: Scenario, step: Step) -> float:
     """等子程序回覆多久：這一步的逾時加上餘裕；區塊（M7.1）裡面可能有很多步，用整個命令的上限。"""
-    if branches(step):
+    if branches(step) or isinstance(step, CallStep):
         return COMMAND_SECONDS + 30
     milliseconds = step.timeout or scenario.defaults.timeout or DEFAULT_STEP_TIMEOUT_MS
     return milliseconds / 1000 + 30
@@ -374,7 +380,7 @@ class DebugManager:
                 via,
                 engine=engine,
                 headed=not headless,
-                features=scenario_features(scenario) | input_features(inputs),
+                features=self.services.revision_features(scene_id, number) | input_features(inputs),
             )
             launcher = self.hosts.launcher(via)
         if inputs is None:
@@ -396,6 +402,12 @@ class DebugManager:
         folder.mkdir(parents=True)
         files = self.services.revision_files(scene_id, number)
         (folder / SCENARIO_FILE).write_text(files[SCENARIO_FILE], encoding="utf-8")
+        # 子場景（M7.2）：calls/ 的檔案包成一個 JSON 檔交給子程序（在錄製端時跟著命令送過去）
+        calls = {path: text for path, text in files.items() if is_call_path(path)}
+        if calls:
+            (folder / CALLS_FILE).write_text(
+                json.dumps(calls, ensure_ascii=False), encoding="utf-8"
+            )
         prepared = uploads.prepare(
             scenario,
             inputs,
@@ -459,6 +471,8 @@ class DebugManager:
         command += ["--base-url", session.base_url] if session.base_url else []
         for name, path in session.files:  # 檔案入參（M7c）
             command += ["--file", name, str(path)]
+        if (session.folder / CALLS_FILE).is_file():  # 子場景（M7.2）
+            command += ["--calls", str(session.folder / CALLS_FILE)]
         extra = self.roles.secret_values(scenario.secrets)
         if session.role is not None:
             state = self.storage.role_state(session.role)
@@ -710,11 +724,18 @@ class DebugManager:
             if via is None or via.id != session.device:
                 via = Via(session.device, self.hosts.get_recorder(session.device).name)
             self.hosts.check(
-                via, headed=False, features=scenario_features(scenario) | input_features(raw)
+                via,
+                headed=False,
+                features=self.services.revision_features(session.scene_id, revision)
+                | input_features(raw),
             )
             # 錄製端在另一台電腦：要能接受直接帶內容的 load 命令（v0.6.3），舊版說明要更新
             self.hosts.require(via, INLINE_LOAD)
-        text = self.services.revision_files(session.scene_id, revision)[SCENARIO_FILE]
+        files = self.services.revision_files(session.scene_id, revision)
+        text = files[SCENARIO_FILE]
+        # 子場景（M7.2）：新版本用到的 calls/ 檔案跟著命令送過去
+        calls = {path: content for path, content in files.items() if is_call_path(path)}
+        extra: dict[str, object] = {"calls": calls} if calls else {}
         # 留一份在伺服器的工作階段資料夾，方便查問題；子程序用的是命令裡的內容
         (session.folder / f"scenario-{revision}.yaml").write_text(text, encoding="utf-8")
         # 既有入參已求值；只讓新版本新增的預設值求值，保留跳脫後的字面文字。
@@ -727,7 +748,7 @@ class DebugManager:
         inputs.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
         # 子程序可能在錄製端（另一台電腦），讀不到伺服器的檔案：場景內容與入參直接放在命令裡
         reply = self._command(
-            session, 60, cmd="load", revision=revision, scenarioText=text, inputs=raw
+            session, 60, cmd="load", revision=revision, scenarioText=text, inputs=raw, **extra
         )
         if not reply.get("ok"):
             details: dict[str, object] = {}

@@ -92,6 +92,14 @@ def test_flow_features() -> None:
     assert data_features([{"id": "a", "action": "extract", "append": False}]) == frozenset()
 
 
+def test_call_feature() -> None:
+    """M7.2：call 步驟是 call；子場景自己用到的擴充由 closure_features 加上。"""
+    step = {"id": "a", "action": "call", "scenario": "sub", "revision": 1}
+    assert data_features([step]) == {"call"}
+    # 入參的值裡剛好有 action: call（沒有 scenario）不算
+    assert data_features({"default": {"action": "call"}}) == frozenset()
+
+
 def test_missing_features() -> None:
     assert {
         "frame",
@@ -106,6 +114,7 @@ def test_missing_features() -> None:
         "fileOutputs",
         "download",
         "flow",
+        "call",
     } == FEATURES
     # M7a 之前的 App 沒有回報 features：一個都不懂
     assert missing_features({"frame"}, None) == ["frame"]

@@ -165,6 +165,12 @@
   "steplog.branch_none": "條件不成立，略過",
   "steplog.iterations": "共執行 {n} 輪",
   "steplog.caught": "接住 {step} 的失敗：{error}",
+  "browser.call_missing": "找不到子場景 {scenario} 第 {revision} 版（場景資料夾的 calls/ 裡沒有）",
+  "browser.call_inputs": "給子場景的入參有問題：{problems}",
+  "browser.call_verify_failed": "子場景的獨立斷言沒有通過：{names}",
+  "browser.call_outputs": "子場景的出參有問題：{problems}",
+  "steplog.call": "子場景 {scenario} 第 {revision} 版",
+  "steplog.call_checks": "子場景的獨立斷言：{passed}/{total} 條通過",
   "steplog.attempts": "第 {n} 次才成功（retry）",
   "debug.loop_empty": "迴圈 {id} 的清單是空的，裡面的步驟沒有「目前這一項」可以用",
   "debug.sample_error": "（調試時的示範錯誤）",
@@ -177,5 +183,7 @@
   "report.branch.else": "條件不成立，走 else",
   "report.branch.none": "條件不成立，略過",
   "report.iterations": "共 {n} 輪",
+  "report.call": "子場景 {scenario} 第 {revision} 版（{name}）",
+  "report.call_checks": "；獨立斷言 {passed}/{total} 條通過",
   "report.attempts": "第 {n} 次才成功（retry）"
 }

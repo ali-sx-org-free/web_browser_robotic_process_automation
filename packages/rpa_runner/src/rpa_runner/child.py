@@ -27,6 +27,7 @@ from typing import Final, cast
 from playwright.sync_api import Page, Playwright, ViewportSize, sync_playwright
 
 from rpa_core.dsl import Scenario, validate_file
+from rpa_core.dsl.calls import load_calls
 from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, parse_locale, set_locale
 from rpa_runner.browser import Deadline, DeadlineExceeded, Tabs, plan_records, run_steps
 from rpa_runner.contexts import Engine, open_context
@@ -156,6 +157,7 @@ def run(args: argparse.Namespace) -> int:
                 files=read_paths(Path(args.files) if args.files else None),
                 after_step=shots.take if shots is not None else None,
                 workspace=Path(args.workspace) if args.workspace else None,
+                calls=load_calls(Path(args.scenario).parent, scenario)[0],
             )
             write_json(out / FACTS, facts)
             # 最後一步所在的分頁（M7b：可能是新分頁）
