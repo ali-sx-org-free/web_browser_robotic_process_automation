@@ -212,6 +212,11 @@ window.DOCS_NAV = {
           "id": "adr-0023",
           "href": "adr/0023-sub-scenarios.html",
           "name": {"zh-Hant": "0023 子場景", "zh-Hans": "0023 子场景", "en": "0023 Sub-scenarios"}
+        },
+        {
+          "id": "adr-0024",
+          "href": "adr/0024-batch-runs.html",
+          "name": {"zh-Hant": "0024 批次執行", "zh-Hans": "0024 批次执行", "en": "0024 Batch runs"}
         }
       ]
     },

@@ -207,6 +207,8 @@
             <tr><td><code>POST /scenes/{id}/revisions/{n}/publish</code></td><td>發布驗證通過、雜湊相符的版本</td><td>scenes:publish</td><td>沿用</td></tr>
             <tr><td><code>POST /scenes/{id}/runs</code></td><td>正式執行已發布版本</td><td>runs:execute</td><td>沿用＋<code>workerId</code></td></tr>
             <tr><td><code>POST /runs/{id}/cancel</code>、<code>/rerun</code></td><td>取消；同樣的入參再跑一次</td><td>runs:execute</td><td>沿用</td></tr>
+            <tr><td><code>POST /batches</code></td><td>批次執行（M7.3，<a href="../adr/0024-batch-runs.html">ADR 0024</a>）：<code>sceneId</code>、<code>rows</code>（1～1,000 列，每一列是一組入參）、<code>onFailure</code>、<code>concurrency</code>、執行位置等選項；建立後直接開始。任何一列有問題 422 <code>batch_rows_invalid</code>；同時排入的列算在排隊上限裡</td><td>runs:execute</td><td>沿用</td></tr>
+            <tr><td><code>POST /batches/{id}/stop</code>、<code>/rerun</code></td><td>停下（取消排隊中與執行中的列）；重跑沒有通過的列（或 <code>rows</code> 指定的列）；只限自己建立的批次</td><td>runs:execute</td><td>沿用</td></tr>
             <tr><td><code>GET</code>、<code>POST /projects</code>，<code>GET</code>、<code>PATCH /projects/{id}</code></td><td>可用的專案與它的組合場景摘要；新增專案；改名稱與說明</td><td>projects:read／write</td><td>沿用專案空間</td></tr>
             <tr><td><code>GET /composites/library</code>、<code>POST /composites/check</code></td><td>可以放進組合場景的場景版本；不存檔檢查定義</td><td>projects:read</td><td>沿用</td></tr>
             <tr><td><code>GET /composites</code>、<code>/composites/{code}</code></td><td>組合場景摘要；定義、問題、版本、驗證紀錄、依賴、最近的執行</td><td>projects:read</td><td>沿用</td></tr>
@@ -228,6 +230,7 @@
             <tr><td><code>GET /runs/{id}</code></td><td>狀態（排隊、執行中、通過、失敗、逾時、已取消、需要登入）、目前階段、哪台 Worker、入參、出參（只有通過才有）、錯誤、開始與結束時間</td><td>一</td></tr>
             <tr><td><code>GET /runs?scene=&amp;status=&amp;purpose=&amp;mine=</code></td><td>這個用戶端看得到的運行（可用領域裡的場景）；<code>mine</code> 只列自己觸發的</td><td>一</td></tr>
             <tr><td><code>GET /runs/{id}/steps</code></td><td>每一步的狀態、開始與結束時間、錯誤、步驟後的網址；第二期起執行中也即時更新</td><td>一、二</td></tr>
+            <tr><td><code>GET /batches/{id}</code></td><td>批次執行（M7.3）：狀態、各狀態的列數、每一列的入參、狀態、運行代號、出參、錯誤與每一次的運行；只看得到自己建立的批次（別人的回 404）</td><td>一</td></tr>
             <tr><td><code>GET /runs/{id}/files/{path}</code></td><td>截圖、report.html、result.json、錄影等產物（受「回傳頁面內容」控制）</td><td>一</td></tr>
             <tr><td><code>GET /composite-runs/{id}</code>、<code>GET /composite-runs?project=&amp;composite=&amp;status=&amp;mine=</code></td><td>組合場景的執行：狀態、進度（共幾個節點、完成幾個、通過幾個、目前的節點）、每個節點的狀態與那次運行（再用 <code>/runs/{id}</code> 讀細節）；<code>reportUrl</code> 是匯總報告，<code>replayPath</code> 是人在 Portal 看合併回看的路徑</td><td>一</td></tr>
             <tr><td><code>GET /composite-runs/{id}/report</code></td><td>整次組合運行的匯總報告（2026-10-27）：結論（停在哪個節點的哪一步、錯誤、沒通過的斷言）、節點與步驟與斷言的通過數、時間軸、每個節點的入參（值與來源）、出參（值與流向）、步驟與斷言；截圖與節點報告的網址是本 API 的路徑，沒有頁面內容權限時是 null。寫測試報告時一次讀完，不必逐一讀節點</td><td>一</td></tr>
@@ -300,6 +303,7 @@
             <tr><td><code>api_clients</code></td><td>名稱、金鑰雜湊、權限範圍、可用領域、專案與錄製端、執行位置、限額、回傳頁面內容、到期、啟用、最後使用</td><td>一</td></tr>
             <tr><td><code>api_audit</code></td><td>時間、用戶端、動作、對象、結果碼、摘要；只增不改</td><td>一</td></tr>
             <tr><td><code>runs.client_id</code>、<code>workflow_runs.client_id</code></td><td>觸發這次運行或組合場景執行的用戶端（組合場景的節點也記下）</td><td>一</td></tr>
+            <tr><td><code>batches.client_id</code></td><td>建立這個批次的用戶端（M7.3）；批次每一列的運行也記在 <code>runs.client_id</code></td><td>一</td></tr>
             <tr><td><code>recorders.allow_agent</code>、<code>agent_headless_only</code></td><td>允不允許 Agent 調試、是否只允許無頭</td><td>一</td></tr>
             <tr><td><code>run_events</code></td><td>運行代號、序號、時間、種類、內容；跟著運行的保留規則清理</td><td>二</td></tr>
             <tr><td><code>runs.step_index</code>、<code>step_count</code></td><td>目前第幾步、共幾步</td><td>二</td></tr>

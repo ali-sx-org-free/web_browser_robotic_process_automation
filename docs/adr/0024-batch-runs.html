@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0024 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0024" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0024：資料驅動是批次執行，一列是一次一般的正式執行</h1>
+      <p>上傳或貼上一張表，每一列是一組入參，每一列各正式執行一次發布過的場景版本，各有報告、出參與回看。批次記下表格、欄位對應與選項，排程每次都從資料庫重新算；結束後可以匯出結果，只重跑沒有通過的列（重跑前可以改那幾列的儲存格）。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-11-13</dd>
+        <dt>狀態</dt><dd>2026-11-06 18:21 America/Los_Angeles（PST，UTC−08:00）使用者確認 M7 的 D9：資料驅動做成批次執行，一列一次執行、各有報告，匯總可以匯出、可以只重跑失敗的列（見<a href="../../handoff/decisions.html#decisions">決定紀錄</a>）。表格格式、欄位對應與換算、排程與「第幾輪」、伺服器自己讀寫 xlsx、Agent API 的寫法是 2026-11-13 細部設計時的實作選擇（使用者 2026-11-13 18:12 要求「把M7後續流程實作」），記在本頁與<a href="../../handoff/tasks/20261113-m7-3-batch.html">任務紀錄</a>，審閱 PR 時可以調整。</dd>
+        <dt>影響範圍</dt><dd>rpa-server（表格的讀入與匯出、批次服務與排程、遷移 0018、API、Agent API、Portal 的批次頁）；rpa-core、rpa-runner、Worker 與錄製端不改（每一列就是一次一般的正式執行）</dd>
+        <dt>相關</dt><dd><a href="0009-scenario-contract.html">ADR 0009</a>（場景契約）、<a href="0012-remote-workers.html">ADR 0012</a>（遠端 Worker 與執行位置）、<a href="0017-agent-api.html">ADR 0017</a>（對外 Agent API）、<a href="0018-layered-updates.html">ADR 0018</a>（分層更新）、<a href="0021-flow-control.html">ADR 0021</a>（場景內的流程控制）；<a href="../design/portal.html#batch">管理 Portal › 批次執行</a>、<a href="../design/agent-api.html">對外 Agent API</a>；<a href="../../handoff/tasks/20261113-m7-3-batch.html">任務紀錄</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>常見的需求是「同一個流程，對一份清單的每一筆各做一次」：逐筆建單、逐個帳號開通。M7.1 的 <code>forEach</code> 能在一次執行裡逐項做，但一筆出錯就要靠 <code>try</code> 接住，結果只有一份報告，事後也看不出哪一筆是哪個畫面。逐筆建單往往每一筆都要留證據，而且要能只補做失敗的幾筆。</p>
+          <p>正式執行本來就有契約校驗、報告、出參、回看、執行位置與 Agent 的上限；要的是把一張表變成很多次正式執行，並且看得到每一列的結果。</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>一列是一次一般的正式執行。</strong>批次在建立時固定場景目前發布的版本；每一列排入一次目的是 execution 的執行（<code>runs.batch_id</code>、<code>batch_row</code>），和手動執行一樣有報告、出參、回看與執行位置。Worker、錄製端與執行器不知道批次。</li>
+            <li><strong>表格存文字。</strong>貼上（Tab 或逗號分隔）或上傳 CSV、TSV、Excel（.xlsx，第一個工作表；日期依儲存格格式換成 ISO 寫法）。第一列是標題；最多 1,000 列、50 欄、5 MB，每格 10,000 字。儲存格原樣存成文字，排入前才換成入參。</li>
+            <li><strong>欄位依標題自動對應，可以改。</strong>標題和入參名稱相同（或不分大小寫、忽略空白、底線與連字號後相同）就對應；沒對應或空白的儲存格用預設值。換算：數字可以有千分位；是非接受 true／false、1／0、yes／no、是／否；清單與物件寫 JSON；寫了 <code>{{ }}</code> 的照原樣交給動態值；檔案入參不能從表格給值。換算後照場景的契約檢查，有問題的列標成「資料有問題」、不執行。</li>
+            <li><strong>先建立再開始。</strong>建立後是「等待開始」，可以改欄位對應與選項、看每一列的檢查結果；開始後不能再改。選項：一列沒通過時照跑或停下；同時排入幾列（1～10，實際同時跑幾列看有幾台 Worker 空著）；瀏覽器、網址、有頭／無頭、執行位置同執行表單。</li>
+            <li><strong>排程從資料庫重新算。</strong>每一次執行結束（包括排隊中被取消）就重新看這個批次：哪幾列在跑、這一輪還有哪幾列沒排、有沒有沒通過的列，補滿「同時幾列」或結束。同一個通知來兩次、伺服器重啟後都能接著走；每一列的冪等鍵是「批次-列號-第幾次」，不會重複排入。排不進去的列（例如場景被封存）記下原因、算沒有通過。</li>
+            <li><strong>「第幾輪」區分要跑的列。</strong>開始是第 1 輪，每次重跑加 1；只有被選進這一輪的列會排入、會算「沒有通過」。沒指定時重跑沒有通過的列（失敗、逾時、取消、需要登入、排不進去、資料有問題、沒有執行）；可以指定列號；重跑前可以改那幾列的儲存格（只能改原有的欄位，每次執行仍各自保留）。</li>
+            <li><strong>停下不復原。</strong>手動停下或「一列沒通過就停下」時不再排新的列，手動停下會取消排隊中與執行中的列；已經發生的外部動作不會回滾。</li>
+            <li><strong>匯出由伺服器產生。</strong>CSV（UTF-8 帶 BOM，以 <code>=</code>、<code>+</code>、<code>-</code>、<code>@</code> 開頭又不是數字的值前面加 <code>'</code>，避免被當成公式）與 Excel；內容是原本的儲存格加上狀態、第幾次、執行編號、每個出參與錯誤。伺服器用標準函式庫讀寫 xlsx，不加 openpyxl。</li>
+            <li><strong>Agent API 用同一套。</strong><code>POST /agent-api/v1/batches</code> 的 <code>rows</code> 每一列是一組入參（入參名稱 → 值），建立後直接開始；任何一列有問題就整批不建立（422，列出每一列的問題）。同時排入的列算在排隊與執行中的上限裡；只看得到、停得了自己建立的批次。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>每一列的證據和手動執行完全相同，運行清單、回看、Agent 讀運行都不用改；代價是 1,000 列就是 1,000 筆執行紀錄與執行目錄，保留規則照一般執行。</li>
+            <li>批次不擋場景之後發布新版本，也不會換版本：要用新版本就建一個新批次。</li>
+            <li>每一列都開一次瀏覽器、登入一次（有登入角色時用保存的登入狀態）；同一個畫面裡逐項做、要共用一個瀏覽器的情況仍用 <code>forEach</code>。</li>
+            <li>「同時幾列」只決定排入多少；同一台 Worker 一次一列，要真的平行需要多台 Worker。</li>
+            <li>伺服器多兩張表（<code>batches</code>、<code>batch_rows</code>）與 <code>runs</code> 的兩個欄位，要一個資料庫遷移（0018）。</li>
+            <li>自己讀寫 xlsx 只處理常見的情況（第一個工作表、共用字串、內嵌字串、數字與日期格式）；公式取 Excel 存下的計算結果，沒有存結果的公式讀成空白。</li>
+            <li>第一版只有發布過的場景；組合場景（專案裡的組合）的批次執行、排程觸發與「批次之間共用的上限」之後再看需求。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="panel-body">
+          <table class="table">
+            <thead><tr><th>方案</th><th>沒有選的原因</th></tr></thead>
+            <tbody>
+              <tr><td>只做 <code>forEach</code>，把表格讀成清單在一次執行裡逐列做</td><td>一列出錯會影響整次執行，只有一份報告，不能只補做失敗的列；使用者選了批次執行（D9）。</td></tr>
+              <tr><td>批次是一種新的執行目的，或在 Worker 端逐列執行</td><td>報告、回看、執行位置、Agent 的上限與運行清單都要另外處理；Worker 協定要改。</td></tr>
+              <tr><td>建立時就把每一列換算好存成入參</td><td>改欄位對應或改儲存格就要重算、存兩份；換算規則改了以後舊批次看不出原本的資料。</td></tr>
+              <tr><td>用「開始之後建立的執行」判斷這一輪的結果</td><td>重跑指定的列時，沒被選、也從來沒跑過的列分辨不出來，會跟著被排入；上一輪排不進去的列也會讓「一列沒通過就停下」立刻停下。</td></tr>
+              <tr><td>伺服器加 openpyxl 讀寫 Excel</td><td>分發包的 Python 依賴改變，runtime 編號跟著變，升級要下載完整安裝包；需要的只是讀第一個工作表的文字與寫一張簡單的表。</td></tr>
+              <tr><td>在瀏覽器裡解析檔案、產生匯出</td><td>Agent API 也要同樣的檢查與匯出；規則只寫一份在伺服器。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

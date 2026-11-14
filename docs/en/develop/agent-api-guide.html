@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:fc537b26606bdf9f">
+<meta name="translation-source" content="sha256:eb6067abd41a9642">
 <title>Agent API guide · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -244,6 +244,29 @@ POST /agent-api/v1/scenes/order-import/revisions/3/validate
           <li><strong>Workers with the runtime</strong>: these runs only go to Workers that have RPA Python runtime 1 on a platform listed in <code>platforms</code>; no browser is needed. The runtime ships with RPA Worker and the Linux package from v0.9.0; apps up to v0.8.0 do not have it, and their <code>features</code> in <code>GET /workers</code> lack <code>pythonNodes</code>, so such runs stay queued.</li>
           <li><strong>Data and files</strong>: values of <code>type: array</code> and <code>object</code> inputs are plain JSON, and upstream outputs of the same type can feed downstream inputs. Files the script writes to <code>run.output_dir</code> and file outputs are in the run's file list, downloadable with <code>GET /runs/{id}/files/outputs/…</code>; in a composite scenario a file output can feed the file input of a downstream DSL scenario (through the shared workspace on the same Worker).</li>
           <li><strong>No login roles</strong>: a runtime-mode scenario with <code>login</code> is rejected by validation (not supported in this version).</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="batches">
+      <div class="panel-header"><h2>Batch runs</h2><span class="muted">M7.3; <a href="../adr/0024-batch-runs.html">ADR 0024</a></span></div>
+      <div class="panel-body">
+        <p>When one scenario has to run in production once for every entry in a list (creating orders one by one, opening accounts one by one), use a batch run: each row is an ordinary production run with its own report, outputs and replay; a failed row does not affect the others, and later you can rerun only the rows that did not pass. When the items are handled on one screen and should share one browser, use <code>forEach</code> in the scenario instead.</p>
+<pre class="source">POST /agent-api/v1/batches                       (needs runs:execute)
+{"sceneId": "order-create",
+ "rows": [{"customer": "王小明", "quantity": 2}, {"customer": "陳大華"}],
+ "onFailure": "continue", "concurrency": 2, "idempotencyKey": "orders-1105"}
+→ 202 {"id": "batch-20261105-…", "status": "running", "revision": 3,
+       "counts": {"total": 2, "queued": 2}, "rows": [{"number": 1, "status": "queued", "runId": "order-create-…", …}, …],
+       "portalPath": "/batches/batch-20261105-…"}
+
+GET /agent-api/v1/batches/batch-20261105-…        (needs runs:read)</pre>
+        <ul class="points">
+          <li><strong>One set of inputs per row</strong>: keys are input names; inputs that are left out or empty strings use their defaults. The batch uses the scenario's currently published revision, fixed when it is created. If any row breaks the contract or names an input the scenario does not have, the batch is not created: 422 <code>batch_rows_invalid</code>, where each item of <code>problems</code> has <code>row</code> (from 1; null for an input the scenario does not have), <code>input</code> and <code>message</code>.</li>
+          <li><strong>Rows at once</strong>: <code>concurrency</code> is 1–10 and counts toward the limit on queued and running runs (429 <code>limit_reached</code> when over it); one Worker runs one row at a time. With <code>onFailure: "stop"</code>, no more rows are queued once a row does not pass.</li>
+          <li><strong>Reading the results</strong>: in <code>GET /batches/{id}</code>, <code>status</code> is running, finished or stopped; <code>counts</code> is the number of rows in each status; every row has <code>status</code>, <code>runId</code>, <code>output</code>, <code>error</code>, <code>attempts</code> and every attempt in <code>runs</code>. Read reports, steps and files through <code>/runs/{runId}</code> as for any run.</li>
+          <li><strong>Stopping and rerunning</strong>: <code>POST /batches/{id}/stop</code> cancels the rows queued or running (actions already completed in the target system are not undone); once the batch has ended or stopped, <code>POST /batches/{id}/rerun</code> reruns the rows that did not pass, or the ones given as <code>{"rows": [2, 5]}</code>. Editing data before a rerun and exporting CSV/Excel happen on the Portal's batch page (<code>portalPath</code>).</li>
+          <li><strong>Only your own</strong>: a batch created by another client returns 404 <code>batch_not_found</code>. The same <code>idempotencyKey</code> returns the same batch.</li>
         </ul>
       </div>
     </section>
