@@ -93,8 +93,10 @@ def test_sub_scenario_must_be_a_published_revision(app: FastAPI, client: Client)
 
     assert [item["code"] for item in refused] == ["server.call_unusable"]
     assert "沒有發布過" in str(refused[0]["message"])
+    # 伺服器上沒有的版本：帶不進來（不是「不能用」）
     missing = issues(save(client, CALLER.replace("revision: 1", "revision: 9")))
-    assert "沒有第 9 版" in str(missing[0]["message"])
+    assert [item["code"] for item in missing] == ["server.call_missing"]
+    assert "ba-001 第 9 版" in str(missing[0]["message"])
     unknown = issues(save(client, CALLER.replace("scenario: ba-001", "scenario: nowhere")))
     assert [item["code"] for item in unknown] == ["server.call_missing"]
 
