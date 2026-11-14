@@ -15,6 +15,7 @@ from markupsafe import escape
 from starlette.background import BackgroundTask
 
 from rpa_core.dsl import ExtractStep, Scenario, ScriptConfig, validate_text
+from rpa_core.dsl.calls import is_call_path
 from rpa_core.dsl.editing import contract_section, json_document, section_text
 from rpa_core.dsl.files import (
     ATTACHMENT_DIR,
@@ -572,6 +573,8 @@ def page_router(services: Services) -> APIRouter:
             return RedirectResponse(f"/scenes/{scene_id}#{part}", 303)
         shown = services.get_revision(scene_id, revision)
         files = services.revision_files(scene_id, shown.number)
+        # 子場景檔（M7.2，calls/）由伺服器在存檔時帶入，不在這裡編輯
+        files = {path: text for path, text in files.items() if not is_call_path(path)}
         # 完整場景檔；Python 節點可以直接打開腳本與 script.files 列的檔案
         selected = file if file in files else ""
         return page(

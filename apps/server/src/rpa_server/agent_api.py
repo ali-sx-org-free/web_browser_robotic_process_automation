@@ -521,7 +521,7 @@ def agent_api(services: Services) -> FastAPI:
     def dsl_check(client: Client, body: CheckBody) -> dict[str, object]:
         """不存檔校驗場景 YAML；問題帶行號、步驟與欄位。"""
         if body.scene_id:
-            checked = services.storage.check({SCENARIO_FILE: body.yaml}, scene_id=body.scene_id)
+            checked = services.check_files({SCENARIO_FILE: body.yaml}, scene_id=body.scene_id)
             issues = checked.issues
         else:
             issues = validate_text(body.yaml).issues

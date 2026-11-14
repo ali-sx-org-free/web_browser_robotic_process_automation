@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=../../../../../schema/scenario.v1.json
+#
+# 子場景（M7.2）：被 create-and-check.yaml、create-many.yaml 用 call 呼叫的那個版本。
+# 它自己就是一個完整的場景：有入參、獨立斷言與出參，單獨也能執行。
+# 在管理 Portal 裡，這個檔案由伺服器在存檔時從發布過的版本複製進來；這裡是手寫的範例。
+
+schemaVersion: 1
+id: call-create-record
+name: 建立一筆紀錄
+category: 範例
+description: 在測試頁填標題與數量後建立紀錄；出參是新紀錄的編號、標題與數量。
+
+inputs:
+  title:
+    type: string
+    minLength: 1
+    maxLength: 60
+  quantity:
+    type: integer
+    minimum: 1
+    maximum: 30
+    default: 1
+
+outputs:
+  recordId:
+    type: string
+    pattern: '^DEMO-[A-Z0-9]+$'
+    from: '{{ facts.record.recordId }}'
+  title:
+    type: string
+    from: '{{ facts.record.title }}'
+  quantity:
+    type: integer
+    from: '{{ facts.record.quantity }}'
+
+browser:
+  baseUrl: http://127.0.0.1:8765
+
+defaults:
+  timeout: 10000
+deadline: 45000
+
+steps:
+  - id: open
+    action: goto
+    url: /
+    waitUntil: domcontentloaded
+
+  - id: fill-title
+    action: fill
+    target: { label: 標題, exact: true }
+    value: '{{ inputs.title }}'
+
+  - id: fill-quantity
+    action: fill
+    target: { label: 數量, exact: true }
+    value: '{{ inputs.quantity }}'
+
+  - id: submit
+    name: 建立紀錄（有副作用）
+    action: click
+    target: { role: button, name: 建立紀錄, exact: true }
+
+  - id: wait-receipt
+    action: waitFor
+    target: { css: '#receipt' }
+
+  - id: read-record
+    action: extract
+    target: { css: '#receipt' }
+    as: record
+    fields:
+      recordId: { target: { css: '#record-id' } }
+      title: { target: { css: '#record-title' } }
+      quantity: { target: { css: '#record-quantity' } }
+      status: { target: { css: '#record-status' } }
+
+verify:
+  - name: 取得有效的紀錄編號
+    value: '{{ facts.record.recordId }}'
+    matches: '^DEMO-[A-Z0-9]+$'
+  - name: 狀態是已建立
+    value: '{{ facts.record.status }}'
+    equals: 已建立
+  - name: 畫面上的標題與入參相同
+    value: '{{ facts.record.title }}'
+    equals: '{{ inputs.title }}'

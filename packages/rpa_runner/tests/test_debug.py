@@ -472,3 +472,71 @@ def test_blocks_run_whole_or_one_step_inside(engine: str, tmp_path: Path) -> Non
                 process.stdin.write(json.dumps({"cmd": "close"}) + "\n")
                 process.stdin.flush()
                 process.wait(timeout=30)
+
+
+CALL = ROOT / "scenarios" / "examples" / "call"
+CALL_FILE = "calls/call-create-record/1.yaml"
+
+
+def test_call_runs_the_whole_sub_scenario(engine: str, tmp_path: Path) -> None:
+    """子場景（M7.2）：伺服器把 calls/ 的檔案包成一個 JSON 檔（--calls），子程序放回場景檔旁邊；
+    call 這一步整個子場景一起執行。換版本的 load 命令也帶 calls。"""
+    scene = tmp_path / "scene"
+    scene.mkdir()
+    text = (CALL / "create-and-check.yaml").read_text(encoding="utf-8")
+    (scene / "scenario.yaml").write_text(text, encoding="utf-8")
+    sub = (CALL / CALL_FILE).read_text(encoding="utf-8")
+    bundle = tmp_path / "calls.json"
+    bundle.write_text(json.dumps({CALL_FILE: sub, "../escape.yaml": "x"}), encoding="utf-8")
+    inputs = tmp_path / "input.json"
+    inputs.write_text(json.dumps({"title": "調試子場景"}), encoding="utf-8")
+    with running() as site:
+        command = [
+            sys.executable, "-m", "rpa_runner.debug",
+            "--scenario", str(scene / "scenario.yaml"), "--input", str(inputs),
+            "--out", str(tmp_path / "debug"), "--engine", engine, "--base-url", site,
+            "--calls", str(bundle),
+        ]  # fmt: skip
+        process = subprocess.Popen(
+            command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, encoding="utf-8"
+        )
+        try:
+            debug = Session(process)
+            ready = debug.read()
+            assert ready["event"] == "ready", ready
+            assert (scene / CALL_FILE).is_file()
+            assert not (tmp_path / "escape.yaml").exists()
+            whole = debug.send("step", index=0)
+            assert whole["ok"] is True, whole
+            record = cast("dict[str, object]", whole["record"])
+            assert record["status"] == "passed", whole
+            records = cast("list[dict[str, object]]", whole["records"])
+            assert len(records) == 1 + 6
+            assert records[1]["path"] == ["steps", 0, "call", 0]
+            facts = cast("dict[str, object]", whole["facts"])
+            created = cast("dict[str, object]", facts["created"])
+            assert created["title"] == "調試子場景"
+            assert created["quantity"] == 5
+            # 換成新版本（數量改成 7），子場景檔跟著命令送來
+            changed = text.replace("quantity: 5", "quantity: 7").replace(
+                "equals: '5'", "equals: '7'"
+            )
+            loaded = debug.send(
+                "load", scenarioText=changed, inputs={"title": "第二版"}, calls={CALL_FILE: sub}
+            )
+            assert loaded["ok"] is True, loaded
+            again = debug.send("step", index=0)
+            facts = cast("dict[str, object]", again["facts"])
+            assert cast("dict[str, object]", facts["created"])["quantity"] == 7
+            # 沒帶 calls 的 load（舊的伺服器）：場景讀得進來，call 執行時說明找不到子場景
+            debug.send("load", scenarioText=changed, inputs={"title": "第三版"})
+            missing = debug.send("step", index=0)
+            failed = cast("dict[str, object]", missing["record"])
+            assert failed["status"] == "failed"
+            assert "找不到子場景" in str(failed["error"])
+        finally:
+            if process.poll() is None:
+                assert process.stdin is not None
+                process.stdin.write(json.dumps({"cmd": "close"}) + "\n")
+                process.stdin.flush()
+                process.wait(timeout=30)

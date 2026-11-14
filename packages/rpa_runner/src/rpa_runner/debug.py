@@ -50,6 +50,7 @@ from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwrigh
 from pydantic import ValidationError
 
 from rpa_core.dsl import Locator, Scenario, ValidationResult, validate_file, validate_text
+from rpa_core.dsl.calls import CallKey, is_call_path, load_calls
 from rpa_core.dsl.issues import Issue, format_issue
 from rpa_core.dsl.steps import ForEachStep, RepeatStep, Step, StepPath, TryStep, branches
 from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, parse_locale, set_locale
@@ -241,7 +242,15 @@ class _Session:
         self.out = Path(args.out)
         self.out.mkdir(parents=True, exist_ok=True)
         self.engine: Engine = cast("Engine", args.engine)
+        # 子場景（M7.2）：伺服器把 calls/ 的檔案包成一個 JSON 檔送來，放回場景檔旁邊再校驗
+        bundle = getattr(args, "calls", None)
+        if bundle:
+            _write_calls(Path(args.scenario).parent, _read_calls(Path(bundle)))
         self.scenario = _valid(validate_file(Path(args.scenario)))
+        self.calls: dict[CallKey, Scenario] = load_calls(Path(args.scenario).parent, self.scenario)[
+            0
+        ]
+        self.loads = 0
         self.inputs = _resolved(self.scenario, _read_inputs(Path(args.input)))
         # 檔案入參（M7c）：path 值暫存在系統的暫存資料夾（不在 --out 裡，錄製端不會同步回伺服器）
         self.staging = Path(tempfile.mkdtemp(prefix="rpa-debug-files-"))
@@ -371,6 +380,7 @@ class _Session:
             path=step_path,
             variables=variables,
             collected=collected,
+            calls=self.calls,
         )
         for item in collected:
             if item.error:
@@ -539,18 +549,33 @@ class _Session:
 
         管理 Portal 直接送場景內容（``scenarioText``）與入參（``inputs``）：這個子程序可能在另一台
         電腦（錄製端），讀不到伺服器的檔案。``scenario``／``input`` 路徑是 v0.6.2 以前的伺服器送的，
-        只在和伺服器同一台時讀得到，保留相容。
+        只在和伺服器同一台時讀得到，保留相容。新版本用到子場景時（M7.2）另外帶 ``calls``
+        （``calls/…`` 的相對路徑 → 內容）：連同場景內容寫到這次載入自己的資料夾再校驗。
         """
         text = command.get("scenarioText")
-        if isinstance(text, str):
+        bundle = command.get("calls")
+        calls: dict[CallKey, Scenario] = {}
+        if isinstance(text, str) and isinstance(bundle, dict) and bundle:
+            self.loads += 1
+            folder = self.out / f"load-{self.loads}"
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / "scenario.yaml").write_text(text, encoding="utf-8")
+            _write_calls(folder, cast("dict[object, object]", bundle))
+            scenario = _valid(validate_file(folder / "scenario.yaml"))
+            calls = load_calls(folder, scenario)[0]
+            inputs = _inputs_object(command.get("inputs", {}))
+        elif isinstance(text, str):
             scenario = _valid(validate_text(text))
             inputs = _inputs_object(command.get("inputs", {}))
         else:
-            scenario = _valid(validate_file(Path(str(command["scenario"]))))
+            path = Path(str(command["scenario"]))
+            scenario = _valid(validate_file(path))
+            calls = load_calls(path.parent, scenario)[0]
             inputs = _read_inputs(Path(str(command["input"])))
         # 保留已求值的舊值（允許與新約束暫時不一致）；新增預設值仍須通過運行態校驗。
         self.inputs = _resolved(scenario, inputs, preserved=frozenset(self.inputs))
         self.scenario = scenario
+        self.calls = calls
         self.secrets = read_secrets(self.scenario)
         return {"steps": len(self.scenario.steps or []), "inputs": self.inputs}
 
@@ -574,6 +599,25 @@ class _Session:
         if handler is None:
             return {"ok": False, "error": f"unknown command {name!r}"}
         return {"ok": True, **handler()}
+
+
+def _read_calls(path: Path) -> dict[object, object]:
+    """``--calls`` 的 JSON 檔：``calls/…`` 的相對路徑 → 內容。"""
+    data: object = json.loads(path.read_text(encoding="utf-8"))
+    return cast("dict[object, object]", data) if isinstance(data, dict) else {}
+
+
+def _write_calls(folder: Path, files: Mapping[object, object]) -> None:
+    """把子場景檔寫到場景檔旁邊（M7.2）；只收 ``calls/`` 底下、不往上層走的路徑。"""
+    for name, text in files.items():
+        if not isinstance(name, str) or not isinstance(text, str):
+            continue
+        parts = name.split("/")
+        if not is_call_path(name) or any(part in ("", ".", "..") for part in parts):
+            continue
+        target = folder.joinpath(*parts)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
 
 
 def _step_path(value: object) -> StepPath:
@@ -673,6 +717,7 @@ def main(argv: list[str] | None = None) -> int:
         metavar=("INPUT", "PATH"),
         help="準備好的檔案入參（M7c）",
     )
+    parser.add_argument("--calls", help="子場景檔的 JSON（M7.2）：calls/… 的相對路徑 → 內容")
     return serve(parser.parse_args(argv))
 
 
