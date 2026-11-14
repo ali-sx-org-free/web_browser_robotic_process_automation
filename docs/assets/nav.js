@@ -216,7 +216,7 @@ window.DOCS_NAV = {
         {
           "id": "adr-0024",
           "href": "adr/0024-batch-runs.html",
-          "name": {"zh-Hant": "0024 批次執行", "zh-Hans": "0024 批次执行", "en": "0024 Batch runs"}
+          "name": {"zh-Hant": "0024 批次執行", "zh-Hans": "0024 批量运行", "en": "0024 Batch runs"}
         }
       ]
     },
