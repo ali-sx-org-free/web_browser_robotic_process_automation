@@ -15,7 +15,7 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261113-m7-3-batch；2026-11-13 21:05 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261113-m7-3-batch；2026-11-13 21:10 America/Los_Angeles（PST，UTC−08:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 專案對話（2026-11-13 18:12 America/Los_Angeles（PST，UTC−08:00），原文）：「剛合并了最新分支已經審閲PR15和合并，你拉下最新的代碼。把M7後續流程實作。同時把main分支文檔更新到最新版本。」20:08 回覆「繼續」。M7 後續是 M7.2 子場景與 M7.3 資料驅動（<a href="20261106-m7-flow.html">M7 任務紀錄</a>第 5、6 節，D8、D9 已於 2026-11-06 由使用者確認）；本任務是 M7.3。驗收條件照 M7 任務紀錄第 6、7 節：一列一次執行、各有報告；開始前逐列校驗、有問題的列先列出來；失敗時繼續或停下、同時跑幾列；匯總可以匯出；可以只重跑失敗的列；Agent API 能建立批次、讀結果。</dd>
         <dt>範圍／不包含</dt><dd>伺服器：表格的讀入與匯出（<code>batch_table.py</code>，CSV、TSV、xlsx）、批次服務與排程（<code>batches.py</code>）、遷移 0018、模型、<code>request_run</code> 帶批次、API、Agent API、Portal 的三個頁面與前端腳本、多語言目錄；測試；文件（管理 Portal、Agent API 設計與使用指南、路線圖、首頁與 ADR 索引的數量）與 ADR 0024。不包含：組合場景（專案裡的組合）的批次執行；排程觸發；批次之間共用的上限；讀第一個工作表以外的工作表；rpa-core、rpa-runner、Worker、錄製端都不用改。</dd>
         <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude（Opus 5.5）；審閱、人工驗收與合併：使用者。</dd>
@@ -73,7 +73,7 @@
           <tr><td>提交前的工作區（基準 <code>3193035</code>）；雲端 Linux、系統 Python 3.13.18</td><td><code>ruff check apps/server packages</code>、<code>ruff format --check</code>；<code>pyright</code> 新的與改過的伺服器檔案；<code>pytest apps/server/tests/test_batch_table.py</code>；<code>pytest tests</code>（文件、多語言、範例）；三個新頁面用替身資料以 <code>render()</code> 渲染（StrictUndefined）；<code>node --check static/portal.js</code></td><td>ruff 與 ruff format 通過；pyright：<code>batch_table.py</code> 與它的測試 0 errors，其餘檔案只有缺少 FastAPI／SQLAlchemy 造成的 unknown 類型；<code>test_batch_table.py</code> 25 passed；<code>tests</code> 667 passed、7 failed（都是簡中還沒產生）；頁面渲染與執行中、結束後的簽章、可改的儲存格都符合預期；腳本語法通過</td><td>伺服器 API 層（<code>test_batches_api.py</code>、遷移、既有的伺服器測試）要 FastAPI、SQLAlchemy，交給 CI；簡中交給 bootstrap</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：見追加紀錄。人工驗收：未執行。審閱者／SHA／發現與處理：未審閱。</p></div>
+      <div class="panel-body"><p>CI：見追加紀錄與 PR #25 最新 head 的檢查。人工驗收：未執行。審閱者／SHA／發現與處理：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -82,7 +82,8 @@
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
-        <li>2026-11-13 20:58～21:05 America/Los_Angeles（PST，UTC−08:00），Claude：PR #25 在 <code>2f81284</code> 的 CI（<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43559028340">運行 43559028340</a>）：Windows Worker 測試通過；靜態檢查失敗（<code>test_batch_table.py</code> 一行太長）；Python 3.12、3.13 各 2 個失敗：選單測試還以為場景運行只有運行報告，以及刪除還沒開始的批次時外鍵擋下（批次與每一列之間沒有 relationship，ORM 先刪了批次）。其餘 2,435／2,494 個通過，<code>test_batches_api.py</code> 的執行、重跑、停下與 Agent API 都在其中。在 <code>f1e0caf</code> 修正：先直接刪掉每一列再刪批次、選單測試加上批次執行、拆短那一行。</li>
+        <li>2026-11-13 21:03～21:10 America/Los_Angeles（PST，UTC−08:00），Claude：推送 <code>f1e0caf</code> 與文件 <code>e12880a</code>（帶 <code>[bootstrap]</code>）。<code>e12880a</code> 的 CI（<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43559649158">運行 43559649158</a>）：靜態檢查通過；Python 3.12、3.13 各 4 個失敗，都是簡中還沒產生（三個文件頁、<code>test_simplified_chinese_is_generated</code>），其餘 2,497 個通過（含刪除批次與選單測試）；Windows Worker 測試依指紋沿用、略過；桌面端建置、伺服器分發包、一鍵安裝腳本、RPA Python 運行環境通過。bootstrap 成功並提交簡中（<code>ce30d59</code>）。PR #24 加了 CI 回填（<code>37e5d87</code>），合併進本分支（<code>2fbe1a9</code>）。最新 head 的 CI 見 PR。</li>
+        <li>2026-11-13 20:58～21:03 America/Los_Angeles（PST，UTC−08:00），Claude：PR #25 在 <code>2f81284</code> 的 CI（<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43559028340">運行 43559028340</a>）：Windows Worker 測試通過；靜態檢查失敗（<code>test_batch_table.py</code> 一行太長）；Python 3.12、3.13 各 2 個失敗：選單測試還以為場景運行只有運行報告，以及刪除還沒開始的批次時外鍵擋下（批次與每一列之間沒有 relationship，ORM 先刪了批次）。其餘 2,435／2,494 個通過，<code>test_batches_api.py</code> 的執行、重跑、停下與 Agent API 都在其中。在 <code>f1e0caf</code> 修正：先直接刪掉每一列再刪批次、選單測試加上批次執行、拆短那一行。</li>
         <li>2026-11-13 20:48～20:58 America/Los_Angeles（PST，UTC−08:00），Claude：從 <code>feat/m7-subscenario</code> 的 <code>3193035</code> 開 <code>feat/m7-batch</code>，提交程式 <code>e5b0267</code>（帶 <code>[bootstrap]</code>）。bootstrap 產生了伺服器的簡中目錄（<code>562cd85</code>），但它跑的測試在收集 <code>test_batch_table.py</code> 時就失敗：CI 的開發環境沒有 openpyxl（本機有，誤以為是開發依賴）。改成測試自己用 zipfile 寫 Excel 檔（<code>2f81284</code>），開 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/25">PR #25</a>（base main）。接著寫文件、ADR 0024 與本頁。</li>
         <li>2026-11-13 18:45～20:48 America/Los_Angeles（PST，UTC−08:00），Claude：依 M7 任務紀錄第 6 節與 D9 寫細部設計並實作（和 M7.2 同一段工作）。檢查程式時發現「重跑指定的列」會連沒被選、沒跑過的列一起排入，改成用「第幾輪」判斷（ADR 0024 的「沒有選的方案」）；輪詢的簽章原本用 Jinja 的 <code>tojson</code> 與瀏覽器的 <code>JSON.stringify</code> 比對，空白不同會每次都重新整理，改成兩邊同樣的「鍵=值」寫法。</li>
       </ul></div>
