@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-11-13 18:10 America/Los_Angeles（PST，UTC−08:00）。共 173 次運行。
+更新：2026-11-13 18:11 America/Los_Angeles（PST，UTC−08:00）。共 174 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -9,7 +9,7 @@
 
 | 流程 | 次數 | 通過 | 耗時中位數 | 耗時 P90 | 最長排隊中位數 | 機器時間（Linux／Windows／macOS） |
 |---|---|---|---|---|---|---|
-| CI | 48（0） | 38（0） | 4.7 分（0.0 分） | 8.7 分（0.0 分） | 0.1 分（0.0 分） | 367／65／0 分（0／0／0 分） |
+| CI | 49（0） | 38（0） | 4.7 分（0.0 分） | 8.7 分（0.0 分） | 0.1 分（0.0 分） | 368／65／0 分（0／0／0 分） |
 | 桌面端建置 | 33（0） | 32（0） | 0.2 分（0.0 分） | 6.3 分（0.0 分） | 0.1 分（0.0 分） | 4／55／48 分（0／0／0 分） |
 | 伺服器分發包 | 40（0） | 38（0） | 0.2 分（0.0 分） | 2.7 分（0.0 分） | 0.1 分（0.0 分） | 67／0／0 分（0／0／0 分） |
 | 一鍵安裝腳本 | 43（0） | 40（0） | 0.2 分（0.0 分） | 26.0 分（0.0 分） | 0.1 分（0.0 分） | 142／182／184 分（0／0／0 分） |
@@ -20,7 +20,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-11-13 | 22 | 139 | 114 | 114 | 367 |
+| 2026-11-13 | 23 | 140 | 114 | 114 | 367 |
 | 2026-11-12 | 12 | 117 | 97 | 104 | 318 |
 | 2026-11-11 | 41 | 210 | 120 | 96 | 426 |
 | 2026-11-10 | 61 | 265 | 177 | 153 | 595 |
@@ -254,6 +254,7 @@
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
 | 11-13 18:10 | 伺服器分發包 | 推送 | main | success | 0.2 分 | 0.1 分 | [#43544768336](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43544768336/attempts/1) |
+| 11-13 18:10 | CI | 推送 | main | cancelled | 0.5 分 | 0.1 分 | [#43544768126](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43544768126/attempts/1) |
 | 11-13 18:06 | 伺服器分發包 | PR | feat/composite-flow | success | 0.3 分 | 0.1 分 | [#43544422397](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43544422397/attempts/1) |
 | 11-13 18:06 | 一鍵安裝腳本 | PR | feat/composite-flow | success | 0.1 分 | 0.0 分 | [#43544420660](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43544420660/attempts/1) |
 | 11-13 18:06 | CI | PR | feat/composite-flow | success | 2.5 分 | 0.1 分 | [#43544420508](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43544420508/attempts/1) |
@@ -292,5 +293,4 @@
 | 11-11 17:47 | 伺服器分發包 | PR | feat/m7-flow-control | success | 0.1 分 | 0.0 分 | [#43136880539](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43136880539/attempts/1) |
 | 11-11 17:47 | 一鍵安裝腳本 | PR | feat/m7-flow-control | success | 0.2 分 | 0.0 分 | [#43136880437](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43136880437/attempts/1) |
 | 11-11 17:47 | CI | PR | feat/m7-flow-control | success | 2.3 分 | 0.1 分 | [#43136880591](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43136880591/attempts/1) |
-| 11-11 17:46 | 伺服器分發包 | PR | feat/composite-flow | success | 0.1 分 | 0.1 分 | [#43136842877](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43136842877/attempts/1) |
 
