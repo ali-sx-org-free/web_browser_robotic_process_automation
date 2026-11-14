@@ -256,7 +256,7 @@ def test_several_errors_are_reported_in_file_order() -> None:
         "    action: fill\n"
         "    target: { label: x }\n"
         "    value: 1\n"
-        "    extra: 1\n"
+        "    bogus: 1\n"  # 和任何欄位都不像，不會有「是不是要寫」的建議
     )
     result = validate_text(text)
 

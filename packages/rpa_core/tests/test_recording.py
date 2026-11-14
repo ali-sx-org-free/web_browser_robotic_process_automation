@@ -215,7 +215,7 @@ def test_password_on_unsupported_line_is_masked_in_comments() -> None:
     source = dedent(
         """\
         page.goto("https://erp.example.com/login")
-        page1 = context.new_page()
+        page1 = browser.new_page()
         page1.get_by_label("Password").fill("top-secret")
         """
     )
@@ -316,14 +316,15 @@ def test_unsupported_lines_stay_as_comments_with_warnings() -> None:
         """\
         page.goto("http://127.0.0.1:8765/")
         page.get_by_text("選單").hover()
-        page1 = context.new_page()
+        page1 = browser.new_page()
         page1.goto("http://127.0.0.1:8765/help")
         page1.get_by_role("button", name="關閉").click()
         """
     )
     data, result = convert(source)
 
-    # 自己開的新分頁（context.new_page）還不支援；錄到的新分頁（expect_popup）見下面的測試
+    # browser.new_page() 是另一個工作階段（沒有登入狀態），轉不了；context.new_page() 見
+    # test_pages_opened_by_the_script_become_open_page，錄到的新分頁（expect_popup）見下面的測試
     assert [step["action"] for step in steps_of(data)] == ["goto"]
     warnings = result.warnings
     assert [warning.line for warning in warnings] == [2, 4, 5]
@@ -367,6 +368,8 @@ def test_actions_on_a_popup_tab_get_page() -> None:
         ("expect", "page1", None),
         ("extract", "page1", None),
         ("expect", "page1", None),
+        # page1.close() → closePage（M7.1；M7b 時略過）
+        ("closePage", "page1", None),
         ("click", None, None),
     ]
     choose = {"placeholder": "请选择", "within": {"role": "row", "name": "  -- --", "exact": True}}
@@ -376,6 +379,36 @@ def test_actions_on_a_popup_tab_get_page() -> None:
     # YAML 裡 page 緊接在 action 後面，popup 在最後
     assert "    action: click\n    page: page1\n" in result.scenario
     assert "    popup: page1\n" in result.scenario
+
+
+def test_pages_opened_by_the_script_become_open_page() -> None:
+    """M7.1：context.new_page() → openPage，之後的操作在那個分頁，close() → closePage。"""
+    source = dedent(
+        """\
+        page.goto("http://127.0.0.1:8765/")
+        page1 = context.new_page()
+        page1.goto("http://127.0.0.1:8765/flow/report")
+        expect(page1.get_by_test_id("total")).to_contain_text("1200")
+        page1.close()
+        page.get_by_role("button", name="重新整理").click()
+        """
+    )
+    data, result = convert(source)
+
+    assert result.warnings == ()
+    steps = steps_of(data)
+    assert [(step["action"], step.get("page")) for step in steps] == [
+        ("goto", None),
+        ("openPage", None),
+        ("goto", "page1"),
+        ("expect", "page1"),
+        ("extract", "page1"),
+        ("closePage", "page1"),
+        ("click", None),
+    ]
+    assert steps[1]["as"] == "page1"
+    assert steps[2]["url"] == "/flow/report"
+    assert validate_text(result.scenario).scenario is not None
 
 
 def test_popups_from_popups_and_popups_that_cannot_be_converted() -> None:

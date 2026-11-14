@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=../../../schema/scenario.v1.json
+#
+# 重試（M7.1）：報表要等一下才完成。expect 的 timeout 故意比報表短，靠 retry 再看幾次。
+# retry 只能寫在沒有副作用的動作（goto、waitFor、expect、extract、screenshot）；
+# 點擊、填寫不會自動重試，要重複就用 if 或 try 寫出來。
+
+schemaVersion: 1
+id: flow-wait-report
+name: 等報表完成
+category: 範例
+description: 按「產生報表」後，重試檢查狀態直到「已完成」。
+
+inputs:
+  delay:
+    type: integer
+    description: 報表完成前要等幾毫秒（測試網站的參數）
+    minimum: 0
+    maximum: 5000
+    default: 1500
+
+outputs:
+  status:
+    type: string
+    from: '{{ facts.status }}'
+
+browser:
+  baseUrl: http://127.0.0.1:8765
+
+defaults:
+  timeout: 10000
+deadline: 45000
+
+steps:
+  - id: open
+    action: goto
+    url: /flow?notice=0&delay={{ inputs.delay }}
+
+  - id: make
+    action: click
+    target: { role: button, name: 產生報表 }
+
+  - id: wait-done
+    action: expect
+    target: { testId: report-status }
+    text: 已完成
+    timeout: 1000
+    retry: { times: 4, delay: 500 }
+
+  - id: read-status
+    action: extract
+    target: { testId: report-status }
+    as: status
+
+verify:
+  - name: 報表已完成
+    value: '{{ facts.status }}'
+    equals: 已完成

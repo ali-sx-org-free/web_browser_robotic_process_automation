@@ -79,6 +79,19 @@ def test_data_features_reads_raw_settings() -> None:
     assert data_features({"default": {"frame": "x"}, "anyFrame": "yes"}) == frozenset()
 
 
+def test_flow_features() -> None:
+    """M7.1：區塊步驟、openPage／closePage、onError、retry、append: true 都是 flow。"""
+    assert data_features([{"id": "a", "action": "if", "then": list[object]()}]) == {"flow"}
+    assert data_features([{"id": "a", "action": "openPage", "as": "x"}]) == {"flow"}
+    assert data_features([{"id": "a", "action": "closePage", "page": "x"}]) == {"flow", "page"}
+    assert data_features([{"id": "a", "action": "click", "onError": "continue"}]) == {"flow"}
+    assert data_features([{"id": "a", "action": "goto", "retry": {"times": 1}}]) == {"flow"}
+    assert data_features([{"id": "a", "action": "extract", "append": True}]) == {"flow"}
+    # 入參的值裡剛好有同名的鍵（沒有 action）不算
+    assert data_features({"default": {"retry": 1, "onError": "x"}}) == frozenset()
+    assert data_features([{"id": "a", "action": "extract", "append": False}]) == frozenset()
+
+
 def test_missing_features() -> None:
     assert {
         "frame",
@@ -92,6 +105,7 @@ def test_missing_features() -> None:
         "jsonInputs",
         "fileOutputs",
         "download",
+        "flow",
     } == FEATURES
     # M7a 之前的 App 沒有回報 features：一個都不懂
     assert missing_features({"frame"}, None) == ["frame"]

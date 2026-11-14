@@ -1,0 +1,9 @@
+<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>月報表 · 本機範例頁</title><style>body{font:14px/1.6 system-ui;color:#24334a;background:#f5f7fb;margin:0}header{background:white;border-bottom:1px solid #e9edf3;padding:12px 24px;color:#0b69c4;font-weight:700}main{max-width:720px;margin:24px auto;padding:0 16px}h1{font-size:21px}h2{font-size:16px;margin:0 0 8px}.notice{padding:10px;background:#eaf3ff}.panel{padding:20px;background:white;border:1px solid #e9edf3;border-radius:9px;margin:12px 0}table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #e9edf3;padding:4px 8px;text-align:left}[role=dialog]{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:white;border:1px solid #c9d3e3;border-radius:9px;padding:16px 24px;box-shadow:0 8px 24px #0002}label{margin-right:12px}</style><header>瀏覽器自動化 · 本機測試頁</header><main><h1>月報表</h1>
+<p class="notice">依網址參數 <code>month</code>（例如 2026-10）顯示那個月的總額：月份 × 120。</p>
+<section class="panel"><p>月份 <span data-testid="month"></span> · 總額 <strong data-testid="total"></strong></p></section></main>
+<script>
+const month = new URLSearchParams(location.search).get('month') || '2026-10';
+document.querySelector('[data-testid=month]').textContent = month;
+const number = Number(month.split('-')[1] || 0);
+document.querySelector('[data-testid=total]').textContent = String(number * 120);
+</script></html>

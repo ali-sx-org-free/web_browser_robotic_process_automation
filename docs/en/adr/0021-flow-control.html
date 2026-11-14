@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:cfd5fcb6956cfa0c">
+<title>ADR 0021 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0021" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0021: Flow control inside scenarios is block steps in the DSL; the contract and the publishing gate stay the same</h1>
+      <p>Conditions, loops and error handling are blocks among the steps (<code>if</code>, <code>forEach</code>, <code>repeat</code>, <code>try</code>), and conditions are written like <code>expect</code>; retries apply only to actions without side effects; step records follow the order steps ran and map to definitions by their path in the scenario file. Outputs are still published only after the independent checks pass.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-11-06</dd>
+        <dt>Status</dt><dd>The user confirmed the design on 2026-11-06 (D1–D9 as recommended, see the <a href="../../../handoff/decisions.html#decisions">decision record</a>); built in three phases. This decision covers M7.1 flow control; M7.2 sub-scenarios and M7.3 data-driven runs add to it in their own designs.</dd>
+        <dt>Scope</dt><dd>rpa-core (DSL, validation, extensions, recording conversion), rpa-runner (execution, step records, logs, reports, step-by-step debugging), rpa-server (debugging, replays, composite reports, the scenario editor, the Agent API), the test site and example scenarios; no code changes in rpa-worker or the desktop app (the new extension <code>flow</code> ships with the app's program layer)</dd>
+        <dt>Related</dt><dd><a href="0001-dsl-as-source-of-truth.html">ADR 0001</a> (the DSL as the source of truth), <a href="0009-scenario-contract.html">ADR 0009</a> (scenario contract: outputs published only after the independent checks pass), <a href="0010-mvp-first.html">ADR 0010</a> (MVP scope: complex logic in scripts first), <a href="0016-run-replay.html">ADR 0016</a> (run replay), <a href="0020-python-nodes.html">ADR 0020</a> (Python nodes); <a href="../design/dsl.html#flow">Scenario DSL › Flow control</a>; <a href="../../../handoff/tasks/20261106-m7-flow.html">task record</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>Scenario steps used to be a single list run straight from top to bottom, stopping at the first failure. Real systems have notices that pop up only sometimes, tables to process row by row, pages to turn until the last one, optional parts that may fail without stopping the work, and reports that take a while to finish. In the MVP these went to Python scripts (ADR 0010), which lose the DSL's validation, step-by-step debugging, step replays and readability in review.</p>
+          <p>M7 on the roadmap is flow features; iframes, tabs opened by a click and uploads were done early (M7a–M7c), and downloads came with Python nodes. The DSL documentation has always said that retries apply only to steps without side effects.</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>Block steps.</strong> <code>if</code> (condition, then, else), <code>forEach</code> (items, as, steps), <code>repeat</code> (times/while/until, with max required for conditions) and <code>try</code> (steps, catch). A block is a step too: it has an id and can have onError; timeouts and tabs go on the steps inside.</li>
+            <li><strong>Conditions are written like expect.</strong> Element and page checks use the same fields as expect, plus <code>expression</code> (truthiness in the Jinja sandbox), <code>wait</code> (default 0: only look now) and <code>not</code>. A condition that does not hold is not a failure; an error while checking is, so a mistake never quietly takes the wrong branch.</li>
+            <li><strong>Variables and facts.</strong> The loop variable is named by <code>as</code>, with <code>loop</code> for the innermost loop; catch has <code>error</code>. Scopes are checked during validation. Facts inside loops are overwritten each round; only <code>append</code> collects them into a list.</li>
+            <li><strong>Error handling and retries.</strong> Any step can have <code>onError: continue</code>; <code>retry</code> is only for goto, waitFor, expect, extract and screenshot, so repeating a click or fill must be written out with if or try. A passed deadline and the record limit cannot be caught or continued.</li>
+            <li><strong>The independent checks still decide the result.</strong> When failures continued or were caught, reports, replays and validation results show a reminder without blocking publishing.</li>
+            <li><strong>Records follow the run and map by path.</strong> Top-level steps are listed from the start; steps inside blocks are inserted after their block when they run, with path, parent, iteration and similar fields. Replays, composite reports and step-by-step debugging all map to the scenario snapshot by path. Limits: 1,000 items or rounds per loop, 5 levels of nesting, 10,000 records per run.</li>
+            <li><strong>Tabs you open yourself.</strong> <code>openPage</code> (as, url) and <code>closePage</code> (page), sharing names with M7b's popup.</li>
+            <li><strong>Compatibility.</strong> All new fields are additions and <code>schemaVersion</code> stays 1; scenarios that use them carry the extension <code>flow</code>, so older recorders and Workers do not receive them.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>Common branches, row-by-row work, paging and optional steps stay in the DSL, still validated, debuggable and replayable; Python nodes remain the escape hatch.</li>
+            <li>Step records no longer match the scenario's steps one to one: readers must use path (older records without path map in order).</li>
+            <li>Step-by-step debugging must know which item a step inside a loop uses: the debug page lets you pick the current item, and error inside catch is a sample value.</li>
+            <li>Conditions and loops cannot be recorded and are written in YAML; the scenario editor has templates, and M5's AI can generate them later.</li>
+            <li>One run may have many records: step screenshots stay capped at 500, going over the record limit fails the run, and large amounts of data belong in batch runs (M7.3).</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>Alternatives not chosen</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>Alternative</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Write all flow in Python nodes</td><td>Loses the DSL's validation, step-by-step debugging and step replays; runtime mode cannot open a browser (ADR 0020).</td></tr>
+              <tr><td>Expand steps before the run with Jinja if and for</td><td>The page is not open yet when expanding, so it cannot react to what is on screen; the expanded steps no longer match the scenario file.</td></tr>
+              <tr><td>A when field on each step instead of if blocks</td><td>Branches of several steps would repeat the condition on each one; it can be added later as a shorthand for if.</td></tr>
+              <tr><td>Automatic retries for clicks too</td><td>Submitting a form twice creates two records, against “retry only steps without side effects”.</td></tr>
+              <tr><td>Facts inside loops turn into lists automatically</td><td>Single values would become lists too and invite mistakes; append makes collecting explicit.</td></tr>
+              <tr><td>Conditions, loops and parallel nodes in composite scenarios at the same time</td><td>That is flow between nodes (a separate question left from the M6 prototype) and awaits its own decision.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -108,6 +108,33 @@
           "default": null,
           "title": "Page"
         },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "action": {
           "const": "check",
           "title": "Action",
@@ -189,6 +216,33 @@
           "default": null,
           "title": "Page"
         },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "action": {
           "const": "click",
           "title": "Action",
@@ -255,6 +309,243 @@
         "target"
       ],
       "title": "ClickStep",
+      "type": "object"
+    },
+    "ClosePageStep": {
+      "additionalProperties": false,
+      "description": "關掉 ``page`` 指定的分頁（M7.1）；一開始的分頁不能關。",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 3600000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "action": {
+          "const": "closePage",
+          "title": "Action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "action"
+      ],
+      "title": "ClosePageStep",
+      "type": "object"
+    },
+    "Condition": {
+      "additionalProperties": false,
+      "description": "條件（M7.1）：``if`` 的 ``condition``、``repeat`` 的 ``while``／``until``。\n\n寫法沿用 ``expect``，差別是不成立不算失敗：\n\n- 有 ``target`` 時檢查元素：``state``、``text``、``value``、``count`` 其一；\n- 沒有 ``target`` 時檢查頁面：``url``、``title`` 其一；\n- 或 ``expression: '{{ … }}'``，結果是真值就成立（入參、事實、迴圈變數都能用）。\n\n``wait`` 是最多等多久讓條件成立（毫秒，預設 0 只看當下），成立就馬上結束；``not`` 反過來判斷。\n判斷本身出錯（例如 ``{{ }}`` 引用不存在的值）算失敗，不當成不成立。",
+      "properties": {
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Locator"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "state": {
+          "anyOf": [
+            {
+              "enum": [
+                "visible",
+                "hidden",
+                "attached",
+                "detached",
+                "enabled",
+                "disabled",
+                "checked",
+                "unchecked",
+                "editable"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "State"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Count"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "match": {
+          "default": "contains",
+          "enum": [
+            "contains",
+            "equals",
+            "regex"
+          ],
+          "title": "Match",
+          "type": "string"
+        },
+        "expression": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expression"
+        },
+        "wait": {
+          "default": 0,
+          "maximum": 3600000,
+          "minimum": 0,
+          "title": "Wait",
+          "type": "integer"
+        },
+        "not": {
+          "default": false,
+          "title": "Not",
+          "type": "boolean"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        }
+      },
+      "title": "Condition",
       "type": "object"
     },
     "Defaults": {
@@ -325,6 +616,33 @@
           ],
           "default": null,
           "title": "Page"
+        },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "action": {
           "const": "download",
@@ -407,6 +725,33 @@
           ],
           "default": null,
           "title": "Page"
+        },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "action": {
           "const": "expect",
@@ -614,6 +959,33 @@
           "default": null,
           "title": "Page"
         },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "action": {
           "const": "extract",
           "title": "Action",
@@ -671,6 +1043,18 @@
           ],
           "default": null,
           "title": "Fields"
+        },
+        "append": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Append"
         }
       },
       "required": [
@@ -729,6 +1113,33 @@
           "default": null,
           "title": "Page"
         },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "action": {
           "const": "fill",
           "title": "Action",
@@ -761,6 +1172,202 @@
         "value"
       ],
       "title": "FillStep",
+      "type": "object"
+    },
+    "ForEachStep": {
+      "additionalProperties": false,
+      "description": "對清單的每一項執行一次 ``steps``；空清單執行零次、照樣通過。",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 3600000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "action": {
+          "const": "forEach",
+          "title": "Action",
+          "type": "string"
+        },
+        "items": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "items": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "maxItems": 1000,
+              "type": "array"
+            }
+          ],
+          "title": "Items"
+        },
+        "as": {
+          "title": "As",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "check": "#/$defs/CheckStep",
+                "click": "#/$defs/ClickStep",
+                "closePage": "#/$defs/ClosePageStep",
+                "download": "#/$defs/DownloadStep",
+                "expect": "#/$defs/ExpectStep",
+                "extract": "#/$defs/ExtractStep",
+                "fill": "#/$defs/FillStep",
+                "forEach": "#/$defs/ForEachStep",
+                "goto": "#/$defs/GotoStep",
+                "if": "#/$defs/IfStep",
+                "openPage": "#/$defs/OpenPageStep",
+                "press": "#/$defs/PressStep",
+                "repeat": "#/$defs/RepeatStep",
+                "screenshot": "#/$defs/ScreenshotStep",
+                "select": "#/$defs/SelectStep",
+                "try": "#/$defs/TryStep",
+                "upload": "#/$defs/UploadStep",
+                "waitFor": "#/$defs/WaitForStep"
+              },
+              "propertyName": "action"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/GotoStep"
+              },
+              {
+                "$ref": "#/$defs/ClickStep"
+              },
+              {
+                "$ref": "#/$defs/FillStep"
+              },
+              {
+                "$ref": "#/$defs/SelectStep"
+              },
+              {
+                "$ref": "#/$defs/CheckStep"
+              },
+              {
+                "$ref": "#/$defs/PressStep"
+              },
+              {
+                "$ref": "#/$defs/WaitForStep"
+              },
+              {
+                "$ref": "#/$defs/ExpectStep"
+              },
+              {
+                "$ref": "#/$defs/ExtractStep"
+              },
+              {
+                "$ref": "#/$defs/ScreenshotStep"
+              },
+              {
+                "$ref": "#/$defs/UploadStep"
+              },
+              {
+                "$ref": "#/$defs/DownloadStep"
+              },
+              {
+                "$ref": "#/$defs/OpenPageStep"
+              },
+              {
+                "$ref": "#/$defs/ClosePageStep"
+              },
+              {
+                "$ref": "#/$defs/IfStep"
+              },
+              {
+                "$ref": "#/$defs/ForEachStep"
+              },
+              {
+                "$ref": "#/$defs/RepeatStep"
+              },
+              {
+                "$ref": "#/$defs/TryStep"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "action",
+        "items",
+        "as",
+        "steps"
+      ],
+      "title": "ForEachStep",
       "type": "object"
     },
     "GotoStep": {
@@ -810,6 +1417,33 @@
           "default": null,
           "title": "Page"
         },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "action": {
           "const": "goto",
           "title": "Action",
@@ -838,6 +1472,278 @@
         "url"
       ],
       "title": "GotoStep",
+      "type": "object"
+    },
+    "IfStep": {
+      "additionalProperties": false,
+      "description": "條件成立走 ``then``，不成立走 ``else``（可省略）。",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 3600000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "action": {
+          "const": "if",
+          "title": "Action",
+          "type": "string"
+        },
+        "condition": {
+          "$ref": "#/$defs/Condition"
+        },
+        "then": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "check": "#/$defs/CheckStep",
+                "click": "#/$defs/ClickStep",
+                "closePage": "#/$defs/ClosePageStep",
+                "download": "#/$defs/DownloadStep",
+                "expect": "#/$defs/ExpectStep",
+                "extract": "#/$defs/ExtractStep",
+                "fill": "#/$defs/FillStep",
+                "forEach": "#/$defs/ForEachStep",
+                "goto": "#/$defs/GotoStep",
+                "if": "#/$defs/IfStep",
+                "openPage": "#/$defs/OpenPageStep",
+                "press": "#/$defs/PressStep",
+                "repeat": "#/$defs/RepeatStep",
+                "screenshot": "#/$defs/ScreenshotStep",
+                "select": "#/$defs/SelectStep",
+                "try": "#/$defs/TryStep",
+                "upload": "#/$defs/UploadStep",
+                "waitFor": "#/$defs/WaitForStep"
+              },
+              "propertyName": "action"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/GotoStep"
+              },
+              {
+                "$ref": "#/$defs/ClickStep"
+              },
+              {
+                "$ref": "#/$defs/FillStep"
+              },
+              {
+                "$ref": "#/$defs/SelectStep"
+              },
+              {
+                "$ref": "#/$defs/CheckStep"
+              },
+              {
+                "$ref": "#/$defs/PressStep"
+              },
+              {
+                "$ref": "#/$defs/WaitForStep"
+              },
+              {
+                "$ref": "#/$defs/ExpectStep"
+              },
+              {
+                "$ref": "#/$defs/ExtractStep"
+              },
+              {
+                "$ref": "#/$defs/ScreenshotStep"
+              },
+              {
+                "$ref": "#/$defs/UploadStep"
+              },
+              {
+                "$ref": "#/$defs/DownloadStep"
+              },
+              {
+                "$ref": "#/$defs/OpenPageStep"
+              },
+              {
+                "$ref": "#/$defs/ClosePageStep"
+              },
+              {
+                "$ref": "#/$defs/IfStep"
+              },
+              {
+                "$ref": "#/$defs/ForEachStep"
+              },
+              {
+                "$ref": "#/$defs/RepeatStep"
+              },
+              {
+                "$ref": "#/$defs/TryStep"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Then",
+          "type": "array"
+        },
+        "else": {
+          "anyOf": [
+            {
+              "items": {
+                "discriminator": {
+                  "mapping": {
+                    "check": "#/$defs/CheckStep",
+                    "click": "#/$defs/ClickStep",
+                    "closePage": "#/$defs/ClosePageStep",
+                    "download": "#/$defs/DownloadStep",
+                    "expect": "#/$defs/ExpectStep",
+                    "extract": "#/$defs/ExtractStep",
+                    "fill": "#/$defs/FillStep",
+                    "forEach": "#/$defs/ForEachStep",
+                    "goto": "#/$defs/GotoStep",
+                    "if": "#/$defs/IfStep",
+                    "openPage": "#/$defs/OpenPageStep",
+                    "press": "#/$defs/PressStep",
+                    "repeat": "#/$defs/RepeatStep",
+                    "screenshot": "#/$defs/ScreenshotStep",
+                    "select": "#/$defs/SelectStep",
+                    "try": "#/$defs/TryStep",
+                    "upload": "#/$defs/UploadStep",
+                    "waitFor": "#/$defs/WaitForStep"
+                  },
+                  "propertyName": "action"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/GotoStep"
+                  },
+                  {
+                    "$ref": "#/$defs/ClickStep"
+                  },
+                  {
+                    "$ref": "#/$defs/FillStep"
+                  },
+                  {
+                    "$ref": "#/$defs/SelectStep"
+                  },
+                  {
+                    "$ref": "#/$defs/CheckStep"
+                  },
+                  {
+                    "$ref": "#/$defs/PressStep"
+                  },
+                  {
+                    "$ref": "#/$defs/WaitForStep"
+                  },
+                  {
+                    "$ref": "#/$defs/ExpectStep"
+                  },
+                  {
+                    "$ref": "#/$defs/ExtractStep"
+                  },
+                  {
+                    "$ref": "#/$defs/ScreenshotStep"
+                  },
+                  {
+                    "$ref": "#/$defs/UploadStep"
+                  },
+                  {
+                    "$ref": "#/$defs/DownloadStep"
+                  },
+                  {
+                    "$ref": "#/$defs/OpenPageStep"
+                  },
+                  {
+                    "$ref": "#/$defs/ClosePageStep"
+                  },
+                  {
+                    "$ref": "#/$defs/IfStep"
+                  },
+                  {
+                    "$ref": "#/$defs/ForEachStep"
+                  },
+                  {
+                    "$ref": "#/$defs/RepeatStep"
+                  },
+                  {
+                    "$ref": "#/$defs/TryStep"
+                  }
+                ]
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Else"
+        }
+      },
+      "required": [
+        "id",
+        "action",
+        "condition",
+        "then"
+      ],
+      "title": "IfStep",
       "type": "object"
     },
     "InputSpec": {
@@ -998,6 +1904,7 @@
       "title": "InputSpec",
       "type": "object"
     },
+    "JsonValue": {},
     "Locator": {
       "additionalProperties": false,
       "description": "頁面元素的定位器。\n\n範例::\n\n    { role: button, name: 登入 }\n    { label: 密碼 }\n    { css: \"tr\", hasText: 訂單 123, within: { role: table, name: 訂單 } }\n    { label: 密碼, frame: { css: \"#login\" } }\n    { role: checkbox, name: 我已確認, anyFrame: true }",
@@ -1321,6 +2228,122 @@
       "title": "LoginConfig",
       "type": "object"
     },
+    "OpenPageStep": {
+      "additionalProperties": false,
+      "description": "自己開一個新分頁（M7.1）：同一個瀏覽器工作階段（同一個登入狀態），取個名稱。",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 3600000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "action": {
+          "const": "openPage",
+          "title": "Action",
+          "type": "string"
+        },
+        "as": {
+          "title": "As",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "waitUntil": {
+          "default": "load",
+          "enum": [
+            "load",
+            "domcontentloaded",
+            "networkidle",
+            "commit"
+          ],
+          "title": "Waituntil",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "action",
+        "as"
+      ],
+      "title": "OpenPageStep",
+      "type": "object"
+    },
     "OutputSpec": {
       "additionalProperties": false,
       "description": "一個出參：自動化與獨立斷言都通過之後才發布，可以串到下游場景的入參。",
@@ -1493,6 +2516,33 @@
           "default": null,
           "title": "Page"
         },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "action": {
           "const": "press",
           "title": "Action",
@@ -1533,6 +2583,254 @@
         "key"
       ],
       "title": "PressStep",
+      "type": "object"
+    },
+    "RepeatStep": {
+      "additionalProperties": false,
+      "description": "重複執行 ``steps``：``times`` 固定次數、``while`` 每輪之前判斷、``until`` 每輪之後判斷。",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 3600000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "action": {
+          "const": "repeat",
+          "title": "Action",
+          "type": "string"
+        },
+        "times": {
+          "anyOf": [
+            {
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Times"
+        },
+        "while": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "until": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "max": {
+          "anyOf": [
+            {
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        },
+        "steps": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "check": "#/$defs/CheckStep",
+                "click": "#/$defs/ClickStep",
+                "closePage": "#/$defs/ClosePageStep",
+                "download": "#/$defs/DownloadStep",
+                "expect": "#/$defs/ExpectStep",
+                "extract": "#/$defs/ExtractStep",
+                "fill": "#/$defs/FillStep",
+                "forEach": "#/$defs/ForEachStep",
+                "goto": "#/$defs/GotoStep",
+                "if": "#/$defs/IfStep",
+                "openPage": "#/$defs/OpenPageStep",
+                "press": "#/$defs/PressStep",
+                "repeat": "#/$defs/RepeatStep",
+                "screenshot": "#/$defs/ScreenshotStep",
+                "select": "#/$defs/SelectStep",
+                "try": "#/$defs/TryStep",
+                "upload": "#/$defs/UploadStep",
+                "waitFor": "#/$defs/WaitForStep"
+              },
+              "propertyName": "action"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/GotoStep"
+              },
+              {
+                "$ref": "#/$defs/ClickStep"
+              },
+              {
+                "$ref": "#/$defs/FillStep"
+              },
+              {
+                "$ref": "#/$defs/SelectStep"
+              },
+              {
+                "$ref": "#/$defs/CheckStep"
+              },
+              {
+                "$ref": "#/$defs/PressStep"
+              },
+              {
+                "$ref": "#/$defs/WaitForStep"
+              },
+              {
+                "$ref": "#/$defs/ExpectStep"
+              },
+              {
+                "$ref": "#/$defs/ExtractStep"
+              },
+              {
+                "$ref": "#/$defs/ScreenshotStep"
+              },
+              {
+                "$ref": "#/$defs/UploadStep"
+              },
+              {
+                "$ref": "#/$defs/DownloadStep"
+              },
+              {
+                "$ref": "#/$defs/OpenPageStep"
+              },
+              {
+                "$ref": "#/$defs/ClosePageStep"
+              },
+              {
+                "$ref": "#/$defs/IfStep"
+              },
+              {
+                "$ref": "#/$defs/ForEachStep"
+              },
+              {
+                "$ref": "#/$defs/RepeatStep"
+              },
+              {
+                "$ref": "#/$defs/TryStep"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "action",
+        "steps"
+      ],
+      "title": "RepeatStep",
+      "type": "object"
+    },
+    "Retry": {
+      "additionalProperties": false,
+      "description": "失敗時再試（M7.1）：只用於沒有副作用的動作（:data:`RETRYABLE_ACTIONS`）。",
+      "properties": {
+        "times": {
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Times",
+          "type": "integer"
+        },
+        "delay": {
+          "default": 1000,
+          "maximum": 60000,
+          "minimum": 0,
+          "title": "Delay",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "times"
+      ],
+      "title": "Retry",
       "type": "object"
     },
     "ScreenshotStep": {
@@ -1581,6 +2879,33 @@
           ],
           "default": null,
           "title": "Page"
+        },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "action": {
           "const": "screenshot",
@@ -1747,6 +3072,33 @@
           "default": null,
           "title": "Page"
         },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "action": {
           "const": "select",
           "title": "Action",
@@ -1790,6 +3142,267 @@
         "option"
       ],
       "title": "SelectStep",
+      "type": "object"
+    },
+    "TryStep": {
+      "additionalProperties": false,
+      "description": "執行 ``steps``；其中一步失敗就停下、改走 ``catch``，之後繼續後面的步驟。\n\n``catch`` 裡可以用 ``{{ error.step }}``、``{{ error.message }}``。總期限到了、取消不會進 catch。",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "timeout": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "maximum": 3600000,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeout"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "action": {
+          "const": "try",
+          "title": "Action",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "check": "#/$defs/CheckStep",
+                "click": "#/$defs/ClickStep",
+                "closePage": "#/$defs/ClosePageStep",
+                "download": "#/$defs/DownloadStep",
+                "expect": "#/$defs/ExpectStep",
+                "extract": "#/$defs/ExtractStep",
+                "fill": "#/$defs/FillStep",
+                "forEach": "#/$defs/ForEachStep",
+                "goto": "#/$defs/GotoStep",
+                "if": "#/$defs/IfStep",
+                "openPage": "#/$defs/OpenPageStep",
+                "press": "#/$defs/PressStep",
+                "repeat": "#/$defs/RepeatStep",
+                "screenshot": "#/$defs/ScreenshotStep",
+                "select": "#/$defs/SelectStep",
+                "try": "#/$defs/TryStep",
+                "upload": "#/$defs/UploadStep",
+                "waitFor": "#/$defs/WaitForStep"
+              },
+              "propertyName": "action"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/GotoStep"
+              },
+              {
+                "$ref": "#/$defs/ClickStep"
+              },
+              {
+                "$ref": "#/$defs/FillStep"
+              },
+              {
+                "$ref": "#/$defs/SelectStep"
+              },
+              {
+                "$ref": "#/$defs/CheckStep"
+              },
+              {
+                "$ref": "#/$defs/PressStep"
+              },
+              {
+                "$ref": "#/$defs/WaitForStep"
+              },
+              {
+                "$ref": "#/$defs/ExpectStep"
+              },
+              {
+                "$ref": "#/$defs/ExtractStep"
+              },
+              {
+                "$ref": "#/$defs/ScreenshotStep"
+              },
+              {
+                "$ref": "#/$defs/UploadStep"
+              },
+              {
+                "$ref": "#/$defs/DownloadStep"
+              },
+              {
+                "$ref": "#/$defs/OpenPageStep"
+              },
+              {
+                "$ref": "#/$defs/ClosePageStep"
+              },
+              {
+                "$ref": "#/$defs/IfStep"
+              },
+              {
+                "$ref": "#/$defs/ForEachStep"
+              },
+              {
+                "$ref": "#/$defs/RepeatStep"
+              },
+              {
+                "$ref": "#/$defs/TryStep"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Steps",
+          "type": "array"
+        },
+        "catch": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "check": "#/$defs/CheckStep",
+                "click": "#/$defs/ClickStep",
+                "closePage": "#/$defs/ClosePageStep",
+                "download": "#/$defs/DownloadStep",
+                "expect": "#/$defs/ExpectStep",
+                "extract": "#/$defs/ExtractStep",
+                "fill": "#/$defs/FillStep",
+                "forEach": "#/$defs/ForEachStep",
+                "goto": "#/$defs/GotoStep",
+                "if": "#/$defs/IfStep",
+                "openPage": "#/$defs/OpenPageStep",
+                "press": "#/$defs/PressStep",
+                "repeat": "#/$defs/RepeatStep",
+                "screenshot": "#/$defs/ScreenshotStep",
+                "select": "#/$defs/SelectStep",
+                "try": "#/$defs/TryStep",
+                "upload": "#/$defs/UploadStep",
+                "waitFor": "#/$defs/WaitForStep"
+              },
+              "propertyName": "action"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/GotoStep"
+              },
+              {
+                "$ref": "#/$defs/ClickStep"
+              },
+              {
+                "$ref": "#/$defs/FillStep"
+              },
+              {
+                "$ref": "#/$defs/SelectStep"
+              },
+              {
+                "$ref": "#/$defs/CheckStep"
+              },
+              {
+                "$ref": "#/$defs/PressStep"
+              },
+              {
+                "$ref": "#/$defs/WaitForStep"
+              },
+              {
+                "$ref": "#/$defs/ExpectStep"
+              },
+              {
+                "$ref": "#/$defs/ExtractStep"
+              },
+              {
+                "$ref": "#/$defs/ScreenshotStep"
+              },
+              {
+                "$ref": "#/$defs/UploadStep"
+              },
+              {
+                "$ref": "#/$defs/DownloadStep"
+              },
+              {
+                "$ref": "#/$defs/OpenPageStep"
+              },
+              {
+                "$ref": "#/$defs/ClosePageStep"
+              },
+              {
+                "$ref": "#/$defs/IfStep"
+              },
+              {
+                "$ref": "#/$defs/ForEachStep"
+              },
+              {
+                "$ref": "#/$defs/RepeatStep"
+              },
+              {
+                "$ref": "#/$defs/TryStep"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Catch",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "action",
+        "steps",
+        "catch"
+      ],
+      "title": "TryStep",
       "type": "object"
     },
     "UploadStep": {
@@ -1838,6 +3451,33 @@
           ],
           "default": null,
           "title": "Page"
+        },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "action": {
           "const": "upload",
@@ -2050,6 +3690,33 @@
           "default": null,
           "title": "Page"
         },
+        "onError": {
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "continue"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Onerror"
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Retry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "action": {
           "const": "waitFor",
           "title": "Action",
@@ -2229,14 +3896,20 @@
               "mapping": {
                 "check": "#/$defs/CheckStep",
                 "click": "#/$defs/ClickStep",
+                "closePage": "#/$defs/ClosePageStep",
                 "download": "#/$defs/DownloadStep",
                 "expect": "#/$defs/ExpectStep",
                 "extract": "#/$defs/ExtractStep",
                 "fill": "#/$defs/FillStep",
+                "forEach": "#/$defs/ForEachStep",
                 "goto": "#/$defs/GotoStep",
+                "if": "#/$defs/IfStep",
+                "openPage": "#/$defs/OpenPageStep",
                 "press": "#/$defs/PressStep",
+                "repeat": "#/$defs/RepeatStep",
                 "screenshot": "#/$defs/ScreenshotStep",
                 "select": "#/$defs/SelectStep",
+                "try": "#/$defs/TryStep",
                 "upload": "#/$defs/UploadStep",
                 "waitFor": "#/$defs/WaitForStep"
               },
@@ -2278,6 +3951,24 @@
               },
               {
                 "$ref": "#/$defs/DownloadStep"
+              },
+              {
+                "$ref": "#/$defs/OpenPageStep"
+              },
+              {
+                "$ref": "#/$defs/ClosePageStep"
+              },
+              {
+                "$ref": "#/$defs/IfStep"
+              },
+              {
+                "$ref": "#/$defs/ForEachStep"
+              },
+              {
+                "$ref": "#/$defs/RepeatStep"
+              },
+              {
+                "$ref": "#/$defs/TryStep"
               }
             ]
           },

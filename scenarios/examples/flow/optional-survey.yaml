@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=../../../schema/scenario.v1.json
+#
+# 錯誤處理（M7.1）：問卷是選填的，打不開也要繼續。try 裡其中一步失敗就停下、改走 catch，
+# catch 裡可以用 {{ error.step }}、{{ error.message }}；之後照常執行後面的步驟。
+# onError: continue 是單一步驟的簡寫：失敗照樣記下，接著執行下一步。
+
+schemaVersion: 1
+id: flow-optional-survey
+name: 選填問卷失敗也繼續
+category: 範例
+description: 試著填問卷（測試網站的問卷打不開），失敗時截圖並記下是哪一步，接著新增紀錄。
+
+outputs:
+  recordId:
+    type: string
+    from: '{{ facts.recordId }}'
+
+browser:
+  baseUrl: http://127.0.0.1:8765
+
+defaults:
+  timeout: 3000
+deadline: 45000
+
+steps:
+  - id: open
+    action: goto
+    url: /flow?notice=0&survey=1
+
+  - id: survey
+    name: 試著填問卷
+    action: try
+    steps:
+      - id: open-survey
+        action: click
+        target: { role: link, name: 填寫滿意度問卷 }
+      - id: submit-survey
+        action: click
+        target: { role: button, name: 送出問卷 }
+    catch:
+      - id: survey-failed
+        name: 問卷打不開，截圖留存
+        action: screenshot
+        file: survey-failed
+
+  - id: optional-tip
+    name: 有提示就讀（沒有也繼續）
+    action: extract
+    target: { testId: tip }
+    as: tip
+    timeout: 500
+    onError: continue
+
+  - id: fill-title
+    action: fill
+    target: { label: 標題 }
+    value: 問卷之後的紀錄
+
+  - id: add
+    action: click
+    target: { role: button, name: 新增 }
+
+  - id: read-id
+    action: extract
+    target: { testId: last-id }
+    as: recordId
+
+verify:
+  - name: 新增成功，拿到編號
+    value: '{{ facts.recordId }}'
+    matches: '^F-\d{3}$'

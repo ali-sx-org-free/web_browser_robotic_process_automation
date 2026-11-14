@@ -293,10 +293,13 @@ steps:
             <dt><code>action</code></dt><dd>必填，动作名称，见下方动作表。</dd>
             <dt><code>name</code></dt><dd>给人看的步骤说明。</dd>
             <dt><code>timeout</code></dt><dd>这一步的超时，<strong>毫秒整数</strong>，大于 0、最多 3,600,000（一小时）。没写就用 <code>defaults.timeout</code>；不会超过总期限剩下的时间。</dd>
-            <dt id="tabs"><code>page</code></dt><dd>在哪个分页运行（M7b）：前面某一步用 <code>popup</code> 开出来的分页名称；没写是一开始的分页。名称要在「之前」的步骤开过，不然校验时指出这一步。</dd>
+            <dt id="tabs"><code>page</code></dt><dd>在哪个分页运行（M7b）：前面某一步用 <code>popup</code> 或 <code>openPage</code>（M7.1）开出来的分页名称；没写是一开始的分页。名称要在「之前」的步骤开过，不然校验时指出这一步；最外层的 <code>closePage</code> 关掉之后不能再用。</dd>
             <dt><code>popup</code></dt><dd>只有 click、fill、select、check、press 可以写（M7b）：这一步会开出新分页（弹出窗口，例如链接的 <code>target="_blank"</code> 或 <code>window.open</code>），运行时等它开好并取这个名称，之后的步骤用 <code>page</code> 指定它；同一个名称只能开一次。没有开出新分页时这一步超时失败。例如 <code>{ action: click, target: { role: link, name: 打开商品明细 }, popup: items }</code>，之后 <code>{ action: fill, page: items, target: { placeholder: 请选择 }, value: … }</code>。</dd>
           </dl>
-          <p class="muted">retry 与 onError 在 M7 加入；重试只用于没有副作用的步骤，送出表单之类的动作不会自动重试。</p>
+          <dl class="spec-list">
+            <dt id="on-error"><code>onError</code></dt><dd>这一步失败时（M7.1）：<code>stop</code>（默认）整次运行停下；<code>continue</code> 记下失败、接着运行下一步。任何步骤（含<a href="#flow">区块</a>）都能写。总期限到了不能继续。结果仍由独立断言决定，报告与回看把这一步标黄色。</dd>
+            <dt id="retry"><code>retry</code></dt><dd>失败时再试（M7.1）：<code>{ times: 1～5, delay: 毫秒（默认 1000） }</code>。<strong>只能写在没有副作用的动作</strong>：goto、waitFor、expect、extract、screenshot；点击、填写、选择、勾选、按键、上传、下载、开关分页与区块都不行（送出表单重复两次会重复建单）。每次尝试各有这一步的超时，全部在总期限内；前几次的错误记在这一步的提醒。要「点了没反应就再点」，用 <a href="#flow">if 或 try</a> 明确写出来。</dd>
+          </dl>
         </div>
       </section>
 
@@ -362,18 +365,80 @@ steps:
             <tr><td><code>extract</code></td><td>抽取页面事实</td><td><strong>target</strong>、<strong>as</strong>、get、attribute、multiple、fields</td><td>见下方说明</td></tr>
             <tr><td><code>upload</code></td><td>把文件交给网页（M7c）</td><td><strong>files</strong>，加上 target、trigger、dropzone 恰好一种</td><td>files 引用 <code>type: file</code> 的入参；见下方<a href="#upload">上传文件</a></td></tr>
             <tr><td><code>screenshot</code></td><td>截图存为产物</td><td>file、target、fullPage</td><td>file 是不含扩展名的文件名，没写就用步骤 id；fullPage 不能搭配 target</td></tr>
+            <tr><td><code>download</code></td><td>点击并等待下载（ADR 0020）</td><td><strong>target</strong>、<strong>as</strong>、fileName</td><td>见 <a href="#files-between-nodes">节点之间传文件</a></td></tr>
+            <tr><td><code>openPage</code></td><td>自己开一个新分页（M7.1）</td><td><strong>as</strong>、url、waitUntil</td><td>同一个浏览器工作阶段（同一个登录状态）；as 是分页名称，和 popup 共用；url 规则同 goto；不能写 page</td></tr>
+            <tr><td><code>closePage</code></td><td>关掉分页（M7.1）</td><td><strong>page</strong></td><td>一开始的分页不能关；循环里关掉后可以用同一个名称再开</td></tr>
+            <tr><td><code>if</code>、<code>forEach</code>、<code>repeat</code>、<code>try</code></td><td>区块步骤（M7.1）</td><td>见<a href="#flow">流程控制</a></td><td>里面再放步骤</td></tr>
           </tbody>
         </table>
       </div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt>extract 的 as</dt><dd>存成页面事实 <code>facts.名称</code>；同一个场景内不能重复。</dd>
+          <dt>extract 的 as</dt><dd>存成页面事实 <code>facts.名称</code>；同一个场景内不能重复，除非每一步都写了 append。</dd>
+          <dt>extract 的 append</dt><dd><code>true</code>：每次运行把结果加到事实的清单尾端（M7.1，循环里累积）；结果本身是清单（multiple、table）时摊平加入。好几步可以写同一个 as，条件是它们都写了 append。</dd>
           <dt>extract 的 get</dt><dd><code>text</code>（默认）、<code>value</code>、<code>html</code>、<code>attribute</code>（要用 <code>attribute</code> 指定属性名称）、<code>table</code>（把 &lt;table&gt; 依表头转成记录列表）。</dd>
           <dt>extract 的 multiple</dt><dd>抽取所有符合的元素，得到列表；默认只取第一个。</dd>
           <dt>extract 的 fields</dt><dd>每个元素抽成一笔记录，键是字段名称，值可写 target（相对于该元素）、get、attribute。有 fields 时不写外层的 get。</dd>
         </dl>
       </div>
-      <div class="diagram-caption">expect 是步骤内的防护，verify 才决定是否发布出参。download、条件与循环等在 M7 加入；upload 提前到 M7c（<a href="#upload">上传文件</a>）；iframe 用定位器的 <a href="#locators">frame</a>（M7a），新分页用步骤的 <a href="#tabs">popup 与 page</a>（M7b）。</div>
+      <div class="diagram-caption">expect 是步骤内的防护，verify 才决定是否发布出参。iframe 用定位器的 <a href="#locators">frame</a>（M7a），新分页用步骤的 <a href="#tabs">popup 与 page</a>（M7b），上传见<a href="#upload">上传文件</a>（M7c），条件、循环、错误处理与自己开的分页见<a href="#flow">流程控制</a>（M7.1）。</div>
+    </section>
+
+    <section class="panel" id="flow">
+      <div class="panel-header"><h2>流程控制</h2><span class="muted">M7.1，ADR 0021</span></div>
+      <div class="panel-body">
+        <p>区块步骤里面再放步骤，让场景不只从头到尾直线运行。区块也是步骤：有 id、name，可以写 <a href="#on-error">onError</a>；不能写 timeout、page（写在里面的步骤），也不能 retry。步骤 id 在整个场景（含区块里的步骤）唯一。</p>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>区块</th><th>做什么</th><th>字段</th></tr></thead>
+          <tbody>
+            <tr><td><code>if</code></td><td>条件成立走 then，不成立走 else（可省略）</td><td><strong>condition</strong>、<strong>then</strong>、else</td></tr>
+            <tr><td><code>forEach</code></td><td>对清单的每一项运行一次 steps；空清单运行零次、照样通过</td><td><strong>items</strong>（一个 <code>{{ }}</code>，求值后要是清单，例如 array 入参、extract 的 multiple 或 table；或直接写清单）、<strong>as</strong>（循环变量）、<strong>steps</strong></td></tr>
+            <tr><td><code>repeat</code></td><td>重复运行 steps：times 固定次数；while 每轮之前判断，成立才运行；until 每轮之后判断，成立就停</td><td>times、while、until 恰好一种；用 while／until 时 <strong>max</strong> 必填（最多几轮，到了还没结束算失败）；<strong>steps</strong></td></tr>
+            <tr><td><code>try</code></td><td>运行 steps；其中一步失败就停下、改走 catch，之后继续后面的步骤。catch 也失败时整次运行失败；总期限到了、取消不会进 catch</td><td><strong>steps</strong>、<strong>catch</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt id="condition">条件</dt><dd>if 的 <code>condition</code>、repeat 的 <code>while</code>／<code>until</code>，写法沿用 <a href="#actions">expect</a>，差别是不成立不算失败：有 <code>target</code> 时检查元素的 <code>state</code>（visible、hidden、attached、detached、enabled、disabled、checked、unchecked、editable）、<code>text</code>、<code>value</code>、<code>count</code> 其一；没有 target 时检查 <code>url</code> 或 <code>title</code>；<code>match</code> 同字符串匹配。或写 <code>expression: '{{ … }}'</code>，结果是真值就成立（入参、事实、循环变量都能用；不能再写其他字段）。<code>wait</code> 是最多等多久让条件成立（毫秒，默认 0 只看当下），成立就马上结束；<code>not: true</code> 反过来判断；<code>page</code> 指定在哪个分页判断。visible／hidden 看前 20 个符合的元素有没有看得见的；其他状态与文字看第一个。<strong>判断本身出错</strong>（例如 <code>{{ }}</code> 用到没有值的事实）算这个区块失败，不当成不成立。</dd>
+          <dt>循环变量</dt><dd>forEach 的 <code>as: order</code> 之后，循环里用 <code>{{ order.title }}</code>；另有最内层循环的 <code>{{ loop.index }}</code>（从 1 起）、<code>loop.count</code>（repeat 的 while／until 没有）、<code>loop.first</code>、<code>loop.last</code>。repeat 也有 loop。catch 里有 <code>{{ error.step }}</code>（失败那一步的 id）与 <code>{{ error.message }}</code>。名称不能用 inputs、secrets、facts、env、loop、error，也不能和外层的循环变量相同；只能在那个循环（catch）里用，校验时就会检查。</dd>
+          <dt>事实</dt><dd>循环里 extract 的事实每一轮覆盖，结束后是最后一轮的值；要累积就写 <a href="#actions">append</a>。分支与循环里产生的事实，之后的步骤可以用（校验依场景文件的顺序），但运行时真的没有值（例如那个分支没走到）就在用到它的那一步失败。</dd>
+          <dt>上限</dt><dd>forEach 最多 1,000 项，repeat 的 times 与 max 最多 1,000，区块最多嵌套 5 层，一次运行最多 10,000 笔步骤记录（超过算失败，onError 与 try 也接不住）；每一轮都受总期限限制。更多笔数据请用批量运行（M7.3）。</dd>
+          <dt>记录、日志与回看</dt><dd>steps.json 依运行顺序：最外层的步骤一开始就列出，区块里的步骤运行到才添加，紧接在区块后面；每笔多了 <code>path</code>（在场景文件的位置）、<code>parent</code>（外层区块是第几笔）、<code>iteration</code>（第几轮）、<code>attempts</code>、<code>handled</code>（<code>continued</code>、<code>caught</code>）、<code>condition</code>、<code>branch</code>、<code>iterations</code>、<code>caught</code>。automation.log 在区块开始与结束各写一行，里面的步骤缩进并标出第几轮；报告与回看依层缩进，失败后继续与被接住的失败标黄色。</dd>
+          <dt>兼容性</dt><dd>用到流程控制（区块、openPage／closePage、onError、retry、<code>append: true</code>）的场景有扩充 <code>flow</code>，0.8.x 以前的录制端与 Worker 不会领到；没用到的场景哈希与结果都不变。</dd>
+        </dl>
+<pre class="source">  - id: close-notice
+    action: if
+    condition: { target: { role: dialog, name: 系统公告 }, state: visible, wait: 2000 }
+    then:
+      - { id: close, action: click, target: { role: button, name: 关闭 } }
+  - id: each-order
+    action: forEach
+    items: '{{ inputs.orders }}'
+    as: order
+    steps:
+      - { id: fill-title, action: fill, target: { label: 标题 }, value: '{{ order.title }}' }
+      - { id: add, action: click, target: { role: button, name: 添加 } }
+      - { id: read-id, action: extract, target: { testId: last-id }, as: recordIds, append: true }
+  - id: next-pages
+    action: repeat
+    while: { target: { role: button, name: 下一页 }, state: enabled }
+    max: 20
+    steps:
+      - { id: next, action: click, target: { role: button, name: 下一页 } }
+  - id: optional-survey
+    action: try
+    steps:
+      - { id: open-survey, action: click, target: { role: link, name: 填写问卷 } }
+    catch:
+      - { id: survey-failed, action: screenshot }
+  - { id: open-report, action: openPage, as: report, url: '/reports?month={{ inputs.month }}' }
+  - { id: read-total, action: extract, page: report, target: { testId: total }, as: total, retry: { times: 2 } }
+  - { id: close-report, action: closePage, page: report }</pre>
+        <p class="muted">完整可运行的示例在 <code>scenarios/examples/flow/</code>（搭配本机测试网站的 <code>/flow</code>）。录制录不出条件与循环：先录成直线的草稿，再把需要的部分包进区块；Portal 的场景编辑页有「插入流程模板」。录制稿的 <code>page1 = context.new_page()</code> 转成 openPage，新分页的 <code>close()</code> 转成 closePage。</p>
+      </div>
     </section>
 
     <div class="two-col">
@@ -396,7 +461,7 @@ steps:
         <div class="panel-header"><h2>表达式 <code>{{ }}</code></h2><span class="muted">Jinja2；M2 在沙箱内求值</span></div>
         <div class="panel-body">
           <ul class="points">
-            <li><strong>可用的变量</strong>只有 <code>inputs</code>、<code>secrets</code>、<code>facts</code>、<code>env</code>；可以用 Jinja2 的过滤器，例如 <code>{{ inputs.title | upper }}</code>。</li>
+            <li><strong>可用的变量</strong>只有 <code>inputs</code>、<code>secrets</code>、<code>facts</code>、<code>env</code>；循环里多了循环变量与 <code>loop</code>，catch 里多了 <code>error</code>（<a href="#flow">流程控制</a>）。可以用 Jinja2 的过滤器，例如 <code>{{ inputs.title | upper }}</code>。</li>
             <li><strong>校验时就会检查</strong>语法、未知的变量与过滤器、没有声明的 inputs 与 secrets、没有 extract 产生或还没产生的 facts。</li>
             <li><strong>facts 不能用在 browser 设置</strong>，因为那时还没开始操作页面。</li>
             <li><strong>today、now、random 是入参值的<a href="#dynamic">动态值</a></strong>，不是这里的变量；写在步骤里时校验会提示改写在入参。</li>

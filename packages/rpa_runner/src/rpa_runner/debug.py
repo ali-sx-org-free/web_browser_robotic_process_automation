@@ -12,7 +12,10 @@
 標準輸入一行一個 JSON 命令，標準輸出一行一個 JSON 回覆（帶著命令的 id）：
 
 - ``{"cmd": "step", "index": 2}``：執行第 3 步（``{{ }}`` 以入參、Secrets 與目前的 facts 代入），
-  回覆步驟紀錄、目前網址、標題、截圖檔名與 facts。
+  回覆步驟紀錄、目前網址、標題、截圖檔名與 facts。區塊步驟（M7.1）整塊執行，``records`` 是區塊
+  與裡面每一步的紀錄。``{"cmd": "step", "path": ["steps", 2, "steps", 0], "choices": {…}}``
+  單獨執行區塊裡的一步：外層迴圈的變數用「目前這一項」，``choices`` 是迴圈的路徑（以 ``/`` 相接，
+  例如 ``steps/2``）→ 第幾項（從 0 起），沒寫是第一項；catch 裡的 ``error`` 是示範值。
 - ``{"cmd": "locate", "locator": {…}}``：測試定位器：找到幾個、前幾個的文字，截圖時框出來。
 - ``{"cmd": "screenshot"}``：目前頁面的截圖。
 - ``{"cmd": "snapshot", "within": {…}}``：目前頁面的結構（M14，給 Agent 寫定位器）：無障礙樹
@@ -39,7 +42,7 @@ import json
 import os
 import sys
 import tempfile
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Final, cast
 
@@ -48,13 +51,15 @@ from pydantic import ValidationError
 
 from rpa_core.dsl import Locator, Scenario, ValidationResult, validate_file, validate_text
 from rpa_core.dsl.issues import Issue, format_issue
+from rpa_core.dsl.steps import ForEachStep, RepeatStep, Step, StepPath, TryStep, branches
 from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, parse_locale, set_locale
-from rpa_runner.browser import Deadline, Tabs, resolve, run_step
+from rpa_runner.browser import Deadline, StepRecord, Tabs, resolve, run_step
 from rpa_runner.contexts import Engine, open_context
 from rpa_runner.contract import check_inputs
 from rpa_runner.i18n import t
 from rpa_runner.inputfiles import given_files, remove_staging, session_files
 from rpa_runner.secrets import MASK, mask, read_secrets
+from rpa_runner.templates import render_native
 
 __all__ = [
     "COMMAND_SECONDS",
@@ -335,27 +340,95 @@ class _Session:
 
     # ------------------------------------------------------------ 命令
 
-    def step(self, index: int) -> dict[str, object]:
-        steps = self.scenario.steps or []
-        if not 0 <= index < len(steps):
-            raise IndexError(index)
+    def _context(self) -> dict[str, object]:
+        return {"inputs": self.inputs, "secrets": self.secrets, "env": dict(os.environ)}
+
+    def step(
+        self, index: int | None, path: object = None, choices: object = None
+    ) -> dict[str, object]:
+        if path is not None:
+            found, variables = self._nested(_step_path(path), _choices(choices))
+            step_path = _step_path(path)
+        else:
+            steps = self.scenario.steps or []
+            if index is None or not 0 <= index < len(steps):
+                raise IndexError(index)
+            found, variables, step_path = steps[index], {}, ("steps", index)
         page = self.current_page()
+        collected: list[StepRecord] = []
         record = run_step(
             page,
             self.scenario,
-            steps[index],
+            found,
             facts=self.facts,
-            context={"inputs": self.inputs, "secrets": self.secrets, "env": dict(os.environ)},
+            context=self._context(),
             base_url=self.args.base_url or self.scenario.browser.base_url,
             artifacts=self.out,
             deadline=Deadline.after(COMMAND_SECONDS),
             tabs=self.tabs,
             files=self.files,
             workspace=self.workspace,
+            path=step_path,
+            variables=variables,
+            collected=collected,
         )
-        if record.error:
-            record.error = mask(record.error, self.secrets)
-        return {"index": index, "record": record.to_json(), **self.page_state(self.active_page())}
+        for item in collected:
+            if item.error:
+                item.error = mask(item.error, self.secrets)
+            item.notes = [mask(note, self.secrets) for note in item.notes]
+        return {
+            "index": index if index is not None else step_path[1],
+            "path": list(step_path),
+            "record": record.to_json(),
+            "records": [item.to_json() for item in collected],
+            **self.page_state(self.active_page()),
+        }
+
+    def _nested(self, path: StepPath, choices: Mapping[str, int]) -> tuple[Step, dict[str, object]]:
+        """路徑指的那一步，以及外層區塊給它的變數（M7.1）。"""
+        variables: dict[str, object] = {}
+        steps: Sequence[Step] = self.scenario.steps or []
+        found: Step | None = None
+        position = 1
+        while True:
+            index = path[position]
+            if not isinstance(index, int) or not 0 <= index < len(steps):
+                raise IndexError(index)
+            found = steps[index]
+            if position + 1 >= len(path):
+                return found, variables
+            key = path[position + 1]
+            here = "/".join(str(part) for part in path[: position + 1])
+            chosen = choices.get(here, 0)
+            values = {**self._context(), "facts": self.facts, **variables}
+            if isinstance(found, ForEachStep) and key == "steps":
+                if isinstance(found.items, list):
+                    items: list[object] = list(found.items)
+                else:
+                    value = render_native(found.items, values)
+                    items = list(cast("list[object]", value)) if isinstance(value, list) else []
+                if not items:
+                    raise ValueError(t("debug.loop_empty", id=found.id))
+                chosen = min(max(chosen, 0), len(items) - 1)
+                count = len(items)
+                variables[found.as_] = items[chosen]
+                variables["loop"] = {
+                    "index": chosen + 1,
+                    "count": count,
+                    "first": chosen == 0,
+                    "last": chosen == count - 1,
+                }
+            elif isinstance(found, RepeatStep) and key == "steps":
+                variables["loop"] = {"index": max(chosen, 0) + 1, "first": chosen <= 0}
+            elif isinstance(found, TryStep) and key == "catch":
+                variables["error"] = {"step": found.id, "message": t("debug.sample_error")}
+            inner = next(
+                (found_steps for name, found_steps in branches(found) if name == key), None
+            )
+            if inner is None:
+                raise IndexError(key)
+            steps = inner
+            position += 2
 
     def locate(self, data: object) -> dict[str, object]:
         try:
@@ -484,7 +557,11 @@ class _Session:
     def handle(self, command: dict[str, object]) -> dict[str, object] | None:
         name = command.get("cmd")
         handlers: dict[str, Callable[[], dict[str, object]]] = {
-            "step": lambda: self.step(int(cast("int", command.get("index")))),
+            "step": lambda: self.step(
+                int(cast("int", command["index"])) if command.get("index") is not None else None,
+                command.get("path"),
+                command.get("choices"),
+            ),
             "locate": lambda: self.locate(command.get("locator")),
             "screenshot": lambda: self.page_state(self.active_page()),
             "snapshot": lambda: self.snapshot(command.get("within")),
@@ -497,6 +574,32 @@ class _Session:
         if handler is None:
             return {"ok": False, "error": f"unknown command {name!r}"}
         return {"ok": True, **handler()}
+
+
+def _step_path(value: object) -> StepPath:
+    """命令裡的步驟路徑：``["steps", 2, "steps", 0]``。"""
+    if not isinstance(value, list) or not value or value[0] != "steps":
+        raise ValueError(t("debug.bad_path"))
+    parts = cast("list[object]", value)
+    path: list[str | int] = []
+    for part in parts:
+        if isinstance(part, bool) or not isinstance(part, str | int):
+            raise ValueError(t("debug.bad_path"))
+        path.append(part)
+    if len(path) % 2 != 0:
+        raise ValueError(t("debug.bad_path"))
+    return tuple(path)
+
+
+def _choices(value: object) -> dict[str, int]:
+    """迴圈的目前項：路徑 → 第幾項（從 0 起）；格式不對的略過。"""
+    if not isinstance(value, dict):
+        return {}
+    found: dict[str, int] = {}
+    for key, item in cast("dict[object, object]", value).items():
+        if isinstance(key, str) and isinstance(item, int) and not isinstance(item, bool):
+            found[key] = item
+    return found
 
 
 def _frame_index(page: Page, frame: object) -> int | None:

@@ -37,6 +37,7 @@ from rpa_server.domain import (
     WorkflowRunStatus,
 )
 from rpa_server.i18n import page_t, t
+from rpa_server.snippets import flow_snippets
 
 __all__ = [
     "NAV",
@@ -172,6 +173,7 @@ _BADGES: Final[Mapping[str, str]] = {
     "done": "green",
     "reused": "green",
     "needs_login": "amber",
+    "handled": "amber",  # 失敗但沒有讓執行停下（M7.1：onError: continue、被 catch 接住）
     "online": "green",
     "busy": "blue",
     "disabled": "amber",
@@ -753,6 +755,7 @@ cast("dict[str, object]", _env.globals).update(
     workflow_preview=workflow_preview,
     run_file_rows=run_file_rows,
     static_url=static_url,
+    flow_snippets=flow_snippets,
 )
 _env.filters["pretty_json"] = _pretty_json
 _env.filters["num"] = _number

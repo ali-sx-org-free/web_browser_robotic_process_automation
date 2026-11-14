@@ -33,6 +33,8 @@ __all__ = ["MAX_SHOTS", "SHOT_WIDTH", "StepShots", "shot_name"]
 SHOT_WIDTH: Final = 640
 """截圖的最大寬度（Chromium 無頭時由瀏覽器縮小；其他情況是頁面原本的寬度）。"""
 MAX_SHOTS: Final = 500
+_MAX_INDEX: Final = 9999
+"""檔名最多四位數（回看只接受 ``steps/NNN.jpg``、``steps/NNNN.jpg``）；迴圈很多輪時後面的不拍。"""
 _SCALED_QUALITY: Final = 70
 _FULL_QUALITY: Final = 50
 _TIMEOUT_MS: Final = 2000
@@ -62,7 +64,7 @@ class StepShots:
 
     def take(self, page: Page, record: StepRecord, index: int) -> None:
         """拍第 ``index`` 步做完的畫面，記在 ``record``；拍不到就算了。"""
-        if record.status == "skipped" or self.taken >= MAX_SHOTS:
+        if record.status == "skipped" or self.taken >= MAX_SHOTS or index > _MAX_INDEX:
             return
         if self.deadline.remaining_ms() < _RESERVE_MS:
             return

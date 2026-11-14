@@ -79,7 +79,7 @@ def _steps(folder: Path, result: Mapping[str, object] | None) -> list[dict[str, 
     targets: list[str | None] = []
     if records:
         with contextlib.suppress(Exception):  # 快照讀不懂時只少了定位器，報告照樣產生
-            targets = step_targets(folder)
+            targets = step_targets(folder, records)
     steps: list[dict[str, object]] = []
     for index, record in enumerate(records):
         steps.append(

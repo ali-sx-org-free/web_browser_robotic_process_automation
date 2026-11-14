@@ -300,6 +300,7 @@ def test_worker_info_to_json() -> None:
             "dynamicValues",
             "fileInputs",
             "fileOutputs",
+            "flow",
             "frame",
             "jsonInputs",
             "page",

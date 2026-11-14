@@ -13,8 +13,11 @@
   （在任何一個 iframe 裡找），轉成最外層定位器的 ``anyFrame: true``。
 - 新分頁（M7b）：``with page.expect_popup() as page1_info:`` 區塊裡的第一個點擊（或填寫、選擇、
   勾選、按鍵）加上 ``popup: page1``，之後 ``page1 = page1_info.value`` 與 ``page1.…`` 的操作、斷言
-  加上 ``page: page1``；``page1.close()`` 略過。開出新分頁的那一步轉不了時，那個分頁上的操作也跟著
+  加上 ``page: page1``。開出新分頁的那一步轉不了時，那個分頁上的操作也跟著
   略過並列在警告中（不然草稿會引用沒開的分頁）。
+- 自己開的新分頁（M7.1）：``page1 = context.new_page()`` 轉成 ``openPage``（``as: page1``），之後
+  ``page1.…`` 的操作加上 ``page: page1``；新分頁（含 M7b 錄到的）的 ``page1.close()`` 轉成
+  ``closePage``。``browser.new_page()`` 開的是另一個工作階段（沒有登入狀態），仍然轉不了。
 - 填寫前點同一個欄位的那一步保留（可能是展開選單、載入候選）；逐字輸入的 ``type``、
   ``press_sequentially`` 轉成 fill（DSL 沒有逐鍵輸入）並列在警告中。
 - 上傳檔案（M7c）：``set_input_files("檔名")`` 轉成 ``upload`` 步驟與一個 ``type: file`` 的入參
@@ -22,7 +25,7 @@
   入參沒有預設值，草稿裡留一行註解提醒執行前要上傳檔案（不算轉不了）。前一步是點擊上傳框、
   或點擊包著上傳框的元素（例如 Element UI 的 el-upload）時，合併成這一步、不保留那次點擊，
   不然執行時會再開一次選擇檔案的視窗。``set_input_files([])`` 轉成清空（``files: []``）。
-- 轉不了的行（例如 hover、自己開的新分頁）以註解留在草稿裡，並列在警告中。
+- 轉不了的行（例如 hover、``browser.new_page()`` 開的分頁）以註解留在草稿裡，並列在警告中。
 - **自動參數化**：每個 fill 的值變成一個入參，預設值是錄到的值，名稱取自欄位的英數名稱
   （test id、CSS 的 #id 等），沒有英數名稱時依欄位種類叫 text、number…，欄位的標籤寫在入參說明；
   數字欄位（spinbutton）填的是整數時入參是 integer。
@@ -713,7 +716,8 @@ def _first_goto(tree: ast.Module) -> str | None:
 
 def _assignment(state: _State, statement: ast.Assign | ast.AnnAssign) -> None:
     """記下其他分頁的變數名稱：``page1 = page1_info.value``（錄到的新分頁，可以轉換）、
-    ``page1 = context.new_page()``（自己開的，轉不了）。"""
+    ``page1 = context.new_page()``（自己開的，M7.1 起轉成 openPage）、
+    ``page1 = browser.new_page()``（另一個工作階段，轉不了）。"""
     targets = statement.targets if isinstance(statement, ast.Assign) else [statement.target]
     found = _chain(statement.value) if statement.value is not None else None
     if found is None:
@@ -727,6 +731,11 @@ def _assignment(state: _State, statement: ast.Assign | ast.AnnAssign) -> None:
         if method == "value" and info is not None and info in state.opened:
             state.tabs[target.id] = state.opened[info]
             state.other_pages.discard(target.id)
+        elif method == "new_page" and info == "context" and len(segments) == 1:
+            name = state.tab_name(target.id)
+            state.tabs[target.id] = name
+            state.other_pages.discard(target.id)
+            state.add("openPage", {"as": name}, name)
         elif method in ("new_page", "value"):
             state.other_pages.add(target.id)
 
@@ -835,6 +844,9 @@ def _page_action(state: _State, statement: ast.Expr, segments: Sequence[_Segment
         state.add("goto", {"url": relative})
     elif name == "wait_for_url" and url is not None:
         state.add("waitFor", {"url": state.relative(url)})
+    elif name == "close" and state.page is not None and not action.args:
+        # 新分頁的 close() → closePage（M7.1）；一開始的分頁不能關，照舊略過
+        state.add("closePage", {}, state.page)
     elif name in _IGNORED_PAGE_CALLS:
         return
     elif name in ("goto", "wait_for_url"):

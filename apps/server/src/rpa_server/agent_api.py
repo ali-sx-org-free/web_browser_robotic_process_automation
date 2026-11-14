@@ -129,6 +129,10 @@ class DebugBody(AgentBody):
 
 class StepBody(AgentBody):
     force: bool = False
+    path: list[str | int] | None = Field(default=None, min_length=2, max_length=24)
+    """單獨執行區塊裡的一步（M7.1）：``["steps", 2, "steps", 0]``，要在第 index 步裡面。"""
+    choices: dict[str, int] | None = Field(default=None, max_length=50)
+    """迴圈的目前項：迴圈步驟的路徑（``steps/2``）→ 第幾項（從 0 起）。"""
 
 
 class LocateBody(AgentBody):
@@ -894,10 +898,16 @@ def agent_api(services: Services) -> FastAPI:
     def debug_step(
         client: Debugger, session_id: str, index: int, body: StepBody | None = None
     ) -> dict[str, object]:
-        """執行一步；有副作用而且執行過的步驟要 force，否則 409 ``confirm_required``。"""
+        """執行一步；有副作用而且執行過的步驟要 force，否則 409 ``confirm_required``。
+
+        區塊整塊執行（M7.1）；``path`` 單獨執行區塊裡的一步，``choices`` 是迴圈的目前項。
+        """
         session_for(client, session_id)
-        force = body.force if body is not None else False
-        return session_json(client, debug.run_step(session_id, index, force=force))
+        body = body or StepBody()
+        session = debug.run_step(
+            session_id, index, force=body.force, path=body.path, choices=body.choices
+        )
+        return session_json(client, session)
 
     @app.post("/debug/{session_id}/run-to/{index}")
     def debug_run_to(client: Debugger, session_id: str, index: int) -> dict[str, object]:

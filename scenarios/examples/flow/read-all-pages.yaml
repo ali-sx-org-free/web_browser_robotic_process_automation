@@ -1,0 +1,67 @@
+# yaml-language-server: $schema=../../../schema/scenario.v1.json
+#
+# 重複直到條件改變（M7.1）：分頁的清單先抽第一頁，之後「下一頁」還能按就按、再抽。
+# repeat 用 while 時一定要寫 max（最多幾輪），到了還沒結束算失敗，不會默默停下。
+
+schemaVersion: 1
+id: flow-read-all-pages
+name: 翻頁抽出全部的列
+category: 範例
+description: 在分頁的清單逐頁抽出表格，累積成一份完整的清單。
+
+inputs:
+  rows:
+    type: integer
+    minimum: 1
+    maximum: 60
+    default: 13
+
+outputs:
+  rows:
+    type: array
+    from: '{{ facts.rows }}'
+
+browser:
+  baseUrl: http://127.0.0.1:8765
+
+defaults:
+  timeout: 10000
+deadline: 60000
+
+steps:
+  - id: open
+    action: goto
+    url: /flow/list?rows={{ inputs.rows }}
+
+  - id: first-page
+    action: extract
+    target: { css: 'table#list' }
+    get: table
+    as: rows
+    append: true
+
+  - id: next-pages
+    name: 還有下一頁就繼續
+    action: repeat
+    while: { target: { role: button, name: 下一頁 }, state: enabled }
+    max: 20
+    steps:
+      - id: next
+        action: click
+        target: { role: button, name: 下一頁 }
+      - id: wait-page
+        action: expect
+        target: { testId: page }
+        text: '{{ loop.index + 1 }}'
+        match: equals
+      - id: more-rows
+        action: extract
+        target: { css: 'table#list' }
+        get: table
+        as: rows
+        append: true
+
+verify:
+  - name: 抽到全部的列
+    value: '{{ facts.rows | length }}'
+    equals: '{{ inputs.rows }}'

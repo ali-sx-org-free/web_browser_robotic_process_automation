@@ -16,7 +16,7 @@ from pydantic_core import ErrorDetails
 from rpa_core.dsl.checks import RENAMED, CrossIssue
 from rpa_core.dsl.fields import catalog, join_names
 from rpa_core.dsl.scenario import Scenario
-from rpa_core.dsl.steps import ACTIONS
+from rpa_core.dsl.steps import ACTIONS, BRANCHES
 from rpa_core.dsl.yaml_loader import DataPath, Position, SourceMap, YamlLoadError
 
 __all__ = [
@@ -67,14 +67,18 @@ class Issue:
     position: Position | None
     """在檔案中的位置；無法對應時為 None。"""
     step: int | None = None
-    """第幾個步驟（從 1 開始）；問題不在步驟裡時為 None。"""
+    """第幾個步驟（從 1 開始，最外層）；問題不在步驟裡時為 None。"""
     step_id: str | None = None
-    """該步驟的 id（如果寫了）。"""
+    """問題所在那一步的 id（如果寫了）；在區塊裡時是最內層的那一步（M7.1）。"""
+    step_path: DataPath = ()
+    """問題所在那一步的路徑，例如 ``("steps", 2, "then", 0)``；不在步驟裡時是空的。"""
 
     @property
     def field(self) -> str:
         """步驟內（或場景頂層）的欄位路徑，例如 ``target.fallback[0].css``。"""
-        return format_field(self.path[2:] if self.step is not None else self.path)
+        if self.step is None:
+            return format_field(self.path)
+        return format_field(self.path[len(self.step_path) or 2 :])
 
 
 def format_field(path: Sequence[str | int]) -> str:
@@ -92,6 +96,17 @@ def format_issue(issue: Issue) -> str:
     """問題的說明，含步驟與欄位，不含檔案位置。"""
     if issue.step is None:
         location = ""
+    elif len(issue.step_path) > 2:
+        # 區塊裡的步驟（M7.1）：步驟 3 › then[0]（close-notice）
+        inner = format_field(issue.step_path[2:])
+        if issue.step_id:
+            location = catalog(
+                "dsl.location.nested_step", number=issue.step, inner=inner, id=issue.step_id
+            )
+        else:
+            location = catalog(
+                "dsl.location.nested_step_without_id", number=issue.step, inner=inner
+            )
     elif issue.step_id:
         location = catalog("dsl.location.step", number=issue.step, id=issue.step_id)
     else:
@@ -116,25 +131,35 @@ def _make(
     position: Position | None,
     params: Mapping[str, object],
 ) -> Issue:
-    step, step_id = _step_of(path, data)
+    step, step_id, step_path = _step_of(path, data)
     message = catalog(f"dsl.{code}", **params)
-    return Issue(code, message, path, position, step, step_id)
+    return Issue(code, message, path, position, step, step_id, step_path)
 
 
-def _step_of(path: DataPath, data: object) -> tuple[int | None, str | None]:
+def _step_of(path: DataPath, data: object) -> tuple[int | None, str | None, DataPath]:
+    """(最外層第幾步, 最內層那一步的 id, 最內層那一步的路徑)；不在步驟裡時是 (None, None, ())。"""
     if len(path) < 2 or path[0] != "steps" or not isinstance(path[1], int):
-        return None, None
-    index = path[1]
+        return None, None, ()
+    # 往區塊裡走（M7.1）：("steps", 2, "then", 0, "target") 的最內層步驟是 ("steps", 2, "then", 0)
+    end = 2
+    while end + 1 < len(path) and path[end] in BRANCHES and isinstance(path[end + 1], int):
+        end += 2
+    step_path = path[:end]
+    node: object = data
+    for part in step_path:
+        if isinstance(part, str) and isinstance(node, dict):
+            node = cast("dict[str, object]", node).get(part)
+        elif isinstance(part, int) and isinstance(node, list):
+            items = cast("list[object]", node)
+            node = items[part] if part < len(items) else None
+        else:
+            node = None
     step_id: str | None = None
-    if isinstance(data, dict):
-        steps = cast("dict[str, object]", data).get("steps")
-        if isinstance(steps, list) and index < len(cast("list[object]", steps)):
-            step = cast("list[object]", steps)[index]
-            if isinstance(step, dict):
-                value = cast("dict[str, object]", step).get("id")
-                if isinstance(value, str) and value:
-                    step_id = value
-    return index + 1, step_id
+    if isinstance(node, dict):
+        value = cast("dict[str, object]", node).get("id")
+        if isinstance(value, str) and value:
+            step_id = value
+    return path[1] + 1, step_id, step_path
 
 
 def issue_from_yaml_error(error: YamlLoadError) -> Issue:

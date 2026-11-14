@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0021 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0021" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0021：場景內的流程控制是 DSL 的區塊步驟，契約與發布門檻不變</h1>
+      <p>條件、迴圈與錯誤處理寫成步驟裡的區塊（<code>if</code>、<code>forEach</code>、<code>repeat</code>、<code>try</code>），條件沿用 <code>expect</code> 的寫法；重試只用於沒有副作用的動作；步驟紀錄依執行順序、以場景檔的路徑對應定義。出參仍只在獨立斷言通過後發布。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-11-06</dd>
+        <dt>狀態</dt><dd>2026-11-06 使用者確認設計（D1～D9 照建議，見<a href="../../handoff/decisions.html#decisions">決定紀錄</a>）；分三期實作，這份決策涵蓋 M7.1 流程控制，M7.2 子場景、M7.3 資料驅動在各自的設計裡補充。</dd>
+        <dt>影響範圍</dt><dd>rpa-core（DSL、校驗、擴充、錄製稿轉換）、rpa-runner（執行、步驟紀錄、日誌、報告、逐步調試）、rpa-server（調試、回看、匯總報告、場景編輯、Agent API）、測試網站與範例場景；不改 rpa-worker 與桌面 App 的程式（新的擴充 <code>flow</code> 隨 App 的程式層更新）</dd>
+        <dt>相關</dt><dd><a href="0001-dsl-as-source-of-truth.html">ADR 0001</a>（DSL 是唯一的事實來源）、<a href="0009-scenario-contract.html">ADR 0009</a>（場景契約：獨立斷言通過才發布出參）、<a href="0010-mvp-first.html">ADR 0010</a>（MVP 範圍：複雜邏輯先用腳本）、<a href="0016-run-replay.html">ADR 0016</a>（運行回看）、<a href="0020-python-nodes.html">ADR 0020</a>（Python 節點）；<a href="../design/dsl.html#flow">場景 DSL › 流程控制</a>；<a href="../../handoff/tasks/20261106-m7-flow.html">任務紀錄</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>場景的步驟原本是一層清單，從頭到尾直線執行，某一步失敗就停。真實系統常有「有時跳出的公告」「一張表逐列處理」「翻頁直到最後一頁」「選填的部分失敗也要繼續」「報表要等一下才完成」。MVP 時這些交給 Python 腳本（ADR 0010），但腳本失去 DSL 的校驗、逐步調試、步驟回看與審閱的可讀性。</p>
+          <p>路線圖的 M7 是流程能力；iframe、點擊開出的新分頁、上傳已提前做完（M7a～M7c），下載由 Python 節點補上。DSL 文件一直寫著「重試只用於沒有副作用的步驟」。</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>區塊步驟。</strong><code>if</code>（condition、then、else）、<code>forEach</code>（items、as、steps）、<code>repeat</code>（times／while／until，條件模式必填 max）、<code>try</code>（steps、catch）。區塊也是步驟：有 id，可以 onError；逾時、分頁寫在裡面的步驟。</li>
+            <li><strong>條件沿用 expect。</strong>元素、頁面的檢查欄位與 expect 相同，加上 <code>expression</code>（Jinja 沙箱的真值）、<code>wait</code>（預設 0，只看當下）、<code>not</code>。不成立不算失敗；判斷本身出錯算失敗，不默默走錯分支。</li>
+            <li><strong>變數與事實。</strong>迴圈變數以 <code>as</code> 命名，另有最內層的 <code>loop</code>；catch 裡有 <code>error</code>。範圍在校驗時檢查。迴圈裡的事實每輪覆蓋，<code>append</code> 才累積成清單。</li>
+            <li><strong>錯誤處理與重試。</strong>任何步驟可寫 <code>onError: continue</code>；<code>retry</code> 只用於 goto、waitFor、expect、extract、screenshot，點擊、填寫等有副作用的動作要重複就明確寫成 if 或 try。總期限、紀錄上限不能被接住或繼續。</li>
+            <li><strong>結果仍由獨立斷言決定。</strong>有失敗後繼續或被接住的失敗時，報告、回看、驗證結果顯示提醒，不擋發布。</li>
+            <li><strong>紀錄依執行順序、以路徑對應。</strong>最外層的步驟一開始列出，區塊裡的步驟執行到才插在區塊後面，多了 path、parent、iteration 等欄位；回看、匯總報告、逐步調試都以 path 對應場景快照。上限：每個迴圈 1,000 項／輪、巢狀 5 層、每次 10,000 筆紀錄。</li>
+            <li><strong>自己開的分頁。</strong><code>openPage</code>（as、url）、<code>closePage</code>（page），和 M7b 的 popup 共用名稱。</li>
+            <li><strong>相容。</strong>新欄位都是增加的，<code>schemaVersion</code> 維持 1；用到的場景標上擴充 <code>flow</code>，舊的錄製端與 Worker 不會領到。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>常見的分支、逐列處理、翻頁與選填步驟可以留在 DSL，照樣校驗、調試、回看；Python 節點仍是逃生門。</li>
+            <li>步驟紀錄不再和場景檔的步驟一對一：讀紀錄的地方要用 path（沒有 path 的舊紀錄依順序對應）。</li>
+            <li>逐步調試要處理「迴圈裡的一步用哪一項」：調試頁可以選目前項，catch 裡的 error 是示範值。</li>
+            <li>條件與迴圈錄不出來，要在 YAML 裡寫；場景編輯頁有範本，之後 M5 的 AI 可以產生。</li>
+            <li>一次執行可能有很多筆紀錄：步驟截圖仍最多 500 張，紀錄超過上限算失敗，大量資料改用批次執行（M7.3）。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="table-scroll">
+          <table class="wrap">
+            <thead><tr><th>方案</th><th>為什麼不選</th></tr></thead>
+            <tbody>
+              <tr><td>流程都寫在 Python 節點</td><td>失去 DSL 的校驗、逐步調試與步驟回看；運行環境模式不能開瀏覽器（ADR 0020）。</td></tr>
+              <tr><td>用 Jinja 的 if、for 在執行前展開步驟</td><td>展開時頁面還沒打開，判斷不了畫面上有什麼；展開後的步驟和場景檔對不上。</td></tr>
+              <tr><td>每一步加 when 取代 if 區塊</td><td>多步的分支要每步重寫條件；之後常用可以另加成 if 的簡寫。</td></tr>
+              <tr><td>點擊也可以自動重試</td><td>送出表單重複會重複建單，違反「只重試沒有副作用的步驟」。</td></tr>
+              <tr><td>迴圈裡的事實自動變成清單</td><td>單值也變清單、容易誤用；用 append 明確表示要累積。</td></tr>
+              <tr><td>組合場景層級的條件、迴圈、平行一起做</td><td>那是節點之間的流程（M6 原型留下的另一組問題），另等決定。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

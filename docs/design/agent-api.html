@@ -199,7 +199,7 @@
             <tr><td><code>POST /debug/{sid}/snapshot</code></td><td>目前頁面的結構：無障礙樹、表單欄位、iframe 與分頁清單</td><td>debug＋回傳頁面內容</td><td>新（錄製端 App 要更新）</td></tr>
             <tr><td><code>POST /debug/{sid}/screenshot</code></td><td>截目前頁面，回傳圖片的下載路徑</td><td>debug＋回傳頁面內容</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/locate</code></td><td>測試定位器：找到幾個、前幾個的文字</td><td>debug</td><td>沿用</td></tr>
-            <tr><td><code>POST /debug/{sid}/steps/{index}</code></td><td>執行一步；有副作用而且跑過的要帶 <code>force</code></td><td>debug</td><td>沿用</td></tr>
+            <tr><td><code>POST /debug/{sid}/steps/{index}</code></td><td>執行一步；有副作用而且跑過的要帶 <code>force</code>。區塊步驟（M7.1）整塊執行；<code>path</code>（例如 <code>["steps", 2, "steps", 0]</code>）單獨執行第 index 步裡面的一步，<code>choices</code>（迴圈的路徑 <code>steps/2</code> → 第幾項，從 0 起）是迴圈的目前項；回覆的 <code>steps</code> 是樹（<code>children</code>）</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/run-to/{index}</code></td><td>從下一個還沒執行的步驟執行到第幾步，失敗就停</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/reload</code></td><td>換到剛存的新版本，瀏覽器與已執行的步驟保留（命令帶場景內容；錄製端的 App 要支援 <code>debugInlineLoad</code>，v0.6.3）</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /debug/{sid}/reset</code>、<code>DELETE /debug/{sid}</code></td><td>從頭開始、結束</td><td>debug</td><td>沿用</td></tr>

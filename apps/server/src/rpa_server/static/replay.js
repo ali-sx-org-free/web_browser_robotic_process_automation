@@ -74,7 +74,8 @@
     const limit = sameRun(after, step) ? after.start - 0.001 : Infinity;
     return Math.max(step.start, Math.min(end + 3 / FPS, limit));
   };
-  const failedStep = steps.find(step => step.status === 'failed') || null;
+  // 讓執行停下的那一步（M7.1）：沒有被接住、不是區塊本身；伺服器已算好 failedStep
+  const failedStep = (data.failedStep != null && steps.find(step => step.index === data.failedStep)) || steps.find(step => step.status === 'failed' && !step.handled) || null;
   let duration = 0;
   let selected = failedStep ? failedStep.index : null;
 
@@ -153,8 +154,12 @@
       (step.status === 'skipped' ? esc(messages.status_skipped)
         : step.durationMs != null ? (step.durationMs / 1000).toFixed(2) + ' s' : '') + '</span></div>';
     item.querySelector('strong').textContent = title(step);
-    item.querySelector('small').textContent = [step.action, step.target].filter(Boolean).join(' · ');
-    item.querySelector('[data-n]').className = 'replay-n ' + (step.status || '');
+    // 區塊裡的步驟（M7.1）：縮排、標出第幾輪；失敗後繼續、被 catch 接住的標黃色
+    const round = step.iteration ? fill(messages.round || '', {n: step.iteration}) : '';
+    const handled = step.status === 'failed' && step.handled ? messages['handled_' + step.handled] : '';
+    item.querySelector('small').textContent = [round, handled, step.action, step.target].filter(Boolean).join(' · ');
+    item.querySelector('[data-n]').className = 'replay-n ' + (handled ? 'handled' : step.status || '');
+    if (step.depth) item.querySelector('.replay-row').style.paddingLeft = (8 + 16 * step.depth) + 'px';
     if (composite && step.node) {
       item.className = 'in-node';
       item.style.setProperty('--node', nodeColor(step.node));

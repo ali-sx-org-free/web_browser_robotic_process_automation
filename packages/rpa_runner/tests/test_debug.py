@@ -425,3 +425,50 @@ def test_path_outside_the_allowed_folders_is_refused(tmp_path: Path) -> None:
     first = json.loads(process.stdout.splitlines()[0])
     assert first["event"] == "error"
     assert "不在允許讀取的資料夾裡" in first["error"]
+
+
+ADD_ENTRIES = ROOT / "scenarios" / "examples" / "flow" / "add-entries.yaml"
+
+
+def test_blocks_run_whole_or_one_step_inside(engine: str, tmp_path: Path) -> None:
+    """流程控制（M7.1）：區塊整塊執行並回覆裡面每一步；也能用路徑單獨執行迴圈裡的一步，
+    迴圈變數用選的那一項。"""
+    inputs = tmp_path / "input.json"
+    orders = [{"title": "甲", "qty": 1}, {"title": "乙", "qty": 2}]
+    inputs.write_text(json.dumps({"orders": orders}), encoding="utf-8")
+    with running() as site:
+        command = [
+            sys.executable, "-m", "rpa_runner.debug",
+            "--scenario", str(ADD_ENTRIES), "--input", str(inputs),
+            "--out", str(tmp_path / "debug"), "--engine", engine, "--base-url", site,
+        ]  # fmt: skip
+        process = subprocess.Popen(
+            command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, encoding="utf-8"
+        )
+        try:
+            debug = Session(process)
+            assert debug.read()["event"] == "ready"
+            debug.send("step", index=0)
+            # 只填第二筆的標題：迴圈變數是 orders[1]
+            one = debug.send("step", path=["steps", 1, "steps", 0], choices={"steps/1": 1})
+            assert one["ok"] is True, one
+            assert one["path"] == ["steps", 1, "steps", 0]
+            assert cast("dict[str, object]", one["record"])["status"] == "passed", one
+            found = debug.send("locate", locator={"label": "標題"})
+            assert found["ok"] is True
+            # 整塊執行：每一筆五步，紀錄都在 records
+            whole = debug.send("step", index=1)
+            records = cast("list[dict[str, object]]", whole["records"])
+            assert cast("dict[str, object]", whole["record"])["iterations"] == 2, whole
+            assert len(records) == 1 + 2 * 5
+            assert records[1]["path"] == ["steps", 1, "steps", 0]
+            facts = cast("dict[str, object]", whole["facts"])
+            assert facts["recordIds"] == ["F-001", "F-002"]
+            bad = debug.send("step", path=["steps", 1, "nowhere", 0])
+            assert bad["ok"] is False
+        finally:
+            if process.poll() is None:
+                assert process.stdin is not None
+                process.stdin.write(json.dumps({"cmd": "close"}) + "\n")
+                process.stdin.flush()
+                process.wait(timeout=30)

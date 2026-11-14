@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:4d91ad67cf6dd378">
+<meta name="translation-source" content="sha256:fd39428deb4c561e">
 <title>Scenario DSL · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -293,10 +293,13 @@ steps:
             <dt><code>action</code></dt><dd>Required; the action name, see the action table below.</dd>
             <dt><code>name</code></dt><dd>A step description for people.</dd>
             <dt><code>timeout</code></dt><dd>The timeout of this step as an <strong>integer number of milliseconds</strong>, greater than 0 and at most 3,600,000 (one hour). Falls back to <code>defaults.timeout</code>, and never exceeds what remains of the deadline.</dd>
-            <dt id="tabs"><code>page</code></dt><dd>The tab this step runs in (M7b): the name of a tab opened by an earlier step's <code>popup</code>; without it the step runs in the starting tab. The tab must be opened by an <em>earlier</em> step, or validation points at this step.</dd>
+            <dt id="tabs"><code>page</code></dt><dd>The tab this step runs in (M7b): the name of a tab opened by an earlier step's <code>popup</code> or <code>openPage</code> (M7.1); without it the step runs in the starting tab. The tab must be opened by an <em>earlier</em> step, or validation points at this step; after a top-level <code>closePage</code> the name cannot be used again.</dd>
             <dt><code>popup</code></dt><dd>Only on click, fill, select, check and press (M7b): this step opens a new tab (a pop-up, for example a link with <code>target="_blank"</code> or <code>window.open</code>); the run waits for it and gives it this name, and later steps refer to it with <code>page</code>. Each name can be opened only once. If no tab opens, the step times out and fails. For example <code>{ action: click, target: { role: link, name: 開啟商品明細 }, popup: items }</code>, then <code>{ action: fill, page: items, target: { placeholder: 請選擇 }, value: … }</code>.</dd>
           </dl>
-          <p class="muted">retry and onError are added in M7; retries apply only to steps without side effects, so actions such as submitting a form are never retried automatically.</p>
+          <dl class="spec-list">
+            <dt id="on-error"><code>onError</code></dt><dd>What happens when this step fails (M7.1): <code>stop</code> (default) stops the run; <code>continue</code> records the failure and goes on with the next step. Any step can have it, <a href="#flow">blocks</a> included. A passed deadline cannot be continued. The result is still decided by the independent checks; reports and replays mark the step in amber.</dd>
+            <dt id="retry"><code>retry</code></dt><dd>Try again on failure (M7.1): <code>{ times: 1–5, delay: milliseconds (default 1000) }</code>. <strong>Only actions without side effects</strong> can have it: goto, waitFor, expect, extract and screenshot. Click, fill, select, check, press, upload, download, opening or closing tabs and blocks cannot (submitting a form twice creates two records). Each attempt has the step's own timeout, all within the deadline; earlier errors are kept in the step's notes. To click again when nothing happened, write it out with <a href="#flow">if or try</a>.</dd>
+          </dl>
         </div>
       </section>
 
@@ -362,18 +365,80 @@ steps:
             <tr><td><code>extract</code></td><td>Extract page facts</td><td><strong>target</strong>, <strong>as</strong>, get, attribute, multiple, fields</td><td>See below</td></tr>
             <tr><td><code>upload</code></td><td>Give files to the page (M7c)</td><td><strong>files</strong>, plus exactly one of target, trigger and dropzone</td><td>files refers to <code>type: file</code> inputs; see <a href="#upload">File uploads</a> below</td></tr>
             <tr><td><code>screenshot</code></td><td>Save a screenshot as an artifact</td><td>file, target, fullPage</td><td>file is a name without extension and defaults to the step id; fullPage cannot be used with target</td></tr>
+            <tr><td><code>download</code></td><td>Click and wait for a download (ADR 0020)</td><td><strong>target</strong>, <strong>as</strong>, fileName</td><td>See <a href="#files-between-nodes">Files between nodes</a></td></tr>
+            <tr><td><code>openPage</code></td><td>Open a tab yourself (M7.1)</td><td><strong>as</strong>, url, waitUntil</td><td>Same browser session (same sign-in); as is the tab name, shared with popup; url follows the goto rules; no page</td></tr>
+            <tr><td><code>closePage</code></td><td>Close a tab (M7.1)</td><td><strong>page</strong></td><td>The starting tab cannot be closed; inside a loop the same name can be opened again after closing</td></tr>
+            <tr><td><code>if</code>, <code>forEach</code>, <code>repeat</code>, <code>try</code></td><td>Block steps (M7.1)</td><td>See <a href="#flow">Flow control</a></td><td>They contain steps</td></tr>
           </tbody>
         </table>
       </div>
       <div class="panel-body">
         <dl class="spec-list">
-          <dt>extract as</dt><dd>Stores the page fact <code>facts.name</code>; names cannot repeat within a scenario.</dd>
+          <dt>extract as</dt><dd>Stores the page fact <code>facts.name</code>; names cannot repeat within a scenario unless every such step has append.</dd>
+          <dt>extract append</dt><dd><code>true</code>: each run of the step adds its result to the end of the fact's list (M7.1, to collect inside loops); a result that is itself a list (multiple, table) is added item by item. Several steps can share one as when all of them have append.</dd>
           <dt>extract get</dt><dd><code>text</code> (default), <code>value</code>, <code>html</code>, <code>attribute</code> (name it with <code>attribute</code>), <code>table</code> (turns a &lt;table&gt; into a list of records keyed by its header).</dd>
           <dt>extract multiple</dt><dd>Extract every matching element into a list; by default only the first one.</dd>
           <dt>extract fields</dt><dd>Turn each element into a record. Keys are field names; each value may set target (relative to the element), get and attribute. With fields, leave out the outer get.</dd>
         </dl>
       </div>
-      <div class="diagram-caption">expect guards a step; verify decides whether outputs are published. download, conditions and loops are added in M7; upload moved ahead to M7c (<a href="#upload">File uploads</a>); iframes use the locator <a href="#locators">frame</a> (M7a), and new tabs use the step fields <a href="#tabs">popup and page</a> (M7b).</div>
+      <div class="diagram-caption">expect guards a step; verify decides whether outputs are published. iframes use the locator <a href="#locators">frame</a> (M7a), new tabs use the step fields <a href="#tabs">popup and page</a> (M7b), uploads are in <a href="#upload">File uploads</a> (M7c), and conditions, loops, error handling and tabs you open yourself are in <a href="#flow">Flow control</a> (M7.1).</div>
+    </section>
+
+    <section class="panel" id="flow">
+      <div class="panel-header"><h2>Flow control</h2><span class="muted">M7.1, ADR 0021</span></div>
+      <div class="panel-body">
+        <p>Block steps contain other steps, so a scenario no longer has to run straight from top to bottom. A block is a step too: it has an id and name and can have <a href="#on-error">onError</a>; it cannot have timeout or page (put those on the steps inside), and it cannot retry. Step ids are unique across the whole scenario, steps inside blocks included.</p>
+      </div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Block</th><th>What it does</th><th>Fields</th></tr></thead>
+          <tbody>
+            <tr><td><code>if</code></td><td>Runs then when the condition holds, else (optional) when it does not</td><td><strong>condition</strong>, <strong>then</strong>, else</td></tr>
+            <tr><td><code>forEach</code></td><td>Runs steps once for each item of a list; an empty list runs zero times and passes</td><td><strong>items</strong> (a single <code>{{ }}</code> that evaluates to a list, such as an array input or an extract with multiple or table; or a literal list), <strong>as</strong> (the loop variable), <strong>steps</strong></td></tr>
+            <tr><td><code>repeat</code></td><td>Runs steps repeatedly: times a fixed number of times; while checks before each round and runs it only if it holds; until checks after each round and stops once it holds</td><td>Exactly one of times, while and until; with while or until, <strong>max</strong> is required (at most how many rounds; reaching it before the condition ends is a failure); <strong>steps</strong></td></tr>
+            <tr><td><code>try</code></td><td>Runs steps; when one of them fails it stops and runs catch, then the steps after the block continue. If catch fails too, the run fails; a passed deadline or a cancellation never enters catch</td><td><strong>steps</strong>, <strong>catch</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <dl class="spec-list">
+          <dt id="condition">Conditions</dt><dd>The <code>condition</code> of if and the <code>while</code>/<code>until</code> of repeat are written like <a href="#actions">expect</a>, except that a condition that does not hold is not a failure: with <code>target</code>, check one of the element's <code>state</code> (visible, hidden, attached, detached, enabled, disabled, checked, unchecked, editable), <code>text</code>, <code>value</code> and <code>count</code>; without target, check <code>url</code> or <code>title</code>; <code>match</code> works as in string matching. Or write <code>expression: '{{ … }}'</code>, which holds when the result is truthy (inputs, facts and loop variables are available; no other fields). <code>wait</code> is how long to wait at most for the condition to hold (milliseconds, default 0: only look now); it ends as soon as the condition holds. <code>not: true</code> inverts it; <code>page</code> picks the tab to check. visible/hidden look at whether any of the first 20 matching elements is visible; other states and text look at the first one. <strong>An error while checking</strong> (for example a <code>{{ }}</code> that uses a fact without a value) fails the block instead of counting as “does not hold”.</dd>
+          <dt>Loop variables</dt><dd>After <code>as: order</code> in forEach, steps inside the loop use <code>{{ order.title }}</code>; the innermost loop also has <code>{{ loop.index }}</code> (from 1), <code>loop.count</code> (not for repeat with while or until), <code>loop.first</code> and <code>loop.last</code>. repeat has loop as well. Inside catch there are <code>{{ error.step }}</code> (the id of the step that failed) and <code>{{ error.message }}</code>. Names cannot be inputs, secrets, facts, env, loop or error, nor the name of an outer loop variable, and can only be used inside that loop (or catch); validation checks this.</dd>
+          <dt>Facts</dt><dd>An extract inside a loop overwrites its fact each round, so afterwards the fact holds the last round's value; write <a href="#actions">append</a> to collect. Facts produced inside branches and loops can be used by later steps (validation follows the order of the scenario file), but if a fact really has no value at run time (for example because the branch was not taken), the step that uses it fails.</dd>
+          <dt>Limits</dt><dd>forEach takes at most 1,000 items, repeat's times and max are at most 1,000, blocks nest at most 5 levels deep, and one run records at most 10,000 steps (going over fails the run, and neither onError nor try can catch it); every round counts against the deadline. For more data use batch runs (M7.3).</dd>
+          <dt>Records, logs and replays</dt><dd>steps.json is in the order steps ran: top-level steps are listed from the start, and steps inside blocks are added when they run, right after their block. Each record has <code>path</code> (its place in the scenario file), <code>parent</code> (which record is its block), <code>iteration</code> (the round), <code>attempts</code>, <code>handled</code> (<code>continued</code>, <code>caught</code>), <code>condition</code>, <code>branch</code>, <code>iterations</code> and <code>caught</code>. automation.log writes one line when a block starts and one when it ends, with the steps inside indented and their round marked; reports and replays indent by level and mark continued and caught failures in amber.</dd>
+          <dt>Compatibility</dt><dd>Scenarios that use flow control (blocks, openPage/closePage, onError, retry, <code>append: true</code>) have the extension <code>flow</code>, so recorders and Workers from 0.8.x and earlier do not receive them; scenarios that do not use it keep the same hash and results.</dd>
+        </dl>
+<pre class="source">  - id: close-notice
+    action: if
+    condition: { target: { role: dialog, name: 系統公告 }, state: visible, wait: 2000 }
+    then:
+      - { id: close, action: click, target: { role: button, name: 關閉 } }
+  - id: each-order
+    action: forEach
+    items: '{{ inputs.orders }}'
+    as: order
+    steps:
+      - { id: fill-title, action: fill, target: { label: 標題 }, value: '{{ order.title }}' }
+      - { id: add, action: click, target: { role: button, name: 新增 } }
+      - { id: read-id, action: extract, target: { testId: last-id }, as: recordIds, append: true }
+  - id: next-pages
+    action: repeat
+    while: { target: { role: button, name: 下一頁 }, state: enabled }
+    max: 20
+    steps:
+      - { id: next, action: click, target: { role: button, name: 下一頁 } }
+  - id: optional-survey
+    action: try
+    steps:
+      - { id: open-survey, action: click, target: { role: link, name: 填寫問卷 } }
+    catch:
+      - { id: survey-failed, action: screenshot }
+  - { id: open-report, action: openPage, as: report, url: '/reports?month={{ inputs.month }}' }
+  - { id: read-total, action: extract, page: report, target: { testId: total }, as: total, retry: { times: 2 } }
+  - { id: close-report, action: closePage, page: report }</pre>
+        <p class="muted">Complete runnable examples are in <code>scenarios/examples/flow/</code> (with the local test site's <code>/flow</code>). Recordings cannot capture conditions or loops: record a straight draft first, then wrap the parts you need in blocks; the Portal's scenario editor has “Insert a flow template”. In recordings, <code>page1 = context.new_page()</code> becomes openPage and <code>close()</code> on a new tab becomes closePage.</p>
+      </div>
     </section>
 
     <div class="two-col">
@@ -396,7 +461,7 @@ steps:
         <div class="panel-header"><h2>Expressions <code>{{ }}</code></h2><span class="muted">Jinja2; evaluated in a sandbox from M2</span></div>
         <div class="panel-body">
           <ul class="points">
-            <li><strong>The only variables</strong> are <code>inputs</code>, <code>secrets</code>, <code>facts</code> and <code>env</code>; Jinja2 filters work, for example <code>{{ inputs.title | upper }}</code>.</li>
+            <li><strong>The only variables</strong> are <code>inputs</code>, <code>secrets</code>, <code>facts</code> and <code>env</code>; inside loops there are also the loop variable and <code>loop</code>, and inside catch <code>error</code> (<a href="#flow">Flow control</a>). Jinja2 filters work, for example <code>{{ inputs.title | upper }}</code>.</li>
             <li><strong>Validation already checks</strong> syntax, unknown variables and filters, undeclared inputs and secrets, and facts that no extract produces or that are produced only later.</li>
             <li><strong>facts cannot be used in browser settings</strong>, because the page has not been touched yet at that point.</li>
             <li><strong>today, now and random are <a href="#dynamic">dynamic input values</a></strong>, not variables here; when they appear in a step, validation suggests moving them to an input.</li>
