@@ -29,13 +29,13 @@
   <div class="heading">
     <div>
       <h1>系统架构</h1>
-      <p>组件、数据流与目录结构。平台全部部署在内网：服务器保存场景与记录，录制端与 Worker 两个桌面 App 主动连到服务器，浏览器在它们那台直接操作目标系统。本页对照 v0.8.0（2026-10-29 发布）与之后的 main（Python 节点，<a href="../adr/0020-python-nodes.html">ADR 0020</a>，尚未发布）。</p>
+      <p>组件、数据流与目录结构。平台全部部署在内网：服务器保存场景与记录，录制端与 Worker 两个桌面 App 主动连到服务器，浏览器在它们那台直接操作目标系统。本页对照 v0.9.1（2026-11-10 发布；Python 节点随 v0.9.0 发布，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）。之后合并到 main、尚未发布的流程控制（<a href="../adr/0021-flow-control.html">ADR 0021</a>）与组合场景的条件连接、同时运行、重复次数（<a href="../adr/0022-composite-flow.html">ADR 0022</a>）没有增加组件。</p>
     </div>
   </div>
 
   <div class="stack">
     <section class="panel" id="current">
-      <div class="panel-header"><h2>目前的部署</h2><span class="muted">v0.8.0：一台服务器＋录制端（macOS）＋Worker（Windows、macOS）</span></div>
+      <div class="panel-header"><h2>目前的部署</h2><span class="muted">v0.9.1：一台服务器＋录制端（macOS）＋Worker（Windows、macOS）</span></div>
       <div class="diagram">
         <svg class="arch" viewBox="0 0 1000 572" role="img" aria-labelledby="now-title now-desc">
           <title id="now-title">目前的部署图</title>
@@ -151,7 +151,7 @@
           <text class="label" x="742" y="496">密钥</text>
         </svg>
       </div>
-      <div class="diagram-caption">蓝框为内核组件；灰底为平台外部的系统；虚线为选用。所有连接都由 App 主动发起，服务器不需要连到它们；只有服务器访问数据库与数据目录；服务器可以是 Linux、macOS 或 Windows，不需要屏幕；Linux 可以用自带 Python 的分发包安装（v0.5.0 起），v0.6.0 起用约 2 MB 的签章更新档升级，设备上线时跟着服务器的版本更新（<a href="../adr/0018-layered-updates.html">ADR 0018</a>）；main 上的 RPA Worker 与分发包另附 RPA Python 运行环境（<a href="../adr/0020-python-nodes.html">ADR 0020</a>，尚未发布）。录制端用设备权杖、Worker 用 worker 权杖、第三方 Agent 用 API 密钥（<a href="agent-api.html">对外 Agent API</a>），在 HTTP 下都是明文，只适合信任的区网。服务器没有浏览器时（例如 Linux 主机），「检查」登录状态改由录制端运行。安装见<a href="../develop/operations.html">部署与操作</a>、<a href="desktop.html">桌面端分发</a>。</div>
+      <div class="diagram-caption">蓝框为内核组件；灰底为平台外部的系统；虚线为选用。所有连接都由 App 主动发起，服务器不需要连到它们；只有服务器访问数据库与数据目录；服务器可以是 Linux、macOS 或 Windows，不需要屏幕；Linux 可以用自带 Python 的分发包安装（v0.5.0 起），v0.6.0 起用约 2 MB 的签章更新档升级，设备上线时跟着服务器的版本更新（<a href="../adr/0018-layered-updates.html">ADR 0018</a>）；v0.9.0 起 RPA Worker 与分发包另附 RPA Python 运行环境（<a href="../adr/0020-python-nodes.html">ADR 0020</a>）。录制端用设备权杖、Worker 用 worker 权杖、第三方 Agent 用 API 密钥（<a href="agent-api.html">对外 Agent API</a>），在 HTTP 下都是明文，只适合信任的区网。服务器没有浏览器时（例如 Linux 主机），「检查」登录状态改由录制端运行。安装见<a href="../develop/operations.html">部署与操作</a>、<a href="desktop.html">桌面端分发</a>。</div>
     </section>
 
     <section class="panel" id="target">
@@ -249,7 +249,7 @@
         <p class="muted">录制端（M10.2）：App 用邀请配对，窗口经由本机闸道加载 Portal 页面；录制、逐步调试、人工登录与登录检查的子进程由服务器经 Client API 交给这台运行，输出与文件传回；转换、遮罩密码、版本与发布门槛仍在服务器。见<a href="desktop.html">桌面端分发</a>。</p>
         <p class="muted">同步（M11）：每个领域可以设置 git 仓库的一个目录；拉取与推送以文件为单位三方合并，冲突时停下来三选一。任何一台服务器写下的、哈希相符的通过记录都能当发布依据。推送前挡下看起来像机密的文件。</p>
         <p class="muted">文件入参（M7c）：运行、验证与调试表单选的文件先串流上传到服务器的文件区，入参只放文件参照（代号、文件名、大小、sha256）；本机运行直接交文件位置，远程 Worker 依任务的清单另外下载并比较 sha256，录制端调试时一起送或另外下载。场景附件跟着版本放在领域文件夹、纳入场景哈希。Worker 也可以读它自己设置允许的文件夹。见<a href="dsl.html#upload">场景 DSL</a>、<a href="portal.html#files">管理 Portal</a>。</p>
-        <p class="muted">Python 节点（main，尚未发布，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）：写了 <code>script.runtime</code> 的场景只交给带了这个主版本运行环境、平台符合的 Worker，不看浏览器与窗口。Runner 在入参之后的「运行环境」阶段找到或解压运行环境（缓存的 <code>python/版本-平台/</code>，第一次之后沿用），以 <code>python -E -s</code> 运行脚本，工作目录是共用工作文件夹；同一次组合运行的节点在同一台 Worker、共用这个文件夹，DSL 的 download 步骤也存到这里。组合运行结束就删，只有 file 出参与 <code>outputs/</code> 的文件跟着运行目录上传。</p>
+        <p class="muted">Python 节点（v0.9.0 起，<a href="../adr/0020-python-nodes.html">ADR 0020</a>）：写了 <code>script.runtime</code> 的场景只交给带了这个主版本运行环境、平台符合的 Worker，不看浏览器与窗口。Runner 在入参之后的「运行环境」阶段找到或解压运行环境（缓存的 <code>python/版本-平台/</code>，第一次之后沿用），以 <code>python -E -s</code> 运行脚本，工作目录是共用工作文件夹；同一次组合运行的节点在同一台 Worker、共用这个文件夹，DSL 的 download 步骤也存到这里。组合运行结束就删，只有 file 出参与 <code>outputs/</code> 的文件跟着运行目录上传。</p>
         <p class="muted">更新（v0.6.0 起，<a href="../adr/0018-layered-updates.html">ADR 0018</a>）：每个版本多一个约 2 MB、Ed25519 签章的更新档，只含我们的程序。服务器分发包用 <code>bin/rpa update</code> 换上新版并自己重新启动；Worker 与录制端上线时向服务器检查，下载同一个版本，验证后在不打断工作的时机应用。Python 或第三方包（运行环境）改变时才需要完整的安装包。</p>
 <pre class="source">数据目录/（RPA_DATA_DIR）
   rpa.db                 # SQLite：索引、运行状态、设备、每台自己的设置
@@ -295,12 +295,12 @@
             <tr><td><code>rpa-core</code></td><td>DSL 模型、YAML 加载与校验、表达式引擎、JSON Schema 导出、多语言消息目录；文件入参、<code>upload</code> 与场景附件的规则（M7c）；旧 App 看不懂的 DSL 扩充清单（<code>rpa_core.dsl.features</code>）；组合场景的定义与检查（<code>rpa_core.workflow</code>，M6）；领域文件夹的格式与校验（<code>rpa_core.pack</code>，M11）；录制稿转 DSL（<code>rpa_core.recording</code>，M4）；Python 节点的 <code>script.runtime</code>、<code>files</code>、<code>platforms</code>，array／object 入参、file 出参与 <code>download</code> 步骤（ADR 0020）。不碰浏览器、不碰数据库。</td><td>Pydantic、PyYAML、Jinja2</td><td>M0</td></tr>
             <tr><td><code>rpa-runner</code></td><td>运行引擎：入参校验、步骤处理器注册表、浏览器与上下文管理（含 iframe，M7a；点击开出的新分页，M7b；上传文件与拦下选择文件窗口，M7c）、登录检查与人工登录、独立断言、出参发布、运行目录与报告、录像（M12）与每一步的截图；也运行 Python 节点：找到、解压、沿用 RPA Python 运行环境（<code>rpa_runner.pyruntime</code>）、file 出参与产出文件（<code>rpa_runner.outputfiles</code>），并提供录制、逐步调试、人工登录的子进程（子进程命令集中在 <code>rpa_runner.commands</code>，打包后走 App 的入口）。无状态。</td><td>rpa-core、Playwright</td><td>M2</td></tr>
             <tr><td>录制</td><td>在隔离的浏览器中记录用户操作，保存原始录制稿并转成 DSL 草稿。M4 没有另外做包：录制用 Playwright codegen，转换是 rpa-core 的 <code>rpa_core.recording</code>（不碰浏览器，可以单独测试）。</td><td>rpa-core、Playwright</td><td>M4</td></tr>
-            <tr><td><code>rpa-script</code></td><td>Python 节点的脚本界面（选用）：<code>@automation</code>、<code>run.step()</code>、<code>run.facts</code>、<code>run.output_dir</code>、<code>run.preview()</code>，写成和 DSL 相同格式的 <code>steps.json</code>；运行环境模式的启动器。只用标准函数库；不装在运行环境里，由 Runner 加在 import 路径最后，所以属于代码层、跟着更新档更新（<a href="dsl.html#python">场景 DSL › Python 节点</a>）。</td><td>标准函数库</td><td>main（ADR 0020）</td></tr>
+            <tr><td><code>rpa-script</code></td><td>Python 节点的脚本界面（选用）：<code>@automation</code>、<code>run.step()</code>、<code>run.facts</code>、<code>run.output_dir</code>、<code>run.preview()</code>，写成和 DSL 相同格式的 <code>steps.json</code>；运行环境模式的启动器。只用标准函数库；不装在运行环境里，由 Runner 加在 import 路径最后，所以属于代码层、跟着更新档更新（<a href="dsl.html#python">场景 DSL › Python 节点</a>）。</td><td>标准函数库</td><td>v0.9.0（ADR 0020）</td></tr>
             <tr><td><code>rpa-generator</code></td><td>AI 助手：对话调试、自然语言 → DSL、校验失败反馈修正、选择器自愈；只能修改草稿。<strong>尚未创建</strong>：要先决定模型与数据去向。</td><td>rpa-core、LLM SDK</td><td>M5</td></tr>
             <tr><td><code>rpa-cli</code></td><td><code>rpa</code> 命令：validate、schema、run、record、serve、worker、recorder、pack check、update（用更新档升级服务器分发包，v0.6.0）；generate 在 M5。</td><td>上述包、click</td><td>M0</td></tr>
             <tr><td><code>rpa-server</code></td><td>API 与管理页面、数据库模型与迁移、版本与发布门槛、调试工作阶段、组合场景的运行（M6）、Worker API（M9a）、设备、邀请与 Client API（M10）、领域文件夹的加载与 git 同步（M11）、回看与录像保留（M12）、项目空间、对外 Agent API（M14）、组合运行的汇总报告与合并回看（<a href="../adr/0019-composite-report-replay.html">ADR 0019</a>）、上传的文件区（M7c）、服务器的更新与设备更新（<a href="../adr/0018-layered-updates.html">ADR 0018</a>）；权限（M8）、调度（M9）。</td><td>rpa-core、FastAPI、Jinja2、SQLAlchemy</td><td>M3</td></tr>
             <tr><td><code>rpa-worker</code></td><td>取出待运行的任务，以子进程调用 rpa-runner，应用总期限与取消，回写结果与产物。M3 在同一台电脑；M9a 起也可以在另一台电脑，经由 Worker API 领取（<code>rpa worker</code>，ADR 0012）。M10 起也包含配对、录制端的本机闸道与交互子进程主机（<code>rpa_worker.pairing</code>、<code>gateway</code>、<code>recorder</code>），两个 App 与 <code>rpa recorder</code> 共用。上线时回报带了哪些 RPA Python 运行环境与平台；组合运行的共用工作文件夹（<code>workspaces/</code>）与清理（ADR 0020）。</td><td>rpa-runner；标准函数库的 HTTP</td><td>M3</td></tr>
-            <tr><td><code>rpa-desktop</code>（<code>apps/desktop</code>）</td><td>两个桌面 App：RPA 录制端（pywebview 窗口加载 Portal 页面，在这台运行录制、调试、人工登录的子进程）与 RPA Worker（状态窗口＋远程 worker；设置里有文件入参可以读的文件夹；main 起附带 RPA Python 运行环境）；配对、下载浏览器、打包后的入口、设备更新的下载与应用。M10 起（ADR 0014）。</td><td>rpa-runner、rpa-worker、rpa-update、pywebview</td><td>M10</td></tr>
+            <tr><td><code>rpa-desktop</code>（<code>apps/desktop</code>）</td><td>两个桌面 App：RPA 录制端（pywebview 窗口加载 Portal 页面，在这台运行录制、调试、人工登录的子进程）与 RPA Worker（状态窗口＋远程 worker；设置里有文件入参可以读的文件夹；v0.9.0 起附带 RPA Python 运行环境）；配对、下载浏览器、打包后的入口、设备更新的下载与应用。M10 起（ADR 0014）。</td><td>rpa-runner、rpa-worker、rpa-update、pywebview</td><td>M10</td></tr>
             <tr><td><code>rpa-update</code></td><td>热更新：更新档的清单与 Ed25519 签章验证、环境代号、程序层的安装与选层、桌面 App 的启动器（每次启动验证后才引导程序层，起不来时退回上一层）。只用标准函数库，跟着运行环境走：改了它就要发完整的安装包（<a href="../adr/0018-layered-updates.html">ADR 0018</a>）。</td><td>标准函数库</td><td>v0.6.0</td></tr>
           </tbody>
         </table>

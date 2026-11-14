@@ -61,7 +61,7 @@
       <div class="panel-body">
         <dl class="spec-list">
           <dt>場景 Scenario</dt><dd>一段可重複執行的瀏覽器操作流程，以聲明式 DSL 描述；瀏覽器做不到的工作寫成 Python 節點（見下）。平台的核心資產，有穩定的 id 與分類，兩種都走同一套場景契約與發布門檻（<a href="../adr/0009-scenario-contract.html">ADR 0009</a>）。</dd>
-          <dt>Python 節點 Python node</dt><dd>場景檔加上 Python 腳本（<code>script:</code>）的場景。寫了 <code>script.runtime</code> 的在平台建置的 RPA Python 運行環境執行、不開瀏覽器，處理 Excel、檔案、資料與呼叫 API；沒寫的是相容模式，照舊可以自己用 Playwright（<a href="../adr/0020-python-nodes.html">ADR 0020</a>，main 上、尚未發布）。</dd>
+          <dt>Python 節點 Python node</dt><dd>場景檔加上 Python 腳本（<code>script:</code>）的場景。寫了 <code>script.runtime</code> 的在平台建置的 RPA Python 運行環境執行、不開瀏覽器，處理 Excel、檔案、資料與呼叫 API；沒寫的是相容模式，照舊可以自己用 Playwright（<a href="../adr/0020-python-nodes.html">ADR 0020</a>，v0.9.0 起）。</dd>
           <dt>版本 Revision</dt><dd>場景的一個不可變版本：草稿 → 驗證中 → 通過或失敗 → 已發布。修改後要重新驗證，發布的版本必須就是驗證通過的版本。</dd>
           <dt>步驟 Step</dt><dd>場景中的一個動作，例如開啟網址、點擊、填寫、抽取資料。每個步驟有穩定的 <code>id</code>。</dd>
           <dt>定位器 Target</dt><dd>描述「要操作頁面上的哪個元素」，可以有多個候選，依優先順序嘗試。</dd>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:4e8a17754acb2177">
+<meta name="translation-source" content="sha256:1f6318b87866caa3">
 <title>Agent API guide · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -230,7 +230,7 @@ POST /agent-api/v1/scenes/order-import/revisions/3/validate
     </section>
 
     <section class="panel" id="python-nodes">
-      <div class="panel-header"><h2>Python nodes</h2><span class="muted"><a href="../adr/0020-python-nodes.html">ADR 0020</a>; on main, not yet released</span></div>
+      <div class="panel-header"><h2>Python nodes</h2><span class="muted"><a href="../adr/0020-python-nodes.html">ADR 0020</a>; from v0.9.0</span></div>
       <div class="panel-body">
         <p>Work a browser cannot do (merging Excel files, tidying data, calling APIs) is written as a Python node: the scenario file has <code>script:</code> with <code>runtime: "1"</code>, <code>automation.py</code> does the automation, and success is still decided by independent assertions (spec in <a href="../design/dsl.html#python">DSL › Python nodes</a>). When the server supports them, <code>dslFeatures</code> in <code>GET /meta</code> lists <code>pythonNodes</code>, <code>jsonInputs</code>, <code>fileOutputs</code> and <code>download</code>.</p>
 <pre class="source">POST /agent-api/v1/scenes/merge-sales/revisions
@@ -241,7 +241,7 @@ POST /agent-api/v1/scenes/order-import/revisions/3/validate
         <ul class="points">
           <li><strong>Saving</strong>: put the scenario file, <code>automation.py</code>, <code>assertion.py</code> (unless you use <code>verify</code>) and the files listed in <code>script.files</code> in <code>files</code>, with paths relative to the scenario file; files the scenario file does not use are rejected. <code>POST /dsl/check</code> takes only the scenario file and reports scripts not yet supplied as <code>dsl.script.missing</code>; the check on saving is what counts.</li>
           <li><strong>No step debugging</strong>: <code>POST /scenes/{id}/debug</code> returns 422 <code>debug_script</code>. Validate directly and read the run's steps, facts and <code>automation.log</code>.</li>
-          <li><strong>Workers with the runtime</strong>: these runs only go to Workers that have RPA Python runtime 1 on a platform listed in <code>platforms</code>; no browser is needed. The runtime ships with RPA Worker and the Linux package from main on; apps up to v0.8.0 do not have it, and their <code>features</code> in <code>GET /workers</code> lack <code>pythonNodes</code>, so such runs stay queued.</li>
+          <li><strong>Workers with the runtime</strong>: these runs only go to Workers that have RPA Python runtime 1 on a platform listed in <code>platforms</code>; no browser is needed. The runtime ships with RPA Worker and the Linux package from v0.9.0; apps up to v0.8.0 do not have it, and their <code>features</code> in <code>GET /workers</code> lack <code>pythonNodes</code>, so such runs stay queued.</li>
           <li><strong>Data and files</strong>: values of <code>type: array</code> and <code>object</code> inputs are plain JSON, and upstream outputs of the same type can feed downstream inputs. Files the script writes to <code>run.output_dir</code> and file outputs are in the run's file list, downloadable with <code>GET /runs/{id}/files/outputs/…</code>; in a composite scenario a file output can feed the file input of a downstream DSL scenario (through the shared workspace on the same Worker).</li>
           <li><strong>No login roles</strong>: a runtime-mode scenario with <code>login</code> is rejected by validation (not supported in this version).</li>
         </ul>

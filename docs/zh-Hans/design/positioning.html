@@ -62,7 +62,7 @@
       <div class="panel-body">
         <dl class="spec-list">
           <dt>场景 Scenario</dt><dd>一段可重复运行的浏览器操作流程，以声明式 DSL 描述；浏览器做不到的工作写成 Python 节点（见下）。平台的核心资产，有稳定的 id 与分类，两种都走同一套场景契约与发布门槛（<a href="../adr/0009-scenario-contract.html">ADR 0009</a>）。</dd>
-          <dt>Python 节点 Python node</dt><dd>场景文件加上 Python 脚本（<code>script:</code>）的场景。写了 <code>script.runtime</code> 的在平台建置的 RPA Python 运行环境运行、不开浏览器，处理 Excel、文件、数据与调用 API；没写的是兼容模式，照旧可以自己用 Playwright（<a href="../adr/0020-python-nodes.html">ADR 0020</a>，main 上、尚未发布）。</dd>
+          <dt>Python 节点 Python node</dt><dd>场景文件加上 Python 脚本（<code>script:</code>）的场景。写了 <code>script.runtime</code> 的在平台建置的 RPA Python 运行环境运行、不开浏览器，处理 Excel、文件、数据与调用 API；没写的是兼容模式，照旧可以自己用 Playwright（<a href="../adr/0020-python-nodes.html">ADR 0020</a>，v0.9.0 起）。</dd>
           <dt>版本 Revision</dt><dd>场景的一个不可变版本：草稿 → 验证中 → 通过或失败 → 已发布。修改后要重新验证，发布的版本必须就是验证通过的版本。</dd>
           <dt>步骤 Step</dt><dd>场景中的一个动作，例如打开网址、点击、填写、抽取数据。每个步骤有稳定的 <code>id</code>。</dd>
           <dt>定位器 Target</dt><dd>描述「要操作页面上的哪个元素」，可以有多个候选，依优先级尝试。</dd>

@@ -229,7 +229,7 @@ POST /agent-api/v1/scenes/order-import/revisions/3/validate
     </section>
 
     <section class="panel" id="python-nodes">
-      <div class="panel-header"><h2>Python 節點</h2><span class="muted"><a href="../adr/0020-python-nodes.html">ADR 0020</a>；main 上、尚未發布</span></div>
+      <div class="panel-header"><h2>Python 節點</h2><span class="muted"><a href="../adr/0020-python-nodes.html">ADR 0020</a>；v0.9.0 起</span></div>
       <div class="panel-body">
         <p>瀏覽器做不到的工作（合併 Excel、整理資料、呼叫 API）寫成 Python 節點：場景檔寫 <code>script:</code> 與 <code>runtime: "1"</code>，自動化由 <code>automation.py</code> 完成，成功照樣由獨立斷言判定（規格見 <a href="../design/dsl.html#python">DSL › Python 節點</a>）。伺服器支援時 <code>GET /meta</code> 的 <code>dslFeatures</code> 有 <code>pythonNodes</code>、<code>jsonInputs</code>、<code>fileOutputs</code>、<code>download</code>。</p>
 <pre class="source">POST /agent-api/v1/scenes/merge-sales/revisions
@@ -240,7 +240,7 @@ POST /agent-api/v1/scenes/order-import/revisions/3/validate
         <ul class="points">
           <li><strong>存檔</strong>：<code>files</code> 一起放場景檔、<code>automation.py</code>，以及 <code>assertion.py</code>（沒有用 <code>verify</code> 時）與 <code>script.files</code> 列的檔案，路徑相對於場景檔；沒有被場景檔用到的檔案會被拒絕。<code>POST /dsl/check</code> 只收場景檔，還沒放進來的腳本會報成 <code>dsl.script.missing</code>，以存檔時的檢查為準。</li>
           <li><strong>不能逐步調試</strong>：<code>POST /scenes/{id}/debug</code> 回 422 <code>debug_script</code>。直接驗證執行，看運行的步驟、事實與 <code>automation.log</code>。</li>
-          <li><strong>交給有運行環境的 Worker</strong>：只派給帶了 RPA Python 運行環境 1、平台在 <code>platforms</code> 裡的 Worker，不需要瀏覽器。運行環境附在 main 起的 RPA Worker 與 Linux 分發包；v0.8.0 以前的 App 沒有，<code>GET /workers</code> 的 <code>features</code> 也沒有 <code>pythonNodes</code>，這時運行會一直排隊。</li>
+          <li><strong>交給有運行環境的 Worker</strong>：只派給帶了 RPA Python 運行環境 1、平台在 <code>platforms</code> 裡的 Worker，不需要瀏覽器。運行環境附在 v0.9.0 起的 RPA Worker 與 Linux 分發包；v0.8.0 以前的 App 沒有，<code>GET /workers</code> 的 <code>features</code> 也沒有 <code>pythonNodes</code>，這時運行會一直排隊。</li>
           <li><strong>資料與檔案</strong>：<code>type: array</code>、<code>object</code> 的入參值直接寫 JSON，上游同型別的出參可以接到下游。腳本寫進 <code>run.output_dir</code> 的檔案與 file 出參在運行的檔案清單裡，用 <code>GET /runs/{id}/files/outputs/…</code> 下載；組合場景裡 file 出參可以接到下游 DSL 場景的 file 入參（同一台 Worker 的共用工作資料夾）。</li>
           <li><strong>不能用登入角色</strong>：運行環境模式的場景寫 <code>login</code> 會被校驗擋下（這一版不支援）。</li>
         </ul>
