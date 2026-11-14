@@ -20,8 +20,8 @@
         <dt>範圍／不包含</dt><dd><code>docs/</code> 的繁中與英文頁（簡中由 bootstrap 產生）；<code>handoff/index.html</code> 補上 M11 之後的狀態列與目前的下一步；任務索引回填組合場景流程已合併。已隨各 PR 更新、和程式一致的內容不動（場景 DSL 的流程控制、管理 Portal 的條件連線、ADR 0021／0022、Agent 使用指南）。不包含：程式與 <code>schema/</code>；<code>handoff/</code> 其他頁（驗收紀錄、未完成工作、決定）的逐項回填；M7.2 子場景的文件（在 <code>feat/m7-subscenario</code>）。</dd>
         <dt>主責／審閱／接收方</dt><dd>文檔更新：Claude（Fable 5.2）；審閱與合併：使用者。</dd>
         <dt>修改檔案／整合者</dt><dd><code>docs/index.html</code>、<code>docs/roadmap.html</code>、<code>docs/adr/index.html</code>、<code>docs/assets/nav.js</code>（頁首標籤）；<code>docs/design/</code> 的 architecture、tech-stack、desktop、positioning、portal（開頭）、agent-api（開頭）；<code>docs/develop/</code> 的 setup、remote-worker、operations、agent-api-guide；<code>docs/en/</code> 的同一頁；<code>handoff/index.html</code>、本頁、任務索引。共用檔案（任務索引、<code>nav.js</code>、路線圖）由本任務整合；開工時沒有開著的 PR。M7.2 的分支從本分支開，路線圖的 M7 列之後由那個分支接著改。</dd>
-        <dt>狀態</dt><dd>實作完成、待審閱。繁中與英文已 stamp；簡中由本次推送的 <code>[bootstrap]</code> 產生；PR 與 CI 見追加紀錄。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>docs/refresh-v0-9</code>，從 <code>3ba4e39</code>（origin/main，Merge PR #22）開；PR 見追加紀錄（base main）。</dd>
+        <dt>狀態</dt><dd>實作完成、待審閱（PR #23）。繁中與英文已 stamp；簡中已由 bootstrap 產生（<code>0fed4c3</code>）；最新 head 的 CI 見 PR。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>docs/refresh-v0-9</code>，從 <code>3ba4e39</code>（origin/main，Merge PR #22）開；PR #23（base main）。</dd>
         <dt>交接版本／同步狀態</dt><dd>推送到 <code>docs/refresh-v0-9</code>；以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端工作區 Linux x86_64、系統 Python 3.13.18。不能安裝套件：沒有 OpenCC，簡中靠提交訊息的 <code>[bootstrap]</code> 產生。GitHub 用 REST API（<code>gh api</code>）查 PR 與 Release。</dd>
       </dl></div>
@@ -41,7 +41,9 @@
       <div class="panel-header"><h2>驗證與審閱</h2></div>
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
-        <tbody><tr><td>本分支（文件改完、提交前；基準 <code>3ba4e39</code>＋工作區差異）；雲端 Linux、系統 Python 3.13.18</td><td><code>python3 tools/i18n.py stamp</code>（每個改過的英文頁）；<code>python3 -m pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code>；本頁、任務索引與 <code>handoff/index.html</code> 的相對連結</td><td>見追加紀錄</td><td>沒有 OpenCC，簡中與 <code>i18n.py check</code> 交給 bootstrap 與 CI；只改文件，不跑程式與瀏覽器測試</td></tr></tbody>
+        <tbody><tr><td>本分支（文件改完、提交前；基準 <code>3ba4e39</code>＋工作區差異）；雲端 Linux、系統 Python 3.13.18</td><td><code>python3 tools/i18n.py stamp</code>（每個改過的英文頁）；<code>python3 -m pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code>；本頁、任務索引與 <code>handoff/index.html</code> 的相對連結</td><td>383 passed、1 failed：失敗的是 <code>tests/i18n/test_generated.py::test_simplified_chinese_is_generated</code>（本機沒有 OpenCC，簡中由 bootstrap 產生）；<code>git diff --check</code> 通過</td><td>沒有 OpenCC，簡中與 <code>i18n.py check</code> 交給 bootstrap 與 CI；只改文件，不跑程式與瀏覽器測試</td></tr>
+          <tr><td><code>9510992</code>；GitHub Actions（PR #23）</td><td>CI、伺服器分發包、桌面端建置、RPA Python 運行環境、一鍵安裝腳本</td><td>CI 的「測試（Python 3.12／3.13）」只有 <code>test_simplified_chinese_is_generated</code> 失敗（3.13：1 failed、2406 passed、6 skipped），其他工作與流程通過</td><td>簡中當時還沒產生</td></tr>
+          <tr><td><code>0fed4c3</code>（bootstrap 機器人的提交：簡中與 <code>uv.lock</code>）</td><td>同上</td><td>五個流程都是 <code>action_required</code>、沒有執行（機器人的提交照例如此）</td><td>由下一次推送的 CI 一起驗證，見追加紀錄</td></tr></tbody>
       </table></div>
       <div class="panel-body"><p>CI：見追加紀錄。人工驗收：不適用（只改文件）。審閱者／SHA／發現與處理：未審閱。</p></div>
     </section>
@@ -52,6 +54,7 @@
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
+        <li>2026-11-13 20:12 America/Los_Angeles（PST，UTC−08:00），Claude：PR #23（<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/23">連結</a>）開好；<code>9510992</code> 的 CI 只有「簡中不是最新」失敗，bootstrap 提交 <code>0fed4c3</code> 產生了簡中與 <code>uv.lock</code>，它的流程停在 <code>action_required</code>。本提交只回填這一段，推送後的 CI 會連同 <code>0fed4c3</code> 一起驗證。</li>
         <li>2026-11-13 18:14～18:30 America/Los_Angeles（PST，UTC−08:00），Claude：開工。重新 clone（<code>--depth 50</code>，再 <code>git fetch --depth=300 origin main</code>）；沒有開著的 PR；從 <code>3ba4e39</code> 開 <code>docs/refresh-v0-9</code>。盤點 <code>docs/</code> 各頁（繁中與英文各搜尋 v0.8.0、「main 上／main 起」「尚未發布」「未合併」「實作中」）與 PR #12～#22、Release v0.9.0、v0.9.1。改完後 stamp 英文頁。</li>
       </ul></div>
     </section>
