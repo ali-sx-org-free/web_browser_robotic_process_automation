@@ -207,6 +207,11 @@ window.DOCS_NAV = {
           "id": "adr-0022",
           "href": "adr/0022-composite-flow.html",
           "name": {"zh-Hant": "0022 組合場景的流程", "zh-Hans": "0022 组合场景的流程", "en": "0022 Flow in composite scenarios"}
+        },
+        {
+          "id": "adr-0023",
+          "href": "adr/0023-sub-scenarios.html",
+          "name": {"zh-Hant": "0023 子場景", "zh-Hans": "0023 子场景", "en": "0023 Sub-scenarios"}
         }
       ]
     },
