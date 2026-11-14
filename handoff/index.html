@@ -25,9 +25,9 @@
   <div class="heading">
     <div>
       <h1>交接總入口</h1>
-      <p>Claude、ChatGPT／Codex 與使用者共用的交接入口。2026-10-14 建立<a href="collaboration.html">共用協作流程</a>與<a href="tasks/index.html">任務紀錄</a>。下方業務狀態沿用 main <a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/30fe7b8">30fe7b8</a> 的交接快照（#26 收錄）；後續進度以相關任務、PR 和驗收證據核對。</p>
+      <p>Claude、ChatGPT／Codex 與使用者共用的交接入口。2026-10-14 建立<a href="collaboration.html">共用協作流程</a>與<a href="tasks/index.html">任務紀錄</a>。下方業務狀態沿用 main <a class="mono" href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/commit/30fe7b8">30fe7b8</a> 的交接快照（#26 收錄）；後續進度以相關任務、PR 和驗收證據核對。2026-11-13 18:25 America/Los_Angeles（PST，UTC−08:00） 依 main <span class="mono">3ba4e39</span> 補上 M11 之後的項目與目前的下一步（<a href="tasks/20261113-docs-refresh-v0-9.html">任務紀錄</a>）；10-14 的各列沒有重新查證。</p>
     </div>
-    <span class="badge blue">M9a 待人工驗收</span>
+    <span class="badge blue">目前 v0.9.1 · M7 進行中</span>
   </div>
 
   <div class="stack">
@@ -36,7 +36,7 @@
     <div class="notice"><strong>三種狀態分開看：</strong>「程式碼已合併」只代表在 main 上；「自動測試通過」是 GitHub Actions 的結果（Linux、macOS、Windows 的虛擬機，<strong>不是你的電腦</strong>）；「人工驗收通過」要有人在真實電腦上照驗收步驟做過並留下紀錄。目前<strong>沒有任何里程碑有完整的人工驗收紀錄</strong>。</div>
 
     <section class="panel" id="status">
-      <div class="panel-header"><h2>狀態總表</h2><span class="muted">截至 2026-10-14（M6 列於 23:50 America/Los_Angeles（PDT，UTC−07:00） 更新）；細節與證據見<a href="acceptance.html">狀態與驗收紀錄</a></span></div>
+      <div class="panel-header"><h2>狀態總表</h2><span class="muted">截至 2026-10-14（M6 列於 23:50 America/Los_Angeles（PDT，UTC−07:00） 更新）；M11 以後的列是 2026-11-13 依<a href="../docs/roadmap.html">路線圖</a>與各任務紀錄補上的；細節與證據見<a href="acceptance.html">狀態與驗收紀錄</a></span></div>
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>項目</th><th>程式碼已合併</th><th>自動測試通過</th><th>人工驗收通過</th></tr></thead>
         <tbody>
@@ -48,6 +48,15 @@
           <tr><td>安裝腳本：受限語言模式（你寫的 #25）</td><td>是（#25，10-13 20:58 America/Los_Angeles（PDT，UTC−07:00））</td><td>是，但 <strong>CI 沒有在受限語言模式下跑</strong></td><td><span class="kind unknown">需你補充</span>（在你的 Windows 上裝完了嗎）</td></tr>
           <tr><td>交接材料（#24）、setup-uv 10.3.0（#19）</td><td>是（10-13）</td><td>是</td><td>—</td></tr>
           <tr><td><strong>M10 桌面端分發</strong></td><td>M10.0：是（#30，2026-10-16 20:48 America/Los_Angeles（PDT，UTC−07:00），main <span class="mono">ce88275</span>，<a href="tasks/20261015-m10-desktop.html">任務紀錄</a>）。M10.1：是（#31、#32、#33，由 <a href="https://github.com/DevopsLeaDevops/web_browser_robotic_process_automation/pull/34">#34</a> 在 2026-10-18 06:50 America/Los_Angeles（PDT，UTC−07:00）帶進 main，<span class="mono">6b3562e</span>；第一版 v0.2.0 已發布（2026-10-18 17:12 America/Los_Angeles（PDT，UTC−07:00））；<a href="tasks/20261016-m10-1-windows-worker.html">任務紀錄</a>）。M10.2：進行中（<a href="tasks/20261018-m10-2-macos-recorder.html">任務紀錄</a>）</td><td>M10.0：是（main 的 CI 與桌面端建置）</td><td><span class="kind tentative">部分</span>：M10.1 的整體流程你在 2026-10-18 07:44 America/Los_Angeles（PDT，UTC−07:00）回報通過，細節驗收中；M10.2 的主體功能你在 2026-10-19 04:22 America/Los_Angeles（PDT，UTC−07:00） 回報驗收通過，細節慢慢驗收</td></tr>
+          <tr><td><strong>M11 資料存放升級</strong></td><td>是（#48～#56、#60，2026-10-20），v0.4.0</td><td>是</td><td>部分：git 推送已驗證，其餘沒有紀錄</td></tr>
+          <tr><td><strong>M12 運行回看</strong></td><td>是（#61、#64 起，v0.4.0；之後 #69、#98、#103、#106，到 v0.8.0）</td><td>是</td><td>部分：v0.7.0 的回看由你驗收時回報四個問題（v0.7.1 修正），之後沒有完整紀錄</td></tr>
+          <tr><td><strong>M7a iframe、M7b 新分頁、M7c 上傳</strong></td><td>是（#62 v0.4.0、#66 v0.5.0、#97 v0.7.0）</td><td>是</td><td>M7a 本機通過、三機待重新驗收；M7b、M7c 未執行</td></tr>
+          <tr><td><strong>M14 對外 Agent API（第一期）</strong></td><td>是（#79，2026-10-25），v0.6.0；第二、三期未開始</td><td>是</td><td>未執行</td></tr>
+          <tr><td><strong>Python 節點（ADR 0020）</strong></td><td>是（舊倉庫 #109，2026-11-06），v0.9.0（2026-11-10 16:15 America/Los_Angeles（PST，UTC−08:00）發布）</td><td>是</td><td>驗收一～五由你回報完成（2026-11-10 00:13 America/Los_Angeles（PST，UTC−08:00）），驗收六沒有紀錄（<a href="tasks/20261110-release-0-9-0.html">發布紀錄</a>）</td></tr>
+          <tr><td><strong>登入角色的元素引導、JSON 寫法的場景檔</strong></td><td>是（#13、#12，2026-11-10），v0.9.1（2026-11-10 23:45 America/Los_Angeles（PST，UTC−08:00）發布）</td><td>是</td><td>沒有紀錄</td></tr>
+          <tr><td><strong>M7.1 流程控制</strong></td><td>是（#15，2026-11-13 17:57 America/Los_Angeles（PST，UTC−08:00），main <span class="mono">3a34777</span>）；尚未發布</td><td>是（合併的 head <span class="mono">429a51f</span>）</td><td>你回報通過（2026-11-13 17:59 America/Los_Angeles（PST，UTC−08:00）），沒有逐列紀錄（<a href="tasks/20261106-m7-flow.html">任務紀錄</a>）</td></tr>
+          <tr><td><strong>組合場景的條件連線、同時執行、重複次數</strong></td><td>是（#20，2026-11-13 18:10 America/Los_Angeles（PST，UTC−08:00），main <span class="mono">d74ebaa</span>）；尚未發布</td><td>是</td><td>驗收中回報的三項已處理，完整的結果沒有紀錄（<a href="tasks/20261111-composite-flow.html">任務紀錄</a>）</td></tr>
+          <tr><td><strong>M7.2 子場景、M7.3 資料驅動</strong></td><td>否：M7.2 在分支 <code>feat/m7-subscenario</code> 進行中（任務紀錄隨那個分支），M7.3 未開始（<a href="tasks/20261106-m7-flow.html">M7 任務紀錄</a>）</td><td>—</td><td>—</td></tr>
           <tr><td>M5 AI 助手</td><td>否</td><td>—</td><td><span class="kind pending">等你決定</span>模型與資料去向</td></tr>
         </tbody>
       </table></div>
@@ -56,6 +65,14 @@
     <section class="panel" id="next">
       <div class="panel-header"><h2>下一步（依優先順序）</h2></div>
       <div class="panel-body">
+        <p><strong>2026-11-13 更新（main <span class="mono">3ba4e39</span>）：</strong></p>
+        <ol class="steps">
+          <li><strong>審閱並合併文檔對齊</strong>（<a href="tasks/20261113-docs-refresh-v0-9.html">20261113-docs-refresh-v0-9</a>），再審閱 M7.2 子場景（分支 <code>feat/m7-subscenario</code>，疊在文檔分支上；任務紀錄隨那個分支）。</li>
+          <li><strong>M7.3 資料驅動</strong>（批次執行）：M7.2 之後做，見 <a href="tasks/20261106-m7-flow.html">M7 任務紀錄</a>第 6 節。</li>
+          <li><strong>下一個版本</strong>：M7.1 流程控制、組合場景的條件連線、同時執行與重複次數已在 main，還沒發布；版本號與時間等你決定。</li>
+          <li><strong>M5 AI 助手</strong>仍等你決定模型與資料去向（<a href="decisions.html#pending">待你決定</a>）。</li>
+        </ol>
+        <p class="muted">下面是 2026-10-14 的清單，沒有逐項回填：</p>
         <ol class="steps">
           <li><strong>兩台電腦更新到 main</strong>：專案資料夾 <code>git pull</code>，再重跑安裝腳本（macOS／Linux：<code>./scripts/setup.sh</code>；Windows：<code>powershell -ExecutionPolicy Bypass -File scripts\setup.ps1</code>）。確認 <code>uv run rpa worker --help</code> 有輸出。</li>
           <li><strong>做 M9a 的兩機驗收</strong>，結果記在<a href="acceptance.html#manual-m9a">驗收紀錄</a>的表格（或第 7 節的交接紀錄）。步驟見<a href="../docs/develop/remote-worker.html">遠端 worker</a> 與<a href="../docs/design/portal.html#manual-check">管理 Portal › 手動驗收</a>第 8 步。</li>
