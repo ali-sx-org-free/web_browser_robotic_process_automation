@@ -823,6 +823,7 @@ def page_router(services: Services) -> APIRouter:
             "batch_form.html",
             page="batches",
             title=t("batch_form.title", name=record.name, number=shown.number),
+            composite=None,
             scene=record,
             domain=domain_of(record.domain_id),
             revision=shown,

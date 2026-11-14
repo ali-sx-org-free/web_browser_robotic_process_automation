@@ -1199,7 +1199,7 @@ class WorkflowService:
             engine, headless = row.engine, row.headless
             target = cast("Target", row.target)
             client_id = row.client_id
-            given = cast("dict[str, object]", row.inputs or {}).get(node_id)
+            given = (row.inputs or {}).get(node_id)
             node = workflow.node(node_id)
             pinned = self._pin(session, row, workflow, node) if node is not None else None
         if node is None:

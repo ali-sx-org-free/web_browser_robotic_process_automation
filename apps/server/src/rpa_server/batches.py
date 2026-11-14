@@ -549,7 +549,7 @@ class BatchService:
         """所有批次合計同時排入幾列。"""
         with self.sessions() as session:
             row = session.get(Setting, SHARED_LIMIT_SETTING)
-            value = cast("dict[str, object]", row.value).get("sharedLimit") if row else None
+            value = row.value.get("sharedLimit") if row else None
         if isinstance(value, int) and not isinstance(value, bool) and value >= 1:
             return min(value, MAX_SHARED_LIMIT)
         return DEFAULT_SHARED_LIMIT
@@ -567,7 +567,7 @@ class BatchService:
                 if row is None:
                     session.add(Setting(key=SHARED_LIMIT_SETTING, value={"sharedLimit": value}))
                 else:
-                    row.value = {**cast("dict[str, object]", row.value), "sharedLimit": value}
+                    row.value = {**row.value, "sharedLimit": value}
                 session.commit()
             self._advance_waiting()
         return value
@@ -946,7 +946,7 @@ class BatchService:
                 if run.workflow_run_id is None or run.node_id is None:
                     continue
                 outputs = found.setdefault(run.workflow_run_id, {})
-                for name, value in cast("dict[str, object]", run.output or {}).items():
+                for name, value in (run.output or {}).items():
                     outputs[f"{run.node_id}{BATCH_SEPARATOR}{name}"] = value
         return found
 

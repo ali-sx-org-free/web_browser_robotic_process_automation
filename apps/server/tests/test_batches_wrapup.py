@@ -238,7 +238,7 @@ def test_composite_batch_runs_each_row_as_a_composite_run(
     assert client.get("/batches").status_code == 200
     exported = client.get(f"{url}/export?format=xlsx")
     table = read_table("result.xlsx", exported.content)
-    assert "n1.recordId" in table.columns
+    assert "出參：n2.recordId" in table.columns
 
     # 重跑沒有通過的列（改好標題）：同一個批次再一次組合運行
     rerun = client.post(f"{url}/rerun", json={"cells": {"4": {"title": "改好了"}}})
