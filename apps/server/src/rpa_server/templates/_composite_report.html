@@ -86,6 +86,9 @@
     {% if report.skipped %}
     <p class="creport-note">{{ t("creport.skipped", nodes=report.skipped | join("、")) }}</p>
     {% endif %}
+    {% if report.branchSkipped %}
+    <p class="creport-note" data-branch-skipped>{{ t("creport.branch_skipped", nodes=report.branchSkipped | join("、")) }}</p>
+    {% endif %}
     {% if counts.reused %}
     <p class="creport-note">{{ t("creport.reused_count", count=counts.reused) }}</p>
     {% endif %}
@@ -134,6 +137,7 @@
   {%- if node.stepCounts.total %}<span>{{ t("creport.steps_short", passed=node.stepCounts.passed, total=node.stepCounts.total) }}</span>{% endif -%}
   {%- if node.checkCounts.total %}<span>{{ t("creport.checks_short", passed=node.checkCounts.passed, total=node.checkCounts.total) }}</span>{% endif -%}
   {%- if node.durationSeconds is not none and node.status != "reused" %}<span>{{ node.durationSeconds | duration }}</span>{% endif -%}
+  {%- if node.repeat > 1 %}<span data-iterations>{{ t("creport.iterations", done=node.iterations, total=node.repeat) }}</span>{% endif -%}
 </span>
 {% endmacro %}
 
@@ -150,10 +154,17 @@
   {% endif %}
   {% if node.status == "reused" %}
   <p class="notice">{{ t("creport.reused_hint") }}{% if node.reusedFrom %} {% if offline %}<code>{{ node.reusedFrom }}</code>{% else %}<a class="mono" href="{{ node.reusedUrl }}">{{ node.reusedFrom }}</a>{% endif %}{% endif %}</p>
+  {% elif node.status == "skipped" and node.skippedBy == "condition" %}
+  <p class="notice">{{ t("creport.branch_skipped_hint") }}</p>
   {% elif node.status == "skipped" %}
   <p class="notice">{{ t("creport.skipped_hint") }}</p>
   {% elif node.status in ("pending", "queued", "running") %}
   <p class="notice">{{ t("creport.pending_hint") }}</p>
+  {% endif %}
+  {% if node.iterationRuns %}
+  <p class="creport-iterations">{{ t("creport.iteration_runs") }}
+    {% for item in node.iterationRuns %}{% if offline %}<code>#{{ item.number }}</code>{% else %}<a class="mono" href="{{ item.runUrl }}">#{{ item.number }}</a>{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}
+  </p>
   {% endif %}
   {% if node.error %}<pre class="creport-error">{{ node.error }}</pre>{% endif %}
 

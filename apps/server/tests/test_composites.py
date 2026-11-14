@@ -470,3 +470,48 @@ def test_migration_moves_database_composites_into_the_folder(settings: Settings)
     # 再啟動一次：不再遷移、不再備份
     with TestClient(create_app(settings)):
         assert len(list((data / "backups").glob("*-before-composites"))) == 1
+
+
+def test_condition_skipped_node_does_not_block_publishing(
+    app: FastAPI, client: Client, settings: Settings, chain: JsonObject, worker: Worker
+) -> None:
+    """條件連線沒走到的節點沒有跑：驗證紀錄記成略過，發布門檻不比對它（2026-11-11）。"""
+    publish(app, "ba-003")
+    workflow_id = chain["id"]
+    definition = {
+        "version": 2,
+        "mode": "dag",
+        "nodes": [
+            {"id": "n1", "sceneId": "ba-001", "revision": 1, "inputs": {"quantity": {"value": 5}}},
+            {
+                "id": "n2",
+                "sceneId": "ba-002",
+                "revision": 1,
+                "inputs": {"recordId": {"node": "n1", "output": "recordId"}},
+            },
+            {"id": "n3", "sceneId": "ba-003", "revision": 1},
+        ],
+        "edges": [
+            {"source": "n1", "target": "n2", "when": {"output": "quantity", "equals": 12}},
+            {"source": "n1", "target": "n3", "otherwise": True},
+        ],
+    }
+    saved = body(
+        client.put(
+            f"/api/workflows/{workflow_id}", json={"baseVersion": 1, "definition": definition}
+        )
+    )
+    assert saved["problems"] == []
+    run_id = run_to_end(client, worker, workflow_id, headless=True)
+    record, issues = read_model(
+        composite_dir(settings, "wf-1") / "verifications" / "2" / f"{run_id}.yaml",
+        CompositeVerification,
+    )
+    assert record is not None, issues
+    assert [(node.node, node.status) for node in record.nodes] == [
+        ("n1", "passed"),
+        ("n2", "skipped"),
+        ("n3", "passed"),
+    ]
+    published = body(client.post(f"/api/workflows/{workflow_id}/revisions/2/publish"))
+    assert published["publishedRevision"] == 2

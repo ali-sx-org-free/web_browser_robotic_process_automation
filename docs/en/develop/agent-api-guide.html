@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:aa95282497d2a0b2">
+<meta name="translation-source" content="sha256:4e8a17754acb2177">
 <title>Agent API guide · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -280,6 +280,7 @@ POST /agent-api/v1/scenes/order-import/revisions/3/validate
           <li><strong>No inputs at run time:</strong> inputs are bound in the definition (fixed values, dynamic values, upstream outputs); the same flow with other data is another composite.</li>
           <li><strong>Node details:</strong> each node's <code>run</code> is an ordinary run; read its steps, checks and artifacts with <code>/runs/{id}</code> and <code>/runs/{id}/steps</code>. A node cannot be rerun on its own (409 <code>rerun_workflow</code>); rerun the composite run.</li>
           <li><strong>Portal paths:</strong> responses carry <code>portalPath</code> (e.g. <code>/playground/runs/…</code>) for people to see the same record in the Portal; include it in test reports.</li>
+          <li><strong>Conditions, running at once and repeats (2026-11-11):</strong> connections in a definition may carry <code>"when": {"output": "quantity", "equals": 12}</code> (or <code>notEquals</code>, <code>in</code>, <code>empty</code>) or <code>"otherwise": true</code>, nodes may carry <code>"repeat": 3</code> (at most 20), and the definition may carry <code>"concurrency": 2</code> (at most 10); version 2 (DAG) only. A node no connection leads to is skipped: its state in the run is <code>skipped</code> with <code>skippedBy: "condition"</code>, which is not a failure, and <code>links</code> lists whether each connection was followed. A repeated node has <code>repeat</code>, <code>iterations</code> (how many times it passed) and <code>runs</code> (the run of each time). See <a href="../design/portal.html#composite-flow">Management portal › Conditional connections, running at once and repeats</a>.</li>
           <li><strong>Limits:</strong> composite nodes count towards the queued-and-running limit.</li>
         </ul>
       </div>

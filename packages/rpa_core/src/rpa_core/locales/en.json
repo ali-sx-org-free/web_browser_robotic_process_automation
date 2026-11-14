@@ -259,5 +259,20 @@
   "dsl.location.nested_step": "Step {number} › {inner} ({id})",
   "dsl.location.nested_step_without_id": "Step {number} › {inner}",
   "recording.step.openPage": "Open a new tab {target}",
-  "recording.step.closePage": "Close tab {target}"
+  "recording.step.closePage": "Close tab {target}",
+  "dsl.workflow.condition_one": "A condition needs exactly one of equals, notEquals, in or empty",
+  "dsl.workflow.edge_condition_both": "A connection cannot have both when and otherwise",
+  "dsl.workflow.flow_requires_dag": "{field} is only available in version 2 (DAG) composite scenes",
+  "dsl.workflow.condition_output_unknown": "Connection {source} → {target} checks output {output} of {source}, but that scene revision has no such output",
+  "dsl.workflow.condition_type_unsupported": "Connection {source} → {target}: output {output} is {type}; it can only be checked for having a value",
+  "dsl.workflow.condition_value_type": "Connection {source} → {target}: {value} does not match the type {type} of output {output}",
+  "dsl.workflow.otherwise_alone": "Connection {source} → {target} is “otherwise”, but {source} has no other conditional connections",
+  "dsl.workflow.otherwise_duplicate": "{source} has more than one “otherwise” connection",
+  "dsl.workflow.condition.equals": "{output} equals {value}",
+  "dsl.workflow.condition.notEquals": "{output} is not {value}",
+  "dsl.workflow.condition.in": "{output} is one of {values}",
+  "dsl.workflow.condition.separator": ", ",
+  "dsl.workflow.condition.empty_true": "{output} has no value",
+  "dsl.workflow.condition.empty_false": "{output} has a value",
+  "dsl.workflow.condition.otherwise": "Otherwise"
 }

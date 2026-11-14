@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:f157d18e15927c81">
+<title>ADR 0022 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0022" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0022: Composite conditions live on connections, running at once uses different workers, and repeats are a fixed count</h1>
+      <p>Flow between the nodes of a composite scenario (DAG): a connection checks an output of its source node to decide whether it is followed, and nodes no connection leads to are skipped; ready nodes can be queued together and picked up by free workers; a node can repeat a fixed number of times, and downstream nodes use the outputs of the last time. Scheduling is worked out again from the node results each time; skips and counts are not stored separately.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-11-11</dd>
+        <dt>Status</dt><dd>Decided by the user at about 17:08 America/Los_Angeles (PST, UTC−08:00) on 2026-11-11: run at once on different workers, conditions on connections, repeats as a fixed count using the last outputs (at most 20), on a branch started from the M7.1 branch (see the <a href="../../../handoff/decisions.html#decisions">decision record</a>).</dd>
+        <dt>Scope</dt><dd>rpa-core (composite definitions, checks, scheduling) and rpa-server (composite runs, the run page, summary reports, replay, the canvas, the publishing gate); no changes to the runner, the worker or the desktop app</dd>
+        <dt>Related</dt><dd><a href="0015-domain-folders-and-git.html">ADR 0015</a> (domain folders and the publishing gate), <a href="0019-composite-report-replay.html">ADR 0019</a> (composite summary reports and replay), <a href="0020-python-nodes.html">ADR 0020</a> (shared workspace), <a href="0021-flow-control.html">ADR 0021</a> (flow control inside scenarios); <a href="../design/portal.html#composite-flow">Management portal › Conditional connections, running at once and repeats</a>; <a href="../../../handoff/tasks/20261111-composite-flow.html">task record</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>M6 composite scenarios are DAGs: they fork and join, run one node after another in topological order and stop on failure. The MVP prototype also showed parallel nodes, conditional branches and repeat counts; these were left out on purpose and listed as open work. Conditions and loops inside a scenario became DSL blocks in M7.1 (ADR 0021); flow between nodes is a different problem, because it decides on the outputs published by upstream nodes rather than on the page.</p>
+          <p>All nodes of a composite run used to go to the worker that picked up the first node, and each worker runs one browser at a time, so nodes that were ready together still ran one by one.</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>Conditions live on connections.</strong> A connection may have <code>when</code> (one output of the source node: <code>equals</code>, <code>notEquals</code>, <code>in</code>, <code>empty</code>) or <code>otherwise</code> (none of the source's other conditional connections holds). Once all of a node's upstream nodes have finished, it runs if at least one connection led to it and is skipped otherwise; the skip carries on downstream. An output binding counts as an unconditional connection; when a drawn connection joins the same two nodes, its condition applies.</li>
+            <li><strong>Running at once uses different workers.</strong> The definition's <code>concurrency</code> (1–10, default 1) is how many ready nodes may be queued together. Above 1, nodes are no longer tied to the first worker; they stay on one worker only when a worker was chosen, when continuing from a failed node, or when a node uses a file output of an upstream node. The worker and the desktop app do not change; a worker still runs one browser at a time.</li>
+            <li><strong>Repeats are a fixed count.</strong> A node's <code>repeat</code> (1–20) runs it that many times one after another; each time is a run of its own and must pass, and downstream nodes use the outputs of the last time. When continuing from a failed node, a node stopped partway through its repeats carries on from the time that did not pass.</li>
+            <li><strong>Scheduling is worked out from the results.</strong> <code>rpa_core.workflow.advance</code> works out from each node's state and outputs which nodes can start, which are skipped and whether the run is finished. The server works it out again on every notification, so a repeated notification never queues a node twice and a restart can carry on.</li>
+            <li><strong>Stop on failure as before.</strong> Once a node does not pass, no further nodes are queued; nodes already running at the same time finish first. A skip by condition is not a failure, and the publishing gate does not compare skipped nodes that did not run.</li>
+            <li><strong>Version 2 only.</strong> The three fields are only accepted in version 2 (DAG); definitions that do not use them keep the same JSON and hash.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>Running at the same time needs several workers (two <code>rpa worker</code> processes on one computer count as two). With a single worker the behaviour is the same as before.</li>
+            <li>Nodes on different workers do not share a workspace; nodes handing over files through file outputs stay on the same worker, and files shared in any other way are not guaranteed to be there.</li>
+            <li>The replay joins nodes in node order; nodes that ran at the same time are not played side by side, and a repeated node plays its last time, with the other times opened from the node details.</li>
+            <li>A validation record only proves the branches taken that time; branches that were not taken need their own validation with data that leads to them.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>Alternatives not chosen</h2></div>
+        <div class="panel-body">
+          <table class="table">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>One worker running several browsers at once</td><td>Needs changes to the worker, the protocol and the desktop app, old apps would need updating and the computer load is high; the user chose different workers.</td></tr>
+              <tr><td>Conditions on nodes (<code>{{ }}</code> expressions)</td><td>The link between a condition and its branch is not visible on the canvas, and “otherwise” is hard to express.</td></tr>
+              <tr><td>Collecting repeated outputs into a list</td><td>Downstream inputs would have to be arrays, which only Python nodes accept; large data sets belong to the M7.3 batch runs.</td></tr>
+              <tr><td>Storing skips and counts in the database</td><td>Needs a database migration and could drift from the real run results; working them out from the results is enough.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

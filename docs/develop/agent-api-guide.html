@@ -279,6 +279,7 @@ POST /agent-api/v1/scenes/order-import/revisions/3/validate
           <li><strong>沒有執行時的入參：</strong>入參在定義裡綁定（固定值、動態值、上游的出參）；同一個流程換一組資料就是另一個組合場景。</li>
           <li><strong>節點的細節：</strong>每個節點的 <code>run</code> 是一次普通的運行，步驟、斷言與產物用 <code>/runs/{id}</code>、<code>/runs/{id}/steps</code> 讀；節點不能單獨重跑（409 <code>rerun_workflow</code>），要重跑組合場景的執行。</li>
           <li><strong>Portal 路徑：</strong>回應帶 <code>portalPath</code>（例如 <code>/playground/runs/…</code>），人在 Portal 看同一筆資料用；寫測試報告時附上。</li>
+          <li><strong>條件、同時執行與重複（2026-11-11）：</strong>定義的連線可以寫 <code>"when": {"output": "quantity", "equals": 12}</code>（或 <code>notEquals</code>、<code>in</code>、<code>empty</code>）或 <code>"otherwise": true</code>，節點可以寫 <code>"repeat": 3</code>（最多 20），定義可以寫 <code>"concurrency": 2</code>（最多 10）；只有第 2 版（DAG）。沒有連線走到的節點略過，執行的節點狀態是 <code>skipped</code>、<code>skippedBy: "condition"</code>，這不算失敗；<code>links</code> 列出每條連線走到沒有。重複的節點有 <code>repeat</code>、<code>iterations</code>（通過幾次）與 <code>runs</code>（每一次的運行）。寫法見<a href="../design/portal.html#composite-flow">管理 Portal › 條件連線、同時執行與重複次數</a>。</li>
           <li><strong>限額：</strong>組合場景的節點也算進「排隊中與執行中」的限額。</li>
         </ul>
       </div>

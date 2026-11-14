@@ -588,6 +588,14 @@ class WorkflowNodeState:
     """這個節點的執行；沿用的節點是原本那次執行。"""
     error: str | None = None
     """沒有開始執行的原因（例如綁定的值不符合入參規則）。"""
+    repeat: int = 1
+    """要跑幾次（組合場景的重複次數）。"""
+    iterations: int = 0
+    """已經通過幾次（從失敗的節點繼續時含前一次執行通過的次數）。"""
+    runs: tuple[str, ...] = ()
+    """這次組合場景執行裡這個節點的每一次執行，依先後。"""
+    skipped_by: Literal["condition"] | None = None
+    """略過的原因：condition 是沒有連線走到；None 是組合場景停下、沒有執行到。"""
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -600,6 +608,10 @@ class WorkflowNodeState:
             "sources": self.sources,
             "run": self.run.to_json() if self.run is not None else None,
             "error": self.error,
+            "repeat": self.repeat,
+            "iterations": self.iterations,
+            "runs": list(self.runs),
+            "skippedBy": self.skipped_by,
         }
 
 
@@ -629,6 +641,10 @@ class WorkflowRunRecord:
     workflow_code: str | None = None
     client_id: str | None = None
     """觸發的對外 API 用戶端（M14）；Portal 觸發的是 None。"""
+    concurrency: int = 1
+    """同時執行的節點上限。"""
+    links: tuple[tuple[str, str, str], ...] = ()
+    """每條依賴（上游, 下游, pending／taken／not_taken）：哪些連線走到了。"""
 
     @property
     def finished(self) -> bool:
@@ -674,6 +690,11 @@ class WorkflowRunRecord:
             "purpose": self.purpose,
             "workflowCode": self.workflow_code,
             "clientId": self.client_id,
+            "concurrency": self.concurrency,
+            "links": [
+                {"source": source, "target": target, "state": state}
+                for source, target, state in self.links
+            ],
         }
 
 

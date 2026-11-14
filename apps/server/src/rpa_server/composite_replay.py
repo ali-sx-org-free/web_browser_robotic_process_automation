@@ -9,6 +9,7 @@
 - Python 節點（ADR 0020）沒有錄影，用 rpa_script 記下的步驟播一段步驟時間軸：一步一格，每一步依實際
   耗時佔 1.5～6 秒（太短的看不清、太長的不必等），畫面是那一步的腳本、檔案變化、資料預覽與到那一步
   為止的主控台。和錄影一樣，前後的節點之間有轉場卡。沒有記步驟的 Python 節點是說明卡。
+- 條件連線沒走到而略過的節點不放進時間軸；重複的節點播最後一次（2026-11-11）。
 - 沒有錄影的節點（已依保留規則刪除、需要登入、沒有開始、錄影關閉）是一張 3 秒的說明卡；沿用的節點
   （從停下的節點繼續）也是一張卡片，連到原本那次的回看（D3）；最後沒有執行或還沒輪到的節點合成
   一張卡片。
@@ -159,6 +160,8 @@ def build_composite_replay(
             "durationSeconds": detail.get("durationSeconds"),
         }
         nodes.append(entry)
+        if state.skipped_by == "condition":
+            continue  # 條件連線沒走到，本來就不跑（2026-11-11），不放進時間軸
         if state.status == "skipped":
             skipped.append(state.id)
             continue
