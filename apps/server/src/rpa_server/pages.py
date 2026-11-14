@@ -31,6 +31,7 @@ from rpa_core.i18n import parse_locale
 from rpa_runner.files import OUTPUTS_DIR, PREVIEWS_DIR, REPORT, STEP_SHOTS
 from rpa_runner.installed import DISPLAY_NAMES
 from rpa_server.agents import SCOPES
+from rpa_server.batch_table import MAX_BYTES, MAX_ROWS
 from rpa_server.composite_report import build_composite_report, embedded_screenshots
 from rpa_server.config import EXAMPLES_DOMAIN
 from rpa_server.debugging import IDLE_SECONDS
@@ -792,6 +793,58 @@ def page_router(services: Services) -> APIRouter:
             keep_days=services.uploads.limits.keep_days,
             can_publish=can_publish,
             worker_wait=None if record.finished else services.worker_wait(run_id),
+        )
+
+    # ------------------------------------------------------------ 批次執行（M7.3）
+
+    @router.get("/scenes/{scene_id}/batch", include_in_schema=False)
+    def batch_form(scene_id: str) -> HTMLResponse:
+        """新的批次：上傳或貼上表格、選項；建立後到批次頁看欄位對應與每一列的檢查再開始。"""
+        record = services.get_scene(scene_id)
+        if record.published_number is None:
+            raise ServiceError(409, "not_published", t("error.not_published", id=scene_id))
+        shown = services.get_revision(scene_id, record.published_number)
+        scenario = services.revision_scenario(scene_id, shown.number)
+        return page(
+            "batch_form.html",
+            page="batches",
+            title=t("batch_form.title", name=record.name, number=shown.number),
+            scene=record,
+            domain=domain_of(record.domain_id),
+            revision=shown,
+            scenario=scenario,
+            engines=ENGINES,
+            base_url=record.base_url or scenario.browser.base_url,
+            limits={"rows": MAX_ROWS, "megabytes": MAX_BYTES // (1024 * 1024)},
+            **_location_context(services),
+        )
+
+    @router.get("/batches", include_in_schema=False)
+    def batches(scene: str | None = None) -> HTMLResponse:
+        return page(
+            "batches.html",
+            page="batches",
+            title=t("nav.batches"),
+            batches=services.batches.recent(scene_id=scene, limit=200),
+            scene=scene,
+        )
+
+    @router.get("/batches/{batch_id}", include_in_schema=False)
+    def batch(batch_id: str) -> HTMLResponse:
+        record = services.batches.get(batch_id)
+        scenario = services.revision_scenario(record.scene_id, record.revision)
+        scene = services.get_scene(record.scene_id)
+        return page(
+            "batch.html",
+            page="batches",
+            title=t("batch.title", id=record.id),
+            batch=record,
+            scene=scene,
+            domain=domain_of(scene.domain_id),
+            scenario=scenario,
+            used_columns=[column for column in record.mapping.values() if column is not None],
+            engines=ENGINES,
+            **_location_context(services),
         )
 
     @router.get("/runs/{run_id}/files/{relative:path}", include_in_schema=False)

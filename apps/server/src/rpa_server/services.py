@@ -54,6 +54,7 @@ from rpa_runner.pyruntime import platform_tag
 from rpa_runner.run import new_run_id
 from rpa_server.addresses import PortalAddress
 from rpa_server.agents import AgentService
+from rpa_server.batches import BatchService
 from rpa_server.composite_replay import build_composite_replay
 from rpa_server.composite_report import build_composite_report
 from rpa_server.config import EXAMPLES_DOMAIN
@@ -339,6 +340,8 @@ def run_record(run: Run) -> RunRecord:
         worker_id=run.worker_id,
         video=video_details(run),
         client_id=run.client_id,
+        batch_id=run.batch_id,
+        batch_row=run.batch_row,
     )
 
 
@@ -429,6 +432,8 @@ class Services:
         self.projects = ProjectService(sessions)
         """專案空間的專案：組合場景的分組，只在資料庫（2026-10-23）。"""
         self.workflows = WorkflowService(sessions, self)
+        self.batches = BatchService(sessions, self)
+        """批次執行（M7.3）：一張表的每一列各正式執行一次。"""
         # 組合場景節點固定值用到的上傳檔不因保留期限刪除（M7c D7）
         self.uploads.pinned = self._pinned_uploads
         self.videos = VideoService(sessions, storage)
@@ -1465,9 +1470,12 @@ class Services:
         target: Target | None = None,
         required_worker: str | None = None,
         client_id: str | None = None,
+        batch: tuple[str, int] | None = None,
     ) -> RunRecord:
         """排入一次執行。驗證可以用任何版本（預設最新）；正式執行只用已發布版本；
         試驗場序列的節點（workflow）用序列固定的版本，只能是發布過的版本（M6）。
+        批次的一列（``batch`` 是批次與第幾列，M7.3）是正式執行，用批次固定的 ``number``，
+        也只能是發布過的版本。
 
         target 是執行位置（M9a），沒指定時用預設執行位置；
         required_worker 指定只能由哪台 worker 執行；client_id 是觸發的 API 用戶端（M14）。
@@ -1487,13 +1495,13 @@ class Services:
                 raise _conflict("scene_missing", t("error.scene_missing", id=scene_id))
             if scene.archived:
                 raise _conflict("scene_archived", t("error.scene_archived", id=scene_id))
-            if purpose == "execution":
+            if purpose == "execution" and batch is None:
                 if scene.published_number is None:
                     raise _conflict("not_published", t("error.not_published", id=scene_id))
                 number = scene.published_number
             revision = self._revision(session, scene_id, number or scene.latest_number)
             self._check_usable(revision)
-            if purpose == "workflow" and revision.published_at is None:
+            if (purpose == "workflow" or batch is not None) and revision.published_at is None:
                 raise _conflict(
                     "revision_unpublished",
                     t("error.revision_unpublished", id=scene_id, number=revision.number),
@@ -1531,6 +1539,8 @@ class Services:
                 target=target,
                 required_worker=required_worker,
                 client_id=client_id,
+                batch_id=batch[0] if batch is not None else None,
+                batch_row=batch[1] if batch is not None else None,
             )
             session.add(run)
             if purpose == "validation":
@@ -1922,10 +1932,12 @@ class Services:
 
     def run_finished(self, run_id: str) -> None:
         """一次執行結束了（worker 執行完、排隊中被取消）：寫執行目錄的 run.json，驗證執行另外寫
-        領域資料夾的驗證紀錄（M11）；屬於試驗場序列時，接著排下一個節點。
+        領域資料夾的驗證紀錄（M11）；屬於試驗場序列時，接著排下一個節點；屬於批次時，接著排
+        下一列（M7.3）。
         """
         self.packs.record_run(run_id)
         self.workflows.node_finished(run_id)
+        self.batches.row_finished(run_id)
 
     @staticmethod
     def _settle_revision(session: Session, revision_id: int) -> None:
@@ -1990,6 +2002,7 @@ class Services:
                     self._settle_revision(session, run.revision_id)
             session.commit()
         self.workflows.recover()
+        self.batches.recover()
         return len(runs)
 
     # ------------------------------------------------------------ M4：角色、入參出參、重新執行

@@ -31,7 +31,7 @@ from pydantic.alias_generators import to_camel
 from starlette.exceptions import HTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from rpa_core.dsl import scenario_json_schema, validate_text
+from rpa_core.dsl import Scenario, scenario_json_schema, validate_text
 from rpa_core.dsl.editing import SECTION_KEYS, section_text
 from rpa_core.dsl.features import FEATURES
 from rpa_core.dsl.files import MAX_ATTACHMENT_BYTES, uploaded_ids
@@ -39,6 +39,8 @@ from rpa_runner.files import REPORT, RESULT, STEPS, VIDEO, read_json_or
 from rpa_server import __version__
 from rpa_server.agents import ApiClientRecord
 from rpa_server.api import ContractItem, RevisionCreate, SceneCreate
+from rpa_server.batch_table import Table, row_values
+from rpa_server.batches import BatchRecord
 from rpa_server.context import Via, use_recorder
 from rpa_server.debugging import DebugSession
 from rpa_server.domain import LOCAL_WORKER, Engine, RunRecord, SceneRecord, Target, issue_json
@@ -158,6 +160,25 @@ class RunBody(AgentBody):
     idempotency_key: str | None = Field(default=None, max_length=100)
 
 
+class AgentBatchCreate(AgentBody):
+    """批次執行（M7.3）：一列一組入參（入參名稱 → 值），每一列各正式執行一次已發布版本。"""
+
+    scene_id: str = Field(max_length=64)
+    rows: list[dict[str, object]] = Field(min_length=1, max_length=1000)
+    on_failure: Literal["continue", "stop"] = "continue"
+    concurrency: int = Field(default=1, ge=1, le=10)
+    engine: Engine | None = None
+    base_url: str | None = Field(default=None, max_length=2000)
+    headless: bool | None = None
+    target: Target | None = None
+    idempotency_key: str | None = Field(default=None, max_length=100)
+
+
+class AgentBatchRerun(AgentBody):
+    rows: list[int] | None = Field(default=None, max_length=1000)
+    """要重跑的列（從 1 起）；沒寫是沒有通過的列。"""
+
+
 class RerunBody(AgentBody):
     idempotency_key: str | None = Field(default=None, max_length=100)
 
@@ -230,6 +251,48 @@ class AuditMiddleware:
 
 def forbidden(code: str, message: str, **details: object) -> ServiceError:
     return ServiceError(403, code, message, **details)
+
+
+def agent_table(
+    scenario: Scenario, rows: list[dict[str, object]]
+) -> tuple[Table, list[dict[str, object]]]:
+    """Agent 送來的列 → 表格（標題就是入參名稱）與每一列的問題。
+
+    值換成表格的文字（數字、true／false、JSON），排入前再依入參的型別換回來；寫了場景沒有的
+    入參、型別或限制不符都列為問題（``row`` 從 1 起）。
+    """
+    columns: list[str] = []
+    for row in rows:
+        columns += [name for name in row if name not in columns]
+    problems: list[dict[str, object]] = []
+    unknown = [name for name in columns if name not in scenario.inputs]
+    for name in unknown:
+        problems.append(
+            {"row": None, "input": name, "message": t("error.batch_input_unknown", name=name)}
+        )
+    table = Table(
+        tuple(columns),
+        tuple(tuple(_cell(row.get(name)) for name in columns) for row in rows),
+    )
+    if unknown:
+        return table, problems
+    mapping = {name: name if name in columns else None for name in scenario.inputs}
+    for number, cells in enumerate(table.records(), start=1):
+        _, found = row_values(scenario, mapping, cells)
+        problems += [{"row": number, **item.to_json()} for item in found]
+    return table, problems
+
+
+def _cell(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        return value
+    if isinstance(value, int | float):
+        return str(value)
+    return json.dumps(value, ensure_ascii=False)
 
 
 def limit_reached(message: str, limit: int) -> ServiceError:
@@ -950,6 +1013,83 @@ def agent_api(services: Services) -> FastAPI:
     def run_scene(client: Executor, scene_id: str, body: RunBody) -> dict[str, object]:
         """用入參正式執行已發布版本。"""
         return queue_run(client, scene_id, body, purpose="execution")
+
+    # ------------------------------------------------------------ 批次執行（M7.3）
+
+    def batch_for(client: ApiClientRecord, batch_id: str) -> BatchRecord:
+        """自己建立的批次；別人的當成不存在。"""
+        batch = services.batches.get(batch_id)
+        if batch.client_id != client.id:
+            raise not_found("batch_not_found", t("error.batch_not_found", id=batch_id))
+        return batch
+
+    def batch_json(batch: BatchRecord) -> dict[str, object]:
+        return {**batch.to_json(), "portalPath": f"/batches/{batch.id}"}
+
+    def batch_room(client: ApiClientRecord, adding: int) -> None:
+        """批次同時排入的列也算在排隊中與執行中的運行上限裡。"""
+        limit = client.policy.max_queued_runs
+        active = services.list_runs(client_id=client.id, statuses=_ACTIVE_RUNS, limit=limit + 1)
+        if len(active) + adding > limit:
+            raise limit_reached(t("error.agent_run_limit", limit=limit), limit)
+
+    @app.post("/batches", status_code=202)
+    def create_batch(client: Executor, body: AgentBatchCreate) -> dict[str, object]:
+        """建立批次並開始：rows 的每一列是一組入參；有一列的資料有問題就整批不建立（422）。"""
+        scene = scene_for(client, body.scene_id)
+        key = scoped_key(client, body.idempotency_key)
+        if key is not None:
+            existing = services.batches.find_by_key(key)
+            if existing is not None:
+                return batch_json(batch_for(client, existing))
+        if scene.published_number is None:
+            raise conflict("not_published", t("error.not_published", id=scene.id))
+        target, _ = placement(client, body.target, None)
+        batch_room(client, min(body.concurrency, len(body.rows)))
+        scenario = services.revision_scenario(scene.id, scene.published_number)
+        table, problems = agent_table(scenario, body.rows)
+        if problems:
+            raise invalid(
+                "batch_rows_invalid",
+                t("error.agent_batch_rows_invalid", count=len(problems)),
+                problems=problems,
+            )
+        batch = services.batches.create(
+            scene.id,
+            table,
+            on_failure=body.on_failure,
+            concurrency=body.concurrency,
+            engine=body.engine,
+            base_url=body.base_url,
+            headless=body.headless,
+            target=target,
+            client_id=client.id,
+            idempotency_key=key,
+        )
+        if batch.status == "draft":
+            batch = services.batches.start(batch.id)
+        return batch_json(batch)
+
+    @app.get("/batches/{batch_id}")
+    def get_batch(client: RunReader, batch_id: str) -> dict[str, object]:
+        """批次與每一列的狀態、運行編號、出參與錯誤；運行的報告與回看照一般運行讀取。"""
+        return batch_json(batch_for(client, batch_id))
+
+    @app.post("/batches/{batch_id}/stop", status_code=202)
+    def stop_batch(client: Executor, batch_id: str) -> dict[str, object]:
+        """不再排新的列，排隊中與執行中的取消（已經發生的外部動作不會回滾）。"""
+        batch_for(client, batch_id)
+        return batch_json(services.batches.stop(batch_id))
+
+    @app.post("/batches/{batch_id}/rerun", status_code=202)
+    def rerun_batch(
+        client: Executor, batch_id: str, body: AgentBatchRerun | None = None
+    ) -> dict[str, object]:
+        """再跑一次沒有通過的列（或 rows 指定的列）；批次要已經結束或停下。"""
+        batch = batch_for(client, batch_id)
+        batch_room(client, batch.concurrency)
+        rows = body.rows if body is not None else None
+        return batch_json(services.batches.rerun(batch_id, rows=rows))
 
     @app.post("/runs/{run_id}/cancel", status_code=202)
     def cancel_run(client: Placer, run_id: str) -> dict[str, object]:
