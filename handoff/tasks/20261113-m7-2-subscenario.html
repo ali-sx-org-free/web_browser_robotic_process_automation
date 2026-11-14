@@ -15,7 +15,7 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261113-m7-2-subscenario；2026-11-13 20:30 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261113-m7-2-subscenario；2026-11-13 21:03 America/Los_Angeles（PST，UTC−08:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 專案對話（2026-11-13 18:12 America/Los_Angeles（PST，UTC−08:00），原文）：「剛合并了最新分支已經審閲PR15和合并，你拉下最新的代碼。把M7後續流程實作。同時把main分支文檔更新到最新版本。」20:08 回覆「繼續」。M7 後續是 M7.2 子場景與 M7.3 資料驅動（<a href="20261106-m7-flow.html">M7 任務紀錄</a>第 5、6 節，D8、D9 已於 2026-11-06 由使用者確認）；本任務是 M7.2，M7.3 另開任務。驗收條件照 M7 任務紀錄第 7 節：呼叫場景與子場景在同一個瀏覽器完成；子場景驗證失敗時呼叫的場景停下；子場景出新版本不影響已發布的呼叫場景。</dd>
         <dt>範圍／不包含</dt><dd>DSL 的 <code>call</code> 步驟與檢查、子場景檔的解析、場景的來源檔案與雜湊、擴充 <code>call</code>、JSON Schema；Runner 的執行、步驟紀錄、日誌、報告、逐步調試的子程序；伺服器存檔時帶入子場景檔、派工與調試前比對擴充、回看、編輯頁的範本；範例 <code>scenarios/examples/call/</code>；文件（場景 DSL、管理 Portal、Agent API、路線圖）與 ADR 0023。不包含：M7.3 資料驅動；子場景的檔案入參與出參；用到 call 的場景「接著錄製」（先說明不支援）；「哪些場景用到這個子場景」的清單；Portal 上以表單編輯 call（先用場景檔與範本）；<code>rpa pack check</code> 比對子場景檔和來源版本。</dd>
         <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude（Fable 5.2 開工，Opus 5.5 接續）；審閱、人工驗收與合併：使用者。</dd>
@@ -48,7 +48,7 @@
       <div class="panel-body"><ul class="points">
         <li><strong>已完成：</strong>上面的範圍全部。範例：<code>scenarios/examples/call/create-and-check.yaml</code>（呼叫「建立一筆紀錄」後在同一個瀏覽器查詢那一筆）、<code>create-many.yaml</code>（forEach 裡逐筆呼叫、append 收集每次的出參），子場景在 <code>calls/call-create-record/1.yaml</code>。</li>
         <li><strong>未完成／阻礙：</strong>人工驗收；伺服器 API 層的測試與 Firefox 只在 CI 跑；簡中由 bootstrap 產生。</li>
-        <li><strong>下一個具體動作：</strong>確認 CI；使用者審閱（先合 PR #23）、照下方步驟人工驗收、合併。M7.3 資料驅動另開任務，從本分支接著做。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱（先合 PR #23）、照下方步驟人工驗收、合併。M7.3 批次執行在 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/25">PR #25</a>（任務紀錄隨那個分支），疊在本分支上，本 PR 合併後再合。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -72,7 +72,7 @@
           <tr><td>本分支提交前的工作區（基準 <code>4e4cc29</code>）；雲端 Linux、系統 Python 3.13.18、Chromium</td><td><code>ruff check .</code>、<code>ruff format --check .</code>；<code>pyright packages/rpa_core packages/rpa_runner</code> 與新的伺服器檔案層測試；<code>pytest -k "not firefox"</code>：rpa_core、rpa_runner、<code>tests/examples</code>、<code>tests/docs</code>、<code>tests/i18n</code>、server 的 <code>test_storage.py</code>、<code>test_calls_storage.py</code>、worker 的 <code>test_protocol.py</code>、<code>apps/cli</code>、<code>apps/testsite</code></td><td>ruff 與 ruff format 通過；pyright 0 errors。pytest：1430 passed、19 failed、4 skipped（81 deselected 是 Firefox）。失敗的 6 個是簡中還沒產生（<code>tests/docs</code> 的 zh-Hans 三個、多語言目錄三個、<code>test_simplified_chinese_is_generated</code>）；另外 8 個錄影測試（有頭的 Chromium 起不來：The platform failed to initialize）與 4 個 CLI 測試（<code>test_serve.py</code>、<code>test_update_cli.py</code>）在沒有改動的 main <code>3ba4e39</code> 上同樣失敗（12 failed、23 passed），是這個環境造成的</td><td>伺服器 API 層（<code>test_calls_api.py</code>、<code>test_calls_flow.py</code> 與既有的伺服器測試）要 FastAPI、SQLAlchemy，交給 CI；Firefox 交給 CI；簡中交給 bootstrap</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：見追加紀錄。人工驗收：未執行。審閱者／SHA／發現與處理：未審閱。</p></div>
+      <div class="panel-body"><p>CI：<code>3193035</code> 全部通過（Windows Worker 測試是重新執行的第 2 次，見追加紀錄）。人工驗收：未執行。審閱者／SHA／發現與處理：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -81,7 +81,8 @@
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
-        <li>2026-11-13 20:30 America/Los_Angeles（PST，UTC−08:00），Claude：本機驗證結果填在上方；提交並推送，開 PR（base main）。</li>
+        <li>2026-11-13 20:40～21:03 America/Los_Angeles（PST，UTC−08:00），Claude：PR #24 在 <code>058a365</code> 的 CI：Python 3.12、3.13 各有 1 個失敗（<code>test_calls_api.py</code> 預期的訊息寫錯：伺服器上沒有的子場景版本回報的是「帶不進來」<code>server.call_missing</code>，不是「不能用」），其餘通過；bootstrap 同樣因為這個測試標成失敗，但簡中與 <code>uv.lock</code> 仍提交了（<code>84f0c41</code>，機器人的提交 CI 等待核准）。在 <code>3193035</code> 改正測試（M7.3 的任務接著做時發現，記在這裡）。<code>3193035</code> 的 CI（<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43558429211">運行 43558429211</a>）：靜態檢查、Python 3.12、3.13 通過；Windows Worker 測試 2 個失敗（<code>test_video_browser.py::test_each_step_has_a_screenshot</code>，Chromium 與 Firefox 的第一步與第二步之間隔了約 3 秒，上限 1 秒）。執行器的程式和上一次（<code>058a365</code>，Windows 通過）相同、這次只改了伺服器的測試，判斷是 Windows 執行環境的時間不穩；重新執行失敗的工作（第 2 次）後通過，<code>3193035</code> 的檢查全部通過。</li>
+        <li>2026-11-13 20:30 America/Los_Angeles（PST，UTC−08:00），Claude：本機驗證結果填在上方；提交並推送，開 PR #24（base main）。</li>
         <li>2026-11-13 18:45～20:30 America/Los_Angeles（PST，UTC−08:00），Claude：從 <code>docs/refresh-v0-9</code> 開 <code>feat/m7-subscenario</code>。依 M7 任務紀錄第 5 節與 D8 寫細部設計（ADR 0023），實作 rpa-core、rpa-runner、rpa-server 與文件。本機用替身（不載入資料庫）驗證回看的路徑對應與逐步調試的步驟樹，結果和 <code>test_calls_api.py</code> 的預期一致。20:08 使用者回覆「繼續」後接著做；同時把文檔分支的 bootstrap 提交 <code>0fed4c3</code> 與 CI 回填 <code>4e4cc29</code> 接進本分支。</li>
       </ul></div>
     </section>
