@@ -433,7 +433,7 @@ def test_role_status_is_never_stale_when_a_check_ends(app: FastAPI, client: Clie
 
 def test_secret_values_are_never_returned(app: FastAPI, client: Client) -> None:
     saved = body(client.put("/api/secrets/ERP_PASSWORD", json={"value": "s3cret-value"}), 200)
-    assert set(saved) == {"name", "updatedAt"}
+    assert set(saved) == {"name", "readable", "updatedAt"}
     assert "s3cret-value" not in client.get("/api/secrets").text
     assert "s3cret-value" not in client.get("/api/roles").text
     assert "s3cret-value" not in client.get("/roles").text

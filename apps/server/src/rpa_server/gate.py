@@ -36,6 +36,7 @@ if TYPE_CHECKING:  # 規則與判斷不需要資料庫（可以單獨測試）
     from rpa_server.auth import AccountService
 
 __all__ = [
+    "LOGIN_HEADER",
     "OPEN_PATHS",
     "RULES",
     "SESSION_COOKIE",
@@ -48,6 +49,8 @@ __all__ = [
     "match_rule",
 ]
 
+LOGIN_HEADER: Final = "X-RPA-Login"
+"""沒登入的 401 帶著這個標頭：錄製端的閘道據此分辨「要登入」與「裝置權杖失效」。"""
 SESSION_COOKIE: Final = "rpa_session"
 """登入的 Cookie 名稱前綴；實際名稱加上伺服器代號（同一台電腦開了兩個伺服器時不互相蓋掉）。"""
 OPEN_PATHS: Final = (
@@ -294,7 +297,7 @@ class AuthGateMiddleware:
             if api:
                 code = "login_required" if has_users else "setup_required"
                 message = t("error.login_required") if has_users else t("error.setup_required")
-                await _json(send, 401, code, message)
+                await _json(send, 401, code, message, login=True)
                 return
             target = "/login" if has_users else "/setup"
             query = cast("bytes", scope.get("query_string") or b"").decode("latin-1")
@@ -354,15 +357,12 @@ class AuthGateMiddleware:
         await send({"type": "http.response.body", "body": body})
 
 
-async def _json(send: Send, status: int, code: str, message: str) -> None:
+async def _json(send: Send, status: int, code: str, message: str, *, login: bool = False) -> None:
     body = json.dumps({"error": {"code": code, "message": message}}, ensure_ascii=False).encode()
-    await send(
-        {
-            "type": "http.response.start",
-            "status": status,
-            "headers": [(b"content-type", b"application/json")],
-        }
-    )
+    headers = [(b"content-type", b"application/json")]
+    if login:
+        headers.append((LOGIN_HEADER.lower().encode(), b"required"))
+    await send({"type": "http.response.start", "status": status, "headers": headers})
     await send({"type": "http.response.body", "body": body})
 
 

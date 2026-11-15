@@ -44,6 +44,7 @@
           <tr><td>I6</td><td>開放的路徑</td><td>API 的說明（openapi.json、docs）不必登入：<code>rpa serve</code> 用它認出已經在執行的 Portal。</td></tr>
           <tr><td>I7</td><td>舊的測試</td><td><code>Settings.skip_login</code>（<code>from_env</code> 不讀）讓 M8 之前的測試當成系統管理員；登入與權限有自己的測試。</td></tr>
           <tr><td>I8</td><td>介面</td><td>右上角顯示自己的名稱與登出；只有系統管理員能用的選單不顯示；批次清單的共用上限只給系統管理員看；「本機 · 單一使用者」改成「本機部署」。</td></tr>
+          <tr><td>I9</td><td>錄製端的閘道</td><td>沒登入的 401 帶 <code>X-RPA-Login: required</code>；閘道照樣轉送，不呼叫 <code>on_unauthorized</code>（不當成裝置權杖失效）。桌面端的端到端測試先在伺服器這台建立 CI 的系統管理員，經由閘道時也先登入。</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -52,7 +53,7 @@
       <div class="panel-body"><ul class="points">
         <li><strong>已完成：</strong>上面的實作、測試與文件。</li>
         <li><strong>未完成／阻礙：</strong>伺服器 API 層的測試（<code>test_multi_user.py</code> 與既有測試）只在 CI 跑；簡中由 bootstrap 產生；人工驗收；PostgreSQL 之後另排。</li>
-        <li><strong>下一個具體動作：</strong>看 CI，有失敗就修；之後等使用者審閱與驗收。</li>
+        <li><strong>下一個具體動作：</strong>看第二輪修正後的 CI（bootstrap 會重新產生 ADR 0025 的簡中）；綠了就把 PR #27、#28 轉為可審閱，之後等使用者審閱與驗收。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -87,6 +88,7 @@
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-11-14 07:30～16:45 America/Los_Angeles（PST，UTC−08:00），Claude：中間停了一段（使用者 16:16 說「繼續」）。從 <code>feat/m7-wrapup</code> 開 <code>feat/m8-multi-user</code>，依序做 Secrets 加密、模型與遷移、帳號與工作階段、權限（規則表與清單篩選）、稽核、頁面與腳本、<code>rpa user</code>、測試與文件。這段期間 PR #27 的 Windows 測試有一個 <code>test_python_script_scenario[firefox]</code> 失敗（子程序結束碼 1，和這次的改動無關），已要求重跑失敗的工作。</li>
+        <li>2026-11-14 16:45～17:05 America/Los_Angeles（PST，UTC−08:00），Claude：PR #28 第一輪 CI（<code>a946775</code>）失敗的原因與修正——<code>domain.html</code> 的成員區塊在測試的渲染（沒傳成員）時未定義 → 給預設值；遷移比對測試的資料表清單少了四張新表；<code>test_secret_values_are_never_returned</code> 的欄位多了 <code>readable</code>；<code>rpa user create</code> 在還沒建立的資料夾上打不開資料庫 → 先建立資料夾；<code>test_domain_roles</code> 打開未發布場景的執行頁是 409（不是 403 就對）；伺服器分發包與桌面端（Worker／錄製端）的端到端測試沒登入 → 先建立 CI 的系統管理員並帶著 Cookie（I9）；SQLAlchemy 2.1 的 <code>Result.tuples()</code> 棄用警告。Windows Worker 測試的 <code>test_element_outside_the_frame_is_not_found[firefox]</code> 逾時與本次無關（同 M7 的 firefox 偶發）。</li>
       </ul></div>
     </section>
   </div>

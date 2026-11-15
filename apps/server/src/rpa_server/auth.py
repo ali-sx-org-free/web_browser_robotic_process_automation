@@ -449,7 +449,7 @@ class AccountService:
             )
             return [
                 MemberRecord(user.id, user.username, user.display_name, member.role, user.disabled)
-                for member, user in rows.tuples()
+                for member, user in rows
             ]
 
     def set_member(self, domain_id: str, username: str, role: str) -> MemberRecord:

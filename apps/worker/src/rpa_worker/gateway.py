@@ -14,6 +14,7 @@
   兩邊各有自己的密語與 Cookie。
 - 連不上管理 Portal 時回 502 與 ``offline_page``；管理 Portal 回 401（權杖失效）時呼叫
   ``on_unauthorized``，打開頁面的請求改回 ``notice_page("unauthorized")``（API 的請求照樣回 401）。
+  帶著 ``X-RPA-Login`` 的 401 是使用者還沒登入管理 Portal（M8，ADR 0025），照樣轉送。
 - 還沒配對（``server`` 是 None）時 Portal 那邊只回 ``notice_page("unpaired")``。說明頁不放
   App 頁面的網址：那個網址帶著密語，Portal 那邊的腳本讀得到的地方都不能有。
 - 不轉送 ``/client-api/`` 與 ``/worker-api/``：那是錄製端程式自己用的通道，網頁不該拿閘道的
@@ -39,12 +40,21 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Final, Literal
 from urllib.parse import SplitResult, parse_qs, quote, urlsplit
 
-__all__ = ["COOKIE", "DESKTOP_COOKIE", "DESKTOP_PREFIX", "Gateway", "LocalResponse", "Side"]
+__all__ = [
+    "COOKIE",
+    "DESKTOP_COOKIE",
+    "DESKTOP_PREFIX",
+    "LOGIN_HEADER",
+    "Gateway",
+    "LocalResponse",
+    "Side",
+]
 
 logger = logging.getLogger("rpa_worker.gateway")
 
 COOKIE: Final = "rpa_gateway"
 DESKTOP_COOKIE: Final = "rpa_desktop"
+LOGIN_HEADER: Final = "X-RPA-Login"  # rpa_server.gate.LOGIN_HEADER（錄製端不裝伺服器）
 """App 自己的頁面那個埠的 Cookie（同一台主機的 Cookie 不分埠，名稱要不同）。"""
 DESKTOP_PREFIX: Final = "/__desktop/"
 LOGIN_PATH: Final = "/__gateway/login"
@@ -409,7 +419,8 @@ class Gateway:
                 page = self.offline_page(str(error)).encode("utf-8")
                 self._reply(request, 502, page, "text/html; charset=utf-8")
                 return
-            if response.status == HTTPStatus.UNAUTHORIZED:
+            if response.status == HTTPStatus.UNAUTHORIZED and not response.getheader(LOGIN_HEADER):
+                # 帶著 LOGIN_HEADER 的 401 只是使用者還沒登入管理 Portal（M8），不是權杖失效
                 if self.on_unauthorized is not None:
                     self.on_unauthorized()
                 if self.notice_page is not None and _opens_page(request):

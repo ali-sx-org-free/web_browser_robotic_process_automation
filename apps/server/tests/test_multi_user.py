@@ -101,6 +101,7 @@ def test_first_admin_only_from_the_server_machine(local: TestClient, remote: Tes
     # 還沒有帳號：頁面轉到 /setup，API 回 401
     assert local.get("/scenes").headers["location"] == "/setup"
     assert code(local.get("/api/scenes"), 401) == "setup_required"
+    assert local.get("/api/scenes").headers["x-rpa-login"] == "required"  # 閘道據此分辨
     assert local.get("/login").headers["location"] == "/setup"
     # 別台電腦：說明要到伺服器那台建立
     page = remote.get("/setup")
@@ -184,7 +185,7 @@ def test_domain_roles(admin: TestClient, app: FastAPI) -> None:
     assert eve.get("/scenes/ba-001").status_code == 404
     # 編輯要編輯者以上
     assert amy.get("/scenes/ba-001/edit").status_code == 403
-    assert amy.get("/scenes/ba-001/run").status_code == 200
+    assert amy.get("/scenes/ba-001/run").status_code in (200, 409)  # 409：還沒發布
     created = amy.post("/api/scenes", json={"id": "amy-001", "name": "A", "domainId": "testsite"})
     assert code(created, 403) == "forbidden"
     # 領域管理員管自己領域的成員；別的領域不行

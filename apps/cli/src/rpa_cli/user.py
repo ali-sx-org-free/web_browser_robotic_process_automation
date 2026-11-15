@@ -27,6 +27,7 @@ def _accounts(data_dir: Path | None) -> "AccountService":
     from rpa_server.db import create_db_engine, upgrade
 
     settings = Settings.from_env(data_dir=data_dir)
+    settings.data_dir.mkdir(parents=True, exist_ok=True)  # 新的資料夾（還沒啟動過伺服器）
     engine = create_db_engine(settings.database_url)
     upgrade(engine)
     return AccountService(sessionmaker(engine, expire_on_commit=False))

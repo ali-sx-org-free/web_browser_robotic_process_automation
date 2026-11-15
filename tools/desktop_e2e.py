@@ -40,6 +40,7 @@ CI 的桌面端建置在 Windows（macOS 版 2026-10-22 起也一樣，不含安
 """
 
 import argparse
+import http.cookiejar
 import json
 import os
 import socket
@@ -56,6 +57,8 @@ from typing import IO, Final, cast
 
 ROOT: Final = Path(__file__).resolve().parent.parent
 DEVICE: Final = "ci-worker"
+CI_ACCOUNT: Final = {"username": "ci", "password": "ci-password"}
+"""M8 起管理 Portal 要登入：第一次在伺服器這台建立的系統管理員（之後用它登入）。"""
 _TAIL: Final = 3000
 APP_NAME: Final = "RPA Worker"
 UNINSTALL_KEY: Final = r"Software\Microsoft\Windows\CurrentVersion\Uninstall"
@@ -113,11 +116,26 @@ def free_port() -> int:
 
 
 class Api:
-    """管理 Portal 的 /api（本機，不走代理）。"""
+    """管理 Portal 的 /api（本機，不走代理；帶著登入的 Cookie）。"""
 
     def __init__(self, base: str) -> None:
         self.base = base
-        self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        self._opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({}),
+            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()),
+        )
+
+    def sign_in(self) -> None:
+        """第一次建立系統管理員（只有伺服器這台能建立），已經有帳號時改用登入。"""
+        try:
+            self.call("POST", "/setup", CI_ACCOUNT)
+        except StepFailedError:
+            self.call("POST", "/login", CI_ACCOUNT)
+
+    def signed_in(self, path: str) -> JsonObject:
+        """管理 Portal 啟動了沒：登入後 GET ``path``。"""
+        self.sign_in()
+        return self.call("GET", path)
 
     def call(self, method: str, path: str, payload: object = None) -> JsonObject:
         data = None if payload is None else json.dumps(payload).encode("utf-8")
@@ -420,7 +438,7 @@ def run(
             "--no-testsite",
         ]  # fmt: skip
         portal = subprocess.Popen(command, cwd=ROOT, stdout=handle, stderr=subprocess.STDOUT)
-        wait_until("管理 Portal 啟動", lambda: api.call("GET", "/api/workers"), 120)
+        wait_until("管理 Portal 啟動", lambda: api.signed_in("/api/workers"), 120)
         return base
 
     def invite() -> str:
