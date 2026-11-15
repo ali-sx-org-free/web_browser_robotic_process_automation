@@ -5,6 +5,7 @@
 
 from collections.abc import Iterator
 from dataclasses import replace
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -18,6 +19,7 @@ from rpa_server.app import create_app
 from rpa_server.auth import MAX_FAILURES
 from rpa_server.config import Settings
 from rpa_server.models import AuditEvent
+from rpa_server.secret_store import SecretStore
 from rpa_server.services import Services
 
 JsonObject = dict[str, object]
@@ -254,12 +256,32 @@ def test_accounts(admin: TestClient, app: FastAPI) -> None:
     assert "amy" in admin.get("/users").text
 
 
+def test_unreadable_secret_counts_as_missing(
+    admin: TestClient, app: FastAPI, tmp_path: Path
+) -> None:
+    """金鑰換過（secrets.key 不見了）：清單標成解不開，執行前的檢查當成沒有設定。"""
+    other = SecretStore(tmp_path / "other.json", tmp_path / "other.key")
+    other.set("ERP_PASSWORD", "x")
+    store = services(app).roles.secrets
+    store.path.write_text(other.path.read_text(encoding="utf-8"), encoding="utf-8")
+    listed = cast("list[JsonObject]", body(admin.get("/api/secrets"))["secrets"])
+    assert [(item["name"], item["readable"]) for item in listed] == [("ERP_PASSWORD", False)]
+    page = admin.get("/roles").text
+    assert any(word in page for word in ("解不開", "解不开", "decrypt"))  # 依伺服器的語言
+    assert services(app).roles.secrets.values() == {}
+
+
 def test_audit_log(admin: TestClient, app: FastAPI) -> None:
     add_user(admin, "amy", domain="testsite", role="viewer")
     browser(app).post("/login", json={"username": "amy", "password": "wrong-wrong"})
+    # 沒有權限被擋下的寫入也記（檢視者試著執行）
+    amy = sign_in(app, "amy", "secret-123")
+    assert code(amy.post("/api/scenes/ba-001/runs", json={}), 403) == "forbidden"
     events = cast("list[JsonObject]", body(admin.get("/api/audit"))["events"])
     actions = [(event["action"], event["username"], event["target"]) for event in events]
     assert ("login_failed", "amy", "POST /login") in actions
+    refused = next(event for event in events if event["target"] == "POST /api/scenes/ba-001/runs")
+    assert (refused["username"], refused["status"]) == ("amy", 403)
     assert ("request", "root", "POST /api/users") in actions
     assert ("request", "root", "PUT /api/domains/testsite/members/amy") in actions
     assert actions[-1] == ("setup", "root", "POST /setup")

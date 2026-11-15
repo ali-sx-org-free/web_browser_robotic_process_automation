@@ -1024,7 +1024,7 @@ def page_router(services: Services) -> APIRouter:
         records = services.roles.list_roles()
         secrets = services.roles.list_secrets()
         usage = services.secret_usage()
-        stored = {info.name for info in secrets}
+        stored = {info.name for info in secrets}  # 解不開的列在上面、標成「解不開」，不算缺
         missing = [(name, users) for name, users in sorted(usage.items()) if name not in stored]
         return page(
             "roles.html",

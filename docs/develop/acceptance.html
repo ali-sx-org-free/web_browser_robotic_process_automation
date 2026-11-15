@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>一台電腦的人工驗收 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="acceptance" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>一台電腦的人工驗收</h1>
+      <p>PR 合併前，在一台電腦上同時跑管理 Portal、測試網站、命令列的錄製端與好幾個 Worker，照著任務紀錄的驗收步驟逐項確認。正式伺服器、它的資料與已經配對的 App 都不碰。</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="notice">這個方法驗的是功能與畫面。打包的 App、兩台電腦之間的網路、Windows 上的 Worker、無桌面的 Linux 分發包，由 CI 的端到端測試涵蓋，發布前再用草稿 Release 驗（見<a href="#limits">這個方法驗不到的</a>）。</div>
+
+    <section class="panel" id="when">
+      <div class="panel-header"><h2>什麼時候用</h2></div>
+      <div class="panel-body prose">
+        <ul class="points">
+          <li><strong>PR 合併前。</strong>任務紀錄的「人工驗收（建議步驟）」寫的是要看什麼；這一頁寫的是怎麼在一台電腦把環境搭起來。三種狀態分開記錄：程式碼已合併、自動測試通過、人工驗收通過（<a href="../../handoff/acceptance.html">狀態與驗收紀錄</a>）。</li>
+          <li><strong>幾個疊在一起的 PR 一次驗。</strong>後一個 PR 從前一個的分支開出來時，用最上面那個分支就包含了全部；合併時照順序。</li>
+          <li><strong>一台 Mac 最方便。</strong>Linux 桌面、Windows 也可以，命令相同（Windows 的路徑與區網位址的查法不同）。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="prepare">
+      <div class="panel-header"><h2>準備</h2><span class="muted">分支、依賴、新的資料夾</span></div>
+      <div class="panel-body prose">
+<pre class="source">cd ~/code/web_browser_robotic_process_automation
+git fetch origin
+git switch 要驗收的分支
+git pull --ff-only
+git log -1 --oneline      # 要和 PR 頁面上最新的提交相同
+uv sync --locked          # 依賴有變時一定要做（例如 M8 多了 cryptography）</pre>
+        <p>每次驗收用一個新的資料夾，例如 <code>~/rpa-m8-check</code>，底下放管理 Portal 的資料（<code>data</code>）、錄製端與每個 Worker 的工作資料夾。資料夾是新的，第一次啟動才會建立「測試網站自動化」並匯入範例場景；驗收中途想從頭來，停掉 Portal、刪掉 <code>data</code> 再啟動。</p>
+      </div>
+    </section>
+
+    <section class="panel" id="windows">
+      <div class="panel-header"><h2>視窗配置</h2><span class="muted">每個程序一個終端機視窗，都在 clone 裡執行</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>視窗</th><th>命令</th><th>為什麼這樣開</th></tr></thead>
+          <tbody>
+            <tr><td>1 測試網站</td><td><code>uv run python -m testsite</code></td><td>在 127.0.0.1:8765。自己開一個視窗，Portal 啟動時看到 8765 上已經有測試網站就直接沿用；Portal 重啟時測試網站還在，Worker 上執行到一半的那一列不會因為連不到網站而失敗。</td></tr>
+            <tr><td>2 管理 Portal</td><td><code>uv run rpa serve --host 0.0.0.0 --port 8080 --data ~/rpa-xx-check/data --worker-port 8081 --no-local-worker</code></td><td><code>--no-local-worker</code>：執行一律交給下面的 Worker，和正式環境一樣；執行、批次、組合運行的執行位置要選「遠端 worker」。<code>--host 0.0.0.0</code>：可以用區網位址假裝別台電腦（見下一節）。</td></tr>
+            <tr><td>3 錄製端</td><td><code>uv run rpa recorder --invite '邀請' --work-dir ~/rpa-xx-check/agent-recorder --no-open</code></td><td>在「叢集管理 › 裝置」新增錄製端、產生邀請。啟動後印出的本機網址是「錄製端網址」：用它開 Portal，錄製、逐步調試、人工登入的瀏覽器才會開在錄製端，頁首標出「透過錄製端」。</td></tr>
+            <tr><td>4、5 Worker</td><td><code>uv run rpa worker --invite '邀請' --work-dir ~/rpa-xx-check/agent-worker-1</code>（第二個用 <code>agent-worker-2</code>）</td><td>一台 Worker 一次只跑一個執行；要驗「同時幾列」「同時執行的節點」就開兩個，各用自己的 <code>--work-dir</code>。之後重開不用新的邀請：<code>uv run rpa worker --work-dir …</code>。</td></tr>
+            <tr><td>6 舊版（需要時）</td><td><code>git worktree add ~/rpa-xx-check/main-code origin/main</code>，在那個資料夾 <code>uv sync --locked</code> 後執行舊版的命令</td><td>驗「舊版 Worker 被提示更新」或「從舊版升級」。用 worktree，不必切換 clone 的分支。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="simulate">
+      <div class="panel-header"><h2>在一台電腦上模擬好幾台、好幾個人</h2></div>
+      <div class="panel-body prose">
+        <ul class="points">
+          <li><strong>別台電腦。</strong>用這台在區網的位址開 Portal（macOS：<code>ipconfig getifaddr en0</code>，沒有結果時試 <code>en1</code>），伺服器就把請求當成從別台來的。例如 M8 的「第一個系統管理員只能在伺服器那台建立」：用 <code>http://區網位址:8080</code> 開只看到說明，用 <code>http://127.0.0.1:8080</code> 才能建立。要先用 <code>--host 0.0.0.0</code> 啟動。</li>
+          <li><strong>好幾個使用者（M8 起要登入）。</strong>平常的瀏覽器視窗登入一個帳號，無痕視窗登入另一個；第三個帳號用另一個瀏覽器。同一個瀏覽器的一般視窗共用登入，<code>127.0.0.1</code> 上不同的埠（8080 與錄製端網址）也共用，所以用錄製端網址開時通常已經是登入的；要看「透過錄製端也要登入」就在無痕視窗開錄製端網址。</li>
+          <li><strong>同一個帳號在「別的地方」也登入。</strong>用 curl 存一份自己的 Cookie：<code>curl -c 檔案 -H 'Content-Type: application/json' -d '{"username":"…","password":"…"}' http://127.0.0.1:8080/login</code>，之後 <code>curl -b 檔案 …/api/me</code> 看那個登入還在不在（例如改密碼後應該失效）。</li>
+          <li><strong>兩台 Worker。</strong>見上表的視窗 4、5。</li>
+          <li><strong>舊版的 Worker 或 Portal。</strong>見上表的視窗 6。升級測試：舊版 Portal 用另一組埠（例如 <code>--port 8090 --worker-port 8091</code>）與另一個 <code>--data</code> 先做出資料，停掉後用新版、同一個 <code>--data</code> 啟動；舊版可以不加 <code>--no-local-worker</code>，執行就在 Portal 裡跑，不必配對。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="restart">
+      <div class="panel-header"><h2>重啟與升級</h2></div>
+      <div class="panel-body prose">
+        <ul class="points">
+          <li>視窗 2 按 Ctrl+C 停掉 Portal，按 ↑ 再 Enter 用同一個命令重開。Worker 與錄製端會短暫連不上、自動重試；配對存在各自的工作資料夾，不用重新邀請。</li>
+          <li>測試網站在視窗 1，不受影響。執行到一半的執行在 Worker 上照樣跑完，Portal 起來後收回結果。</li>
+          <li>換程式（例如從 main 升到要驗收的分支）一樣是停掉、在另一個資料夾或切換分支後用同一個 <code>--data</code> 啟動；資料表在啟動時自動遷移。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="record">
+      <div class="panel-header"><h2>記錄結果</h2></div>
+      <div class="panel-body prose">
+        <ul class="points">
+          <li>每一步寫好「應該看到」什麼；對不上時記下網址、執行或批次編號（<code>run-…</code>、<code>batch-…</code>）與畫面。</li>
+          <li>結果交給負責的 Agent 回填任務紀錄的「驗證與審閱」與「追加紀錄」：版本（提交）、環境（電腦、作業系統）、做了哪些步驟、結果與沒驗到的。沒做、跳過、取消不算通過（<a href="../../AGENTS.md">AGENTS.md</a>）。</li>
+          <li>和程式對不上的文件（例如按鈕名稱不同）也一起記下來。</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="cleanup">
+      <div class="panel-header"><h2>收尾</h2></div>
+      <div class="panel-body prose">
+        <ol>
+          <li>各個視窗按 Ctrl+C，停掉 Portal、測試網站、錄製端與 Worker。</li>
+          <li>有用 worktree 時在 clone 裡執行 <code>git worktree remove ~/rpa-xx-check/main-code</code>，再刪掉整個 <code>~/rpa-xx-check</code>。</li>
+          <li><code>git switch main</code>。</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="panel" id="faq">
+      <div class="panel-header"><h2>常見問題</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>看到什麼</th><th>怎麼處理</th></tr></thead>
+          <tbody>
+            <tr><td>8080、8081 或 8765 被佔用</td><td>正式伺服器或上一次的驗收還在跑。停掉它，或改用 <code>--port 8090 --worker-port 8091</code>（邀請與 Agent API 的網址跟著變）。</td></tr>
+            <tr><td>「測試網站自動化」的卡片比預期少</td><td>資料夾不是新的，或開到了別的分支的程式。停掉 Portal、刪掉 <code>data</code>，確認 <code>git branch --show-current</code> 與 <code>git log -1</code> 後重開。</td></tr>
+            <tr><td>文件與 Portal 對不上、ADR 少了最新的幾篇</td><td>開到了舊的 worktree 或別的分支。看瀏覽器網址列的路徑。Portal、錄製端與 Worker 用的也是那份程式，切對分支後都要重開。</td></tr>
+            <tr><td>裝置一直不是「線上」</td><td>看那個視窗的錯誤；邀請過期就在裝置頁重新產生。設了環境變數 <code>RPA_WORKER_TOKEN</code> 的視窗先 <code>unset RPA_WORKER_TOKEN</code>。</td></tr>
+            <tr><td>執行或批次一直「排隊中」</td><td>執行位置選了本機（用了 <code>--no-local-worker</code> 就沒有本機 Worker），或 Worker 不在線上。</td></tr>
+            <tr><td>同時兩列沒有同時跑</td><td>兩台 Worker 都要線上而且空著；也看批次清單上方的「所有批次合計同時排入」。</td></tr>
+            <tr><td>逐步調試或錄製的瀏覽器沒有開在錄製端</td><td>用的是 <code>127.0.0.1:8080</code>，不是錄製端印出的網址。</td></tr>
+            <tr><td>一直被轉到登入頁、或換帳號後另一個視窗也換了（M8）</td><td>同一個瀏覽器的一般視窗共用登入；另一個帳號用無痕視窗或另一個瀏覽器。</td></tr>
+            <tr><td>帳號被暫停登入（M8，輸錯 5 次）</td><td>等 15 分鐘，或重啟 Portal（暫停只記在執行中的 Portal 裡）。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="limits">
+      <div class="panel-header"><h2>這個方法驗不到的</h2></div>
+      <div class="panel-body prose">
+        <ul class="points">
+          <li><strong>打包的 App。</strong>RPA 錄製端與 RPA Worker 的安裝、第一次啟動的下載、更新：CI 的「桌面端建置」在 macOS、Windows 打包後跑端到端，發布前用草稿 Release 在真的電腦上裝一次（<a href="remote-worker.html">遠端 worker</a>）。</li>
+          <li><strong>兩台電腦之間的網路。</strong>防火牆、區網位址、對外埠：見<a href="operations.html">部署與操作</a>。</li>
+          <li><strong>Linux 無桌面伺服器。</strong>分發包的安裝與升級由 CI 的「伺服器分發包」在 Rocky 8 驗；正式環境的升級照<a href="setup.html#linux-package">開發環境 › 分發包</a>。</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

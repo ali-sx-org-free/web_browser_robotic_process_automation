@@ -310,6 +310,8 @@ class AuthGateMiddleware:
                 code = "forbidden" if verdict == 403 else "not_found"
                 message = t("error.forbidden") if verdict == 403 else t("error.not_found_or_hidden")
                 await _json(send, verdict, code, message)
+                if method not in _SAFE:  # 被擋下的寫入也記下（誰試著做了沒有權限的事）
+                    await self._record_request(scope, access, method, path, verdict)
             else:
                 await self._denied_page(send, verdict, access)
             return
@@ -323,18 +325,23 @@ class AuthGateMiddleware:
         with use_access(access):
             await self.app(scope, receive, capture if api and method not in _SAFE else send)
         if api and method not in _SAFE:
-            via = via_recorder()
-            await anyio.to_thread.run_sync(
-                lambda: self.audit.record(
-                    "request",
-                    user_id=access.user_id,
-                    username=access.username,
-                    target=f"{method} {path}",
-                    status=status[0] if status else None,
-                    ip=client_ip(scope),
-                    via=via.id if via is not None else None,
-                )
+            await self._record_request(scope, access, method, path, status[0] if status else None)
+
+    async def _record_request(
+        self, scope: Scope, access: Access, method: str, path: str, status: int | None
+    ) -> None:
+        via = via_recorder()
+        await anyio.to_thread.run_sync(
+            lambda: self.audit.record(
+                "request",
+                user_id=access.user_id,
+                username=access.username,
+                target=f"{method} {path}",
+                status=status,
+                ip=client_ip(scope),
+                via=via.id if via is not None else None,
             )
+        )
 
     async def _denied_page(self, send: Send, status: int, access: Access) -> None:
         message = t("error.forbidden") if status == 403 else t("error.not_found_or_hidden")

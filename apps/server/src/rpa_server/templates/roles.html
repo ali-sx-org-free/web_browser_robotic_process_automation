@@ -67,7 +67,7 @@
       {% for info in secrets %}
       <tr data-secret="{{ info.name }}">
         <td><code>{{ info.name }}</code></td>
-        <td>{{ m.badge("passed", t("secrets.set")) }} <span class="cell-sub">{{ t("secrets.updated") }} {{ m.time(info.updated_at) }}</span></td>
+        <td>{% if info.readable %}{{ m.badge("passed", t("secrets.set")) }}{% else %}<span title="{{ t('secrets.unreadable_hint') }}">{{ m.badge("failed", t("secrets.unreadable")) }}</span>{% endif %} <span class="cell-sub">{{ t("secrets.updated") }} {{ m.time(info.updated_at) }}</span>{% if not info.readable %}<span class="cell-sub">{{ t("secrets.unreadable_hint") }}</span>{% endif %}</td>
         <td>{{ (usage.get(info.name) or ["—"]) | join(t("js.list_separator")) }}</td>
         <td><button class="text-btn" data-action="edit-secret" data-name="{{ info.name }}">{{ t("secrets.replace") }}</button>
           <button class="text-btn" data-action="delete-secret" data-name="{{ info.name }}">{{ t("secrets.delete") }}</button></td>

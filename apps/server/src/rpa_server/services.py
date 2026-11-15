@@ -2162,7 +2162,7 @@ class Services:
 
     def scene_needs(self, scenario: Scenario) -> SceneNeeds:
         """場景版本執行前要準備好的角色與 Secrets。"""
-        stored = {info.name for info in self.roles.list_secrets()}
+        stored = {info.name for info in self.roles.list_secrets() if info.readable}
         secrets = tuple((name, name in stored or name in os.environ) for name in scenario.secrets)
         role = scenario.login.role if scenario.login is not None else None
         if role is None:

@@ -45,6 +45,8 @@
           <tr><td>I7</td><td>舊的測試</td><td><code>Settings.skip_login</code>（<code>from_env</code> 不讀）讓 M8 之前的測試當成系統管理員；登入與權限有自己的測試。</td></tr>
           <tr><td>I8</td><td>介面</td><td>右上角顯示自己的名稱與登出；只有系統管理員能用的選單不顯示；批次清單的共用上限只給系統管理員看；「本機 · 單一使用者」改成「本機部署」。</td></tr>
           <tr><td>I9</td><td>錄製端的閘道</td><td>沒登入的 401 帶 <code>X-RPA-Login: required</code>；閘道照樣轉送，不呼叫 <code>on_unauthorized</code>（不當成裝置權杖失效）。桌面端的端到端測試先在伺服器這台建立 CI 的系統管理員，經由閘道時也先登入。</td></tr>
+          <tr><td>I10</td><td>被擋下的寫入</td><td>沒有權限被登入關卡擋下的 <code>/api</code> 寫入（403、404）也記進稽核紀錄（2026-11-14 寫驗收教程時發現原本沒記）。</td></tr>
+          <tr><td>I11</td><td>解不開的 Secrets</td><td>金鑰換過或不見時，「登入與憑證」標成「解不開」並說明怎麼補救；場景與組合場景執行前的檢查當成沒有設定（原本顯示「已設定」、執行時才失敗）。Secrets 表單的說明改成加密與金鑰檔；透過錄製端時頁首的「單一使用者」拿掉。</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -92,6 +94,7 @@
         <li>2026-11-14 07:30～16:45 America/Los_Angeles（PST，UTC−08:00），Claude：中間停了一段（使用者 16:16 說「繼續」）。從 <code>feat/m7-wrapup</code> 開 <code>feat/m8-multi-user</code>，依序做 Secrets 加密、模型與遷移、帳號與工作階段、權限（規則表與清單篩選）、稽核、頁面與腳本、<code>rpa user</code>、測試與文件。這段期間 PR #27 的 Windows 測試有一個 <code>test_python_script_scenario[firefox]</code> 失敗（子程序結束碼 1，和這次的改動無關），已要求重跑失敗的工作。</li>
         <li>2026-11-14 16:45～17:05 America/Los_Angeles（PST，UTC−08:00），Claude：PR #28 第一輪 CI（<code>a946775</code>）失敗的原因與修正——<code>domain.html</code> 的成員區塊在測試的渲染（沒傳成員）時未定義 → 給預設值；遷移比對測試的資料表清單少了四張新表；<code>test_secret_values_are_never_returned</code> 的欄位多了 <code>readable</code>；<code>rpa user create</code> 在還沒建立的資料夾上打不開資料庫 → 先建立資料夾；<code>test_domain_roles</code> 打開未發布場景的執行頁是 409（不是 403 就對）；伺服器分發包與桌面端（Worker／錄製端）的端到端測試沒登入 → 先建立 CI 的系統管理員並帶著 Cookie（I9）；SQLAlchemy 2.1 的 <code>Result.tuples()</code> 棄用警告。Windows Worker 測試的 <code>test_element_outside_the_frame_is_not_found[firefox]</code> 逾時與本次無關（同 M7 的 firefox 偶發）。</li>
         <li>2026-11-14 17:25 America/Los_Angeles（PST，UTC−08:00），Claude：第二輪只剩 <code>test_secret_values_are_never_returned</code> 還在檔案裡找明文（M8 起是密文）→ 改成檢查檔案裡沒有明文、執行時解得回來。合併 M7 收尾的紀錄後全部通過；PR #27、#28 轉為可審閱。</li>
+        <li>2026-11-14 18:32～18:55 America/Los_Angeles（PST，UTC−08:00），Claude：使用者要驗收教程（Claude Doc「M7 收尾與 M8 多用戶人工驗收教程（一台電腦）」），並要求把一台電腦驗收的方法寫成工程文檔：新增 <code>docs/develop/acceptance.html</code>（含英文版），登記在文檔導覽，從首頁的建議閱讀順序、遠端 worker 頁與 <a href="../acceptance.html">狀態與驗收紀錄</a> 連過去。寫教程時核對程式，修正：首頁與 ADR 索引的數字（架構決策 24 項、M8 進行中）；I10、I11；ADR 0025 的稽核範圍寫明含被擋下的寫入。</li>
       </ul></div>
     </section>
   </div>

@@ -1577,7 +1577,7 @@ class WorkflowService:
                     add("error", "role_missing", "reload_domain", params)
                 elif role.status != "logged_in" and not role.auto_login:
                     add("warning", "role_login", "login", params)
-            stored = {info.name for info in self.services.roles.list_secrets()}
+            stored = {info.name for info in self.services.roles.list_secrets() if info.readable}
             missing = [
                 name for name in scenario.secrets if name not in stored and name not in os.environ
             ]

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:0b277e3489a85276">
+<meta name="translation-source" content="sha256:efed818c62acc8de">
 <title>Remote workers · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -117,6 +117,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite (code)</pre>
           <li><strong>Where data lives</strong>: <code>~/Library/Application Support/rpa/worker</code> (<code>pairing.json</code>, <code>settings.json</code>, logs in <code>logs/</code>, job scratch space; from v0.9.0 also the shared workspaces of composite runs in <code>work/workspaces/</code>). The RPA Python runtime is unpacked into <code>~/Library/Caches/rpa/python/</code> the first time it is needed (<code>%LOCALAPPDATA%\rpa\cache\python\</code> on Windows) and reused afterwards. <strong>The token is in the Keychain</strong> (<code>RPA Worker</code> in the login keychain); if the Keychain cannot be used it falls back to <code>pairing.json</code> (readable only by you), and “Token storage” in the window says so. Logs never contain tokens or invitation codes.</li>
           <li><strong>Logging out, restarting or shutting down</strong>: a running job is cancelled and reported right away (it waits only a few seconds and never blocks logout); if that is too late, the portal marks the worker lost after about a minute.</li>
           <li><strong>The recorder on the same Mac</strong>: the two apps pair separately (worker invitation, recorder invitation) and keep separate folders and Keychain items, so both can run at once; downloaded browsers are shared.</li>
+          <li><strong>Everything on one computer for acceptance</strong>: running the portal, the test site, a command-line Recorder and several workers together is described in <a href="acceptance.html">Manual acceptance on one computer</a>.</li>
           <li><strong>Troubleshooting</strong>: <code>"/Applications/RPA Worker.app/Contents/MacOS/rpa-child" --worker</code> is the console version; <code>rpa-worker --no-window --invite … --log FILE</code> in the same folder runs without a window. Run both from a logged-in desktop (for example Terminal) so headed mode can open browsers; they share the app's pairing, and only one copy runs at a time.</li>
           <li><strong>Apple silicon only</strong> (like the recorder). On an Intel Mac use <code>rpa worker</code> from a development environment (<a href="#start">Start the worker</a>).</li>
         </ul>

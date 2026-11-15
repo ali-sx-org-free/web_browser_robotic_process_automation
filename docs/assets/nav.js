@@ -251,6 +251,11 @@ window.DOCS_NAV = {
           "name": {"zh-Hant": "遠端 worker", "zh-Hans": "远程 worker", "en": "Remote workers"}
         },
         {
+          "id": "acceptance",
+          "href": "develop/acceptance.html",
+          "name": {"zh-Hant": "一台電腦驗收", "zh-Hans": "一台电脑验收", "en": "One-machine acceptance"}
+        },
+        {
           "id": "agent-api-guide",
           "href": "develop/agent-api-guide.html",
           "name": {"zh-Hant": "Agent 使用指南", "zh-Hans": "Agent 使用指南", "en": "Agent API guide"}
