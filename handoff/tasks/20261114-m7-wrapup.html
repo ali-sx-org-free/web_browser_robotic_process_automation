@@ -47,7 +47,7 @@
       <div class="panel-body"><ul class="points">
         <li><strong>已完成：</strong>七項的程式、測試與文件（提交 <span class="mono">0eefdc4</span>、<span class="mono">450068f</span>、<span class="mono">07b4eb7</span>、<span class="mono">376c5a5</span> 與之後的文件提交）。</li>
         <li><strong>未完成／阻礙：</strong>伺服器 API 層的測試只在 CI 跑；簡中由 bootstrap 產生；人工驗收。</li>
-        <li><strong>下一個具體動作：</strong>看 PR #27 的 CI，有失敗就修；之後開始 M8（另開任務）。</li>
+        <li><strong>下一個具體動作：</strong>CI 已全部通過、PR #27 轉為可審閱；等使用者審閱後依序合併 #26 → #27（→ M8 的 #28）。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -71,7 +71,7 @@
           <tr><td><span class="mono">376c5a5</span> 之前的工作區；雲端 Linux、系統 Python 3.13</td><td><code>ruff check</code>、<code>ruff format --check</code>（packages、apps、tools）；<code>pyright</code>（rpa_core、rpa_runner 的 src）；<code>pytest packages/rpa_core/tests</code>；<code>pytest packages/rpa_runner/tests -k "not firefox"</code>；<code>pytest apps/server/tests/test_batch_table.py</code>；<code>node --check static/portal.js</code></td><td>ruff、格式、pyright 0 errors；rpa_core 598 passed；rpa_runner 257 passed、8 failed、4 skipped：失敗的 8 個都是 <code>test_video_browser.py</code>（錄影與有頭模式），在 main 的乾淨工作樹上同樣失敗，是這個環境的問題；新的 <code>test_call_browser.py</code> 兩個檔案測試在 Chromium 通過；<code>test_batch_table.py</code> 27 passed；腳本語法通過</td><td>伺服器 API 層（<code>test_batches_wrapup.py</code>、<code>test_m7_wrapup.py</code>、<code>test_calls_api.py</code>、遷移與其他伺服器測試）要 FastAPI、SQLAlchemy，交給 CI；Firefox；簡中交給 bootstrap</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：見 PR #27 與追加紀錄。人工驗收：未執行。</p></div>
+      <div class="panel-body"><p>CI：PR #27 在 <span class="mono">6e38988</span> 全部通過（見追加紀錄）。人工驗收：未執行。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -81,6 +81,7 @@
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-11-14 06:19～07:10 America/Los_Angeles（PST，UTC−08:00），Claude：從 main <span class="mono">9819532</span> 開 <code>feat/m7-wrapup</code>，依序做 W1～W7（提交見<a href="#progress">進度</a>）。檢查時發現：<code>rpa_runner.record</code> 的私有函式改成公開的 <code>load_replay</code> 後，<code>test_interactive_inputs.py</code> 還在呼叫舊名字，已更新；組合場景的批次會在批次的鎖裡開始組合運行，而取消組合運行原本在組合場景的鎖裡取消節點的執行、通知批次，兩邊可能互等，改成在鎖外面取消節點的執行。推送後開草稿 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/27">PR #27</a>，合併 PR #26 的分支，接著寫文件與本頁。</li>
+        <li>2026-11-14 17:15 America/Los_Angeles（PST，UTC−08:00），Claude：PR #27 的 CI 全部通過（<span class="mono">6e38988</span>：CI、桌面端建置、伺服器分發包、一鍵安裝腳本、RPA Python 運行環境；Windows 的 <code>test_python_script_scenario[firefox]</code> 偶發失敗重跑後通過），含 PR #26（主體功能驗收通過）的合併。轉為可審閱，等使用者審閱；M8 接在 PR #28（<a href="20261114-m8-multi-user.html">任務紀錄</a>）。</li>
       </ul></div>
     </section>
   </div>
