@@ -51,9 +51,9 @@
     <section class="panel" id="progress">
       <div class="panel-header"><h2>進度與下一步</h2></div>
       <div class="panel-body"><ul class="points">
-        <li><strong>已完成：</strong>上面的實作、測試與文件。</li>
-        <li><strong>未完成／阻礙：</strong>伺服器 API 層的測試（<code>test_multi_user.py</code> 與既有測試）只在 CI 跑；簡中由 bootstrap 產生；人工驗收；PostgreSQL 之後另排。</li>
-        <li><strong>下一個具體動作：</strong>看第二輪修正後的 CI（bootstrap 會重新產生 ADR 0025 的簡中）；綠了就把 PR #27、#28 轉為可審閱，之後等使用者審閱與驗收。</li>
+        <li><strong>已完成：</strong>上面的實作、測試與文件；PR #28 的 CI 全部通過（見驗證與審閱），已轉為可審閱。</li>
+        <li><strong>未完成／阻礙：</strong>人工驗收；PostgreSQL 之後另排。</li>
+        <li><strong>下一個具體動作：</strong>等使用者審閱與驗收；合併順序 #26 → #27 → #28（#28 疊在 #27 上）。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -76,9 +76,11 @@
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
         <tbody>
           <tr><td>第一次提交前的工作區；雲端 Linux、系統 Python 3.13</td><td><code>ruff check</code>、<code>ruff format --check</code>（packages、apps、tools）；<code>pyright</code>（<code>access.py</code>、<code>gate.py</code>、<code>secret_store.py</code> 與兩個測試）；<code>pytest apps/server/tests/test_gate.py test_secret_store.py test_batch_table.py</code>；<code>node --check</code>（portal.js、login.js）；樣板用替身資料渲染（auth、account、users、audit）</td><td>ruff、格式、pyright 0 errors；62 passed；腳本語法通過；樣板渲染通過，檢視者的選單沒有帳號頁</td><td>伺服器 API 層與 CLI 的測試、遷移與模型的比對、其他伺服器模組的 pyright 要 FastAPI、SQLAlchemy，交給 CI；簡中交給 bootstrap</td></tr>
+          <tr><td><span class="mono">808bd25</span>（GitHub Actions）</td><td>完整的 CI、桌面端建置（Worker／錄製端在 macOS、Windows 打包後的端到端，含經由錄製端閘道登入與逐步調試）、伺服器分發包（Linux 冒煙：先建立系統管理員再呼叫 API）、一鍵安裝腳本、RPA Python 運行環境</td><td>除了 CI 的兩項都通過；CI 剩 Secrets 測試的舊預期（查明文）與簡中待產生</td><td>—</td></tr>
+          <tr><td><span class="mono">72990f6</span>（bot）→ <span class="mono">27dfe21</span> → <span class="mono">20c08ed</span>（合併 M7 收尾的紀錄）</td><td>bootstrap 產生 ADR 0025 簡中；Secrets 測試改查密文；CI（依改動範圍：靜態檢查、Python 3.12／3.13 測試）</td><td>全部通過</td><td>人工驗收</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：見 PR 與追加紀錄。人工驗收：未執行。</p></div>
+      <div class="panel-body"><p>CI：全部通過（見上表）。人工驗收：未執行。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -89,6 +91,7 @@
       <div class="panel-body"><ul class="points">
         <li>2026-11-14 07:30～16:45 America/Los_Angeles（PST，UTC−08:00），Claude：中間停了一段（使用者 16:16 說「繼續」）。從 <code>feat/m7-wrapup</code> 開 <code>feat/m8-multi-user</code>，依序做 Secrets 加密、模型與遷移、帳號與工作階段、權限（規則表與清單篩選）、稽核、頁面與腳本、<code>rpa user</code>、測試與文件。這段期間 PR #27 的 Windows 測試有一個 <code>test_python_script_scenario[firefox]</code> 失敗（子程序結束碼 1，和這次的改動無關），已要求重跑失敗的工作。</li>
         <li>2026-11-14 16:45～17:05 America/Los_Angeles（PST，UTC−08:00），Claude：PR #28 第一輪 CI（<code>a946775</code>）失敗的原因與修正——<code>domain.html</code> 的成員區塊在測試的渲染（沒傳成員）時未定義 → 給預設值；遷移比對測試的資料表清單少了四張新表；<code>test_secret_values_are_never_returned</code> 的欄位多了 <code>readable</code>；<code>rpa user create</code> 在還沒建立的資料夾上打不開資料庫 → 先建立資料夾；<code>test_domain_roles</code> 打開未發布場景的執行頁是 409（不是 403 就對）；伺服器分發包與桌面端（Worker／錄製端）的端到端測試沒登入 → 先建立 CI 的系統管理員並帶著 Cookie（I9）；SQLAlchemy 2.1 的 <code>Result.tuples()</code> 棄用警告。Windows Worker 測試的 <code>test_element_outside_the_frame_is_not_found[firefox]</code> 逾時與本次無關（同 M7 的 firefox 偶發）。</li>
+        <li>2026-11-14 17:25 America/Los_Angeles（PST，UTC−08:00），Claude：第二輪只剩 <code>test_secret_values_are_never_returned</code> 還在檔案裡找明文（M8 起是密文）→ 改成檢查檔案裡沒有明文、執行時解得回來。合併 M7 收尾的紀錄後全部通過；PR #27、#28 轉為可審閱。</li>
       </ul></div>
     </section>
   </div>
