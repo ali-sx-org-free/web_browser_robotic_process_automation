@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0025 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0025" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0025：多用戶是本地帳號、以領域為單位的角色、加密的 Secrets 與雜湊鏈的稽核紀錄</h1>
+      <p>管理 Portal 一律要登入。第一版只有本地帳號，第一個系統管理員只能在伺服器那台電腦上建立；權限以領域為單位（管理員、編輯者、執行者、檢視者），另有系統管理員；Secrets 用 AES-GCM 加密存放，仍是全域、只有系統管理員能改；改變東西的請求都寫進只增不改的稽核紀錄。正式環境改用 PostgreSQL 不在這次範圍。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-11-14</dd>
+        <dt>狀態</dt><dd>使用者 2026-11-14 06:12 America/Los_Angeles（PST，UTC−08:00）要求做 M8「多用戶與治理，但不包含正式環境改用PostgreSQL部分」；06:19 回答四個問題（見<a href="../../handoff/decisions.html#decisions">決定紀錄</a>）：D1 先只做本地帳號（預留 OIDC、LDAP）；D2 以領域為單位；D3 Secrets 的金鑰自動產生存檔（環境變數可以覆寫），Secrets 維持全域、只有系統管理員能改，接受這次升級要換完整分發包；D4 一律要登入，第一個系統管理員只能在伺服器那台建立，裝置配對與 Agent API 的金鑰照舊。工作階段的期限、密碼規則、稽核的範圍與雜湊鏈、路由權限的寫法、<code>rpa user</code> 是 Claude 的實作選擇（<a href="../../handoff/tasks/20261114-m8-multi-user.html">任務紀錄</a>），審閱 PR 時可以調整。</dd>
+        <dt>影響範圍</dt><dd>rpa-server（帳號、工作階段、成員、稽核的模型與遷移 0020；登入關卡 <code>gate.py</code>；清單依領域篩選；Secrets 加密；登入、帳號、稽核頁；Portal 的腳本）、rpa CLI（<code>rpa user</code>）、伺服器分發包（多了 <code>cryptography</code>：執行環境改變，這次升級要用完整分發包）、Linux 的冒煙測試與桌面端的端到端測試（先建立第一個系統管理員、帶著登入的 Cookie）、錄製端的本機閘道（<code>rpa_worker.gateway</code>：分辨「要登入」與「權杖失效」）。rpa-core、rpa-runner 與 Worker 的執行不改。</dd>
+        <dt>相關</dt><dd><a href="0008-sqlite-and-postgresql.html">ADR 0008</a>（SQLite 與 PostgreSQL）、<a href="0015-domain-folders-and-git.html">ADR 0015</a>（領域資料夾與 git）、<a href="0014-desktop-apps.html">ADR 0014</a>（桌面 App 與錄製端）、<a href="0017-agent-api.html">ADR 0017</a>（對外 Agent API）、<a href="0018-layered-updates.html">ADR 0018</a>（分層更新）；<a href="../design/multi-user.html">多用戶與內部系統</a>、<a href="../design/portal.html#accounts">管理 Portal › 帳號、登入與權限</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>到 M7 為止管理 Portal 沒有登入：預設只聽 127.0.0.1，錄製端用裝置權杖透過自己的閘道打開。團隊共用之後要分得出是誰、限制誰能改或執行哪些場景，Secrets 不能是明文檔，誰做了什麼要留下改不了的紀錄。</p>
+          <p>場景、角色與組合場景本來就分在領域裡（M11 的領域資料夾，也是 git 同步的單位），專案只是組合場景的分組；所以權限跟著領域最自然。</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>決策</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>一律要登入。</strong>頁面與 <code>/api</code> 都經過登入關卡（<code>rpa_server.gate</code>）：沒登入的頁面轉到 <code>/login?next=…</code>，<code>/api</code> 回 401。不經過關卡的只有靜態檔、登入／登出／建立第一個管理員、語言切換、API 的說明（<code>rpa serve</code> 用 openapi.json 認出已經在執行的 Portal），以及本來就有權杖或金鑰的 Worker API、Client API、Agent API。透過錄製端打開時也要登入（錄製端的權杖只代表裝置）：沒登入的 401 帶著 <code>X-RPA-Login: required</code>，錄製端的閘道照樣轉送，不當成裝置權杖失效。</li>
+            <li><strong>本地帳號。</strong>帳號是小寫英文、數字與 <code>. _ -</code>；密碼至少 8 個字，用標準庫的 scrypt（N=2^15、r=8、p=1）雜湊。<code>users.provider</code>、<code>subject</code> 預留給 OIDC、LDAP。帳號不刪除只停用（稽核與成員關係還指得到它）。最後一個能用的系統管理員不能取消或停用，也不能停用自己。</li>
+            <li><strong>第一個系統管理員只能在伺服器那台建立。</strong>還沒有任何帳號時，從 127.0.0.1 直接打開的 <code>/setup</code> 建立（透過錄製端或別台電腦不行）；沒有瀏覽器的伺服器用 <code>rpa user create 帳號 --admin</code>。忘記密碼時用 <code>rpa user password 帳號</code>。</li>
+            <li><strong>工作階段。</strong>登入後的 Cookie 是隨機權杖（HttpOnly、SameSite=Lax、HTTPS 時 Secure），名稱加上伺服器代號；資料庫只存它的 SHA-256。7 天沒用就失效、最長 30 天；改密碼（其他地方的失效）、重設密碼與停用時那個帳號的失效。同一個帳號 15 分鐘內輸錯 5 次先暫停登入；帳號不存在時也算一次雜湊，不從回應時間看出帳號是否存在。寫入請求另有既有的同源檢查（<code>Origin</code>）。</li>
+            <li><strong>以領域為單位的角色。</strong><code>domain_members</code>：管理員（成員、領域名稱與說明、git 同步）、編輯者（建立、修改、驗證、發布場景與組合場景，錄製、逐步調試，領域的登入角色）、執行者（執行、批次、取消、重跑）、檢視者（看場景、組合場景、執行、批次與回看）。系統管理員不必加入就能做所有事，另外負責帳號、建立與刪除領域、專案、Secrets 的值、裝置、API 用戶端、伺服器設定與稽核紀錄。沒有領域的東西（未分配）只有系統管理員。專案不管權限。</li>
+            <li><strong>關卡依路徑規則檢查。</strong>規則表（<code>gate.RULES</code>，第一個符合的）寫「要什麼能力、看哪一種東西的領域」；執行、批次、組合運行、逐步調試各自查到所在的領域（執行看場景的、組合場景的批次看組合場景的）。看不到的領域 404（不透露存在），看得到但不能做 403。建立時才指定領域的（新場景、新組合場景、新登入角色、搬到別的領域）在路由裡再檢查一次。沒有列出的 GET 只要登入（清單另外篩選），沒有列出的寫入只有系統管理員（預設拒絕）。</li>
+            <li><strong>清單依領域篩選。</strong>目前的使用者放在 ContextVar（<code>rpa_server.access</code>），領域、場景、執行、組合場景、組合運行、批次、登入角色與組合場景的場景庫只列看得到的領域；背景工作沒有使用者，不受限制。選單隱藏只有系統管理員能用的頁面；錄製只給至少在一個領域是編輯者的人。</li>
+            <li><strong>Secrets 加密。</strong>每個值用 AES-256-GCM（<code>cryptography</code>）加密，隨機 nonce，名稱當成附加資料（換了名稱就解不開）。金鑰：環境變數 <code>RPA_SECRETS_KEY</code> 優先，否則是資料目錄的 <code>secrets.key</code>（第一次啟動時產生，0600）。舊的明文在啟動時換成密文；金鑰不對時名稱照樣列出、標成解不開，執行時當成沒有設定。Secrets 仍是全域的，只有系統管理員能設定與刪除；誰都讀不出明文。</li>
+            <li><strong>稽核紀錄只增不改、串成雜湊鏈。</strong><code>audit_events</code> 記登入、登入失敗、登出、建立第一個系統管理員，以及每一個 <code>/api</code> 的寫入請求，含因為沒有權限被擋下的（帳號、方法與路徑、結果、來源位址、透過哪台錄製端）；不記請求內容。每一筆的雜湊是「前一筆的雜湊＋這一筆的內容」的 SHA-256；沒有修改或刪除的介面，驗證時從頭重算，改了或刪了中間任何一筆就從那一筆起對不上。Agent API 照舊用自己的稽核。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>升級後第一次打開要建立系統管理員；原本的使用者在建立後就是系統管理員，其他人要新增帳號並加進領域才看得到東西。</li>
+            <li>伺服器多了 <code>cryptography</code>：執行環境（<code>python/</code>）改變，這次升級要用完整分發包，不能只用更新檔（ADR 0018）；使用者已接受。</li>
+            <li>金鑰檔要和資料目錄一起備份；遺失時 Secrets 的名稱還在、值要重新設定。</li>
+            <li>組合場景用到別的領域的場景時，編輯組合場景的人在場景庫看不到那些場景（只列看得到的領域）；執行組合場景只看組合場景自己的領域。</li>
+            <li>只刪掉最後幾筆稽核紀錄看不出來；要防這個得把最後一筆的雜湊另外存到別處，之後有需要再做。</li>
+            <li>舊的測試用 <code>Settings.skip_login</code>（只能在程式裡設，<code>from_env</code> 不讀）當成系統管理員；登入與權限另有測試。</li>
+            <li>HTTP 在區網上仍是明文（Cookie 也是）；HTTPS 在 M9。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="panel-body">
+          <table class="table">
+            <thead><tr><th>方案</th><th>沒有選的原因</th></tr></thead>
+            <tbody>
+              <tr><td>以專案為單位的權限（原本的設計稿）</td><td>專案只分組合場景；場景、角色與 git 同步都以領域為單位（D2）。</td></tr>
+              <tr><td>第一版就接 OIDC／LDAP</td><td>使用者選先做本地帳號（D1）；欄位與登入流程留了位置。</td></tr>
+              <tr><td>升級時由命令列或環境變數建立預設管理員密碼</td><td>預設密碼容易忘了改；改成只能在伺服器那台建立（D4），沒有瀏覽器時用 <code>rpa user</code>。</td></tr>
+              <tr><td>每個路由各自加權限檢查</td><td>一百多個路由容易漏；集中的規則表預設拒絕沒列出的寫入，有測試逐條檢查，路由只補建立時才知道的領域。</td></tr>
+              <tr><td>稽核紀錄記整個請求內容</td><td>會記到密碼與 Secrets 的值；只記方法、路徑與結果。</td></tr>
+              <tr><td>Secrets 用作業系統的鑰匙圈</td><td>伺服器常是沒有桌面的 Linux，分發包也要能搬；用資料目錄的金鑰檔或環境變數（D3）。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

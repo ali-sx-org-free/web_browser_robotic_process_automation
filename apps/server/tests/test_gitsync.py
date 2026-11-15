@@ -130,6 +130,7 @@ def second_server(tmp_path: Path) -> Generator[tuple[FastAPI, Client]]:
         examples_dir=DEMO,
         start_worker=False,
         seed_examples=False,
+        skip_login=True,
     )
     app = create_app(settings)
     with TestClient(app) as client:

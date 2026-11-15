@@ -33,6 +33,10 @@
     } catch {
       data = null;
     }
+    // 登入過期（M8）：回登入頁，登入後回到這一頁
+    if (response.status === 401 && data && data.error && ['login_required', 'setup_required'].includes(data.error.code)) {
+      location.assign('/login?next=' + encodeURIComponent(location.pathname + location.search));
+    }
     return {ok: response.ok, status: response.status, data};
   }
 
@@ -1183,6 +1187,141 @@
       }
       button.disabled = false;
       listItems(qs('#problem-list'), [errorMessage(result)]);
+    });
+  }
+
+  // ---- 帳號（M8，ADR 0025）
+
+  // 領域頁的成員：加入、改角色、移除（領域管理員）
+  function bindMembers() {
+    const panel = qs('#members');
+    if (!panel) return;
+    const domain = panel.dataset.domain;
+    const base = '/api/domains/' + path(domain) + '/members/';
+    const add = qs('#member-add', panel);
+    if (add) {
+      add.addEventListener('submit', async event => {
+        event.preventDefault();
+        const error = qs('.form-error', add);
+        error.textContent = '';
+        const name = add.elements.username.value.trim().toLowerCase();
+        const result = await api('PUT', base + path(name), {role: add.elements.role.value});
+        if (!result.ok) {
+          error.textContent = errorMessage(result);
+          return;
+        }
+        flash(messages.saved);
+        location.reload();
+      });
+    }
+    panel.addEventListener('change', async event => {
+      const select = event.target.closest('[data-action="member-role"]');
+      if (!select) return;
+      const row = select.closest('tr');
+      const result = await api('PUT', base + path(row.dataset.username), {role: select.value});
+      if (!result.ok) {
+        flash(errorMessage(result));
+        location.reload();
+        return;
+      }
+      flash(messages.saved);
+    });
+    panel.addEventListener('click', async event => {
+      const button = event.target.closest('[data-action="member-remove"]');
+      if (!button) return;
+      const row = button.closest('tr');
+      button.disabled = true;
+      const result = await api('DELETE', base + path(row.dataset.user));
+      if (!result.ok) {
+        button.disabled = false;
+        return;
+      }
+      location.reload();
+    });
+  }
+
+  // 自己改密碼
+  function bindPasswordForm() {
+    const form = qs('#password-form');
+    if (!form) return;
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const error = qs('.form-error', form);
+      error.textContent = '';
+      if (form.elements.password.value !== form.elements.again.value) {
+        error.textContent = error.dataset.mismatch;
+        return;
+      }
+      const result = await api('POST', '/api/me/password', {current: form.elements.current.value, password: form.elements.password.value});
+      if (!result.ok) {
+        error.textContent = errorMessage(result);
+        return;
+      }
+      form.reset();
+      flash(messages.saved);
+      location.reload();
+    });
+  }
+
+  // 帳號頁（系統管理員）：新增、系統管理員、停用、重設密碼
+  function bindUsers() {
+    const create = qs('#user-create');
+    if (!create) return;
+    create.addEventListener('submit', async event => {
+      event.preventDefault();
+      const error = qs('.form-error', create);
+      error.textContent = '';
+      const result = await api('POST', '/api/users', {
+        username: create.elements.username.value.trim().toLowerCase(),
+        displayName: create.elements.displayName.value,
+        password: create.elements.password.value,
+        systemAdmin: create.elements.systemAdmin.checked,
+      });
+      if (!result.ok) {
+        error.textContent = errorMessage(result);
+        return;
+      }
+      flash(messages.saved);
+      location.reload();
+    });
+    const list = qs('#user-list');
+    const reset = qs('#user-password');
+    list.addEventListener('click', async event => {
+      const button = event.target.closest('[data-action^="user-"]');
+      if (!button || button.closest('form')) return;
+      const row = button.closest('tr');
+      const id = row.dataset.user;
+      if (button.dataset.action === 'user-password') {
+        reset.hidden = false;
+        reset.dataset.user = id;
+        qs('#user-password-label').textContent = row.querySelector('.mono').textContent;
+        reset.elements.password.focus();
+        return;
+      }
+      const field = button.dataset.action === 'user-admin' ? 'systemAdmin' : 'disabled';
+      button.disabled = true;
+      const result = await api('PATCH', '/api/users/' + path(id), {[field]: button.dataset.value === 'true'});
+      if (!result.ok) {
+        button.disabled = false;
+        const error = qs('.form-error', reset);
+        reset.hidden = false;
+        error.textContent = errorMessage(result);
+        return;
+      }
+      location.reload();
+    });
+    reset.addEventListener('submit', async event => {
+      event.preventDefault();
+      const error = qs('.form-error', reset);
+      error.textContent = '';
+      const result = await api('POST', '/api/users/' + path(reset.dataset.user) + '/password', {password: reset.elements.password.value});
+      if (!result.ok) {
+        error.textContent = errorMessage(result);
+        return;
+      }
+      reset.reset();
+      reset.hidden = true;
+      flash(messages.saved);
     });
   }
 
@@ -4253,6 +4392,9 @@
   bindRunForm();
   bindBatchForm();
   bindBatchShared();
+  bindMembers();
+  bindPasswordForm();
+  bindUsers();
   bindBatch();
   bindAttachments();
   bindRun();

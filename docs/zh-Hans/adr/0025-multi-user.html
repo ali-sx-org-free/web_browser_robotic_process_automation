@@ -1,0 +1,94 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/adr/0025-multi-user.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0025 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0025" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0025：多用户是本地账号、以领域为单位的角色、加密的 Secrets 与哈希链的审核记录</h1>
+      <p>管理 Portal 一律要登录。第一版只有本地账号，第一个系统管理员只能在服务器那台电脑上创建；权限以领域为单位（管理员、编辑者、运行者、查看者），另有系统管理员；Secrets 用 AES-GCM 加密存放，仍是全域、只有系统管理员能改；改变东西的请求都写进只增不改的审核记录。正式环境改用 PostgreSQL 不在这次范围。</p>
+    </div>
+    <span class="badge green">已接受</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-11-14</dd>
+        <dt>状态</dt><dd>用户 2026-11-14 06:12 America/Los_Angeles（PST，UTC−08:00）要求做 M8「多用户与治理，但不包含正式环境改用PostgreSQL部分」；06:19 回答四个问题（见<a href="../../../handoff/decisions.html#decisions">决定记录</a>）：D1 先只做本地账号（预留 OIDC、LDAP）；D2 以领域为单位；D3 Secrets 的密钥自动产生保存（环境变量可以覆写），Secrets 维持全域、只有系统管理员能改，接受这次升级要换完整分发包；D4 一律要登录，第一个系统管理员只能在服务器那台创建，设备配对与 Agent API 的密钥照旧。工作阶段的期限、密码规则、审核的范围与哈希链、路由权限的写法、<code>rpa user</code> 是 Claude 的实现选择（<a href="../../../handoff/tasks/20261114-m8-multi-user.html">任务记录</a>），审阅 PR 时可以调整。</dd>
+        <dt>影响范围</dt><dd>rpa-server（账号、工作阶段、成员、审核的模型与迁移 0020；登录关卡 <code>gate.py</code>；清单依领域筛选；Secrets 加密；登录、账号、审核页；Portal 的脚本）、rpa CLI（<code>rpa user</code>）、服务器分发包（多了 <code>cryptography</code>：运行环境改变，这次升级要用完整分发包）、Linux 的冒烟测试与桌面端的端到端测试（先创建第一个系统管理员、带着登录的 Cookie）、录制端的本机闸道（<code>rpa_worker.gateway</code>：分辨「要登录」与「权杖失效」）。rpa-core、rpa-runner 与 Worker 的运行不改。</dd>
+        <dt>相关</dt><dd><a href="0008-sqlite-and-postgresql.html">ADR 0008</a>（SQLite 与 PostgreSQL）、<a href="0015-domain-folders-and-git.html">ADR 0015</a>（领域文件夹与 git）、<a href="0014-desktop-apps.html">ADR 0014</a>（桌面 App 与录制端）、<a href="0017-agent-api.html">ADR 0017</a>（对外 Agent API）、<a href="0018-layered-updates.html">ADR 0018</a>（分层更新）；<a href="../design/multi-user.html">多用户与内部系统</a>、<a href="../design/portal.html#accounts">管理 Portal › 账号、登录与权限</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>到 M7 为止管理 Portal 没有登录：默认只听 127.0.0.1，录制端用设备权杖通过自己的闸道打开。团队共用之后要分得出是谁、限制谁能改或运行哪些场景，Secrets 不能是明文档，谁做了什么要留下改不了的记录。</p>
+          <p>场景、角色与组合场景本来就分在领域里（M11 的领域文件夹，也是 git 同步的单位），项目只是组合场景的分组；所以权限跟着领域最自然。</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>决策</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>一律要登录。</strong>页面与 <code>/api</code> 都经过登录关卡（<code>rpa_server.gate</code>）：没登录的页面转到 <code>/login?next=…</code>，<code>/api</code> 回 401。不经过关卡的只有静态档、登录／注销／创建第一个管理员、语言切换、API 的说明（<code>rpa serve</code> 用 openapi.json 认出已经在运行的 Portal），以及本来就有权杖或密钥的 Worker API、Client API、Agent API。通过录制端打开时也要登录（录制端的权杖只代表设备）：没登录的 401 带着 <code>X-RPA-Login: required</code>，录制端的闸道照样转送，不当成设备权杖失效。</li>
+            <li><strong>本地账号。</strong>账号是小写英文、数字与 <code>. _ -</code>；密码至少 8 个字，用标准库的 scrypt（N=2^15、r=8、p=1）哈希。<code>users.provider</code>、<code>subject</code> 预留给 OIDC、LDAP。账号不删除只禁用（审核与成员关系还指得到它）。最后一个能用的系统管理员不能取消或禁用，也不能禁用自己。</li>
+            <li><strong>第一个系统管理员只能在服务器那台创建。</strong>还没有任何账号时，从 127.0.0.1 直接打开的 <code>/setup</code> 创建（通过录制端或别台电脑不行）；没有浏览器的服务器用 <code>rpa user create 账号 --admin</code>。忘记密码时用 <code>rpa user password 账号</code>。</li>
+            <li><strong>工作阶段。</strong>登录后的 Cookie 是随机权杖（HttpOnly、SameSite=Lax、HTTPS 时 Secure），名称加上服务器代号；数据库只存它的 SHA-256。7 天没用就失效、最长 30 天；改密码（其他地方的失效）、重设密码与禁用时那个账号的失效。同一个账号 15 分钟内输错 5 次先暂停登录；账号不存在时也算一次哈希，不从回应时间看出账号是否存在。写入请求另有既有的同源检查（<code>Origin</code>）。</li>
+            <li><strong>以领域为单位的角色。</strong><code>domain_members</code>：管理员（成员、领域名称与说明、git 同步）、编辑者（创建、修改、验证、发布场景与组合场景，录制、逐步调试，领域的登录角色）、运行者（运行、批量、取消、重跑）、查看者（看场景、组合场景、运行、批量与回看）。系统管理员不必加入就能做所有事，另外负责账号、创建与删除领域、项目、Secrets 的值、设备、API 用户端、服务器设置与审核记录。没有领域的东西（未分配）只有系统管理员。项目不管权限。</li>
+            <li><strong>关卡依路径规则检查。</strong>规则表（<code>gate.RULES</code>，第一个符合的）写「要什么能力、看哪一种东西的领域」；运行、批量、组合运行、逐步调试各自查到所在的领域（运行看场景的、组合场景的批量看组合场景的）。看不到的领域 404（不透露存在），看得到但不能做 403。创建时才指定领域的（新场景、新组合场景、新登录角色、搬到别的领域）在路由里再检查一次。没有列出的 GET 只要登录（清单另外筛选），没有列出的写入只有系统管理员（默认拒绝）。</li>
+            <li><strong>清单依领域筛选。</strong>目前的用户放在 ContextVar（<code>rpa_server.access</code>），领域、场景、运行、组合场景、组合运行、批量、登录角色与组合场景的场景库只列看得到的领域；背景工作没有用户，不受限制。菜单隐藏只有系统管理员能用的页面；录制只给至少在一个领域是编辑者的人。</li>
+            <li><strong>Secrets 加密。</strong>每个值用 AES-256-GCM（<code>cryptography</code>）加密，随机 nonce，名称当成附加数据（换了名称就解不开）。密钥：环境变量 <code>RPA_SECRETS_KEY</code> 优先，否则是数据目录的 <code>secrets.key</code>（第一次启动时产生，0600）。旧的明文在启动时换成密文；密钥不对时名称照样列出、标成解不开，运行时当成没有设置。Secrets 仍是全域的，只有系统管理员能设置与删除；谁都读不出明文。</li>
+            <li><strong>审核记录只增不改、串成哈希链。</strong><code>audit_events</code> 记登录、登录失败、注销、创建第一个系统管理员，以及每一个 <code>/api</code> 的写入请求，含因为没有权限被挡下的（账号、方法与路径、结果、来源地址、通过哪台录制端）；不记请求内容。每一笔的哈希是「前一笔的哈希＋这一笔的内容」的 SHA-256；没有修改或删除的界面，验证时从头重算，改了或删了中间任何一笔就从那一笔起对不上。Agent API 照旧用自己的审核。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>后果</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>升级后第一次打开要创建系统管理员；原本的用户在创建后就是系统管理员，其他人要添加账号并加进领域才看得到东西。</li>
+            <li>服务器多了 <code>cryptography</code>：运行环境（<code>python/</code>）改变，这次升级要用完整分发包，不能只用更新档（ADR 0018）；用户已接受。</li>
+            <li>密钥档要和数据目录一起备份；遗失时 Secrets 的名称还在、值要重新设置。</li>
+            <li>组合场景用到别的领域的场景时，编辑组合场景的人在场景库看不到那些场景（只列看得到的领域）；运行组合场景只看组合场景自己的领域。</li>
+            <li>只删掉最后几笔审核记录看不出来；要防这个得把最后一笔的哈希另外存到别处，之后有需要再做。</li>
+            <li>旧的测试用 <code>Settings.skip_login</code>（只能在程序里设，<code>from_env</code> 不读）当成系统管理员；登录与权限另有测试。</li>
+            <li>HTTP 在区网上仍是明文（Cookie 也是）；HTTPS 在 M9。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>没有选的方案</h2></div>
+        <div class="panel-body">
+          <table class="table">
+            <thead><tr><th>方案</th><th>没有选的原因</th></tr></thead>
+            <tbody>
+              <tr><td>以项目为单位的权限（原本的设计稿）</td><td>项目只分组合场景；场景、角色与 git 同步都以领域为单位（D2）。</td></tr>
+              <tr><td>第一版就接 OIDC／LDAP</td><td>用户选先做本地账号（D1）；字段与登录流程留了位置。</td></tr>
+              <tr><td>升级时由命令行或环境变量创建默认管理员密码</td><td>默认密码容易忘了改；改成只能在服务器那台创建（D4），没有浏览器时用 <code>rpa user</code>。</td></tr>
+              <tr><td>每个路由各自加权限检查</td><td>一百多个路由容易漏；集中的规则表默认拒绝没列出的写入，有测试逐条检查，路由只补创建时才知道的领域。</td></tr>
+              <tr><td>审核记录记整个请求内容</td><td>会记到密码与 Secrets 的值；只记方法、路径与结果。</td></tr>
+              <tr><td>Secrets 用操作系统的钥匙串</td><td>服务器常是没有桌面的 Linux，分发包也要能搬；用数据目录的密钥档或环境变量（D3）。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

@@ -104,6 +104,9 @@ class Settings:
     upload_max_total: int = 10 * 1024**3
     input_folders: tuple[Path, ...] = ()
     """本機執行時檔案入參的 path 可以讀的資料夾；空的代表不能用 path。"""
+    skip_login: bool = False
+    """只給測試用：不必登入，每個請求都當成系統管理員（M8 之前寫的測試）。``from_env`` 不讀它，
+    正式環境一律要登入（M8 D4，ADR 0025）。"""
 
     @property
     def uses_sqlite(self) -> bool:

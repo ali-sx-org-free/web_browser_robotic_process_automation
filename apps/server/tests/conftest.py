@@ -47,6 +47,8 @@ def settings(tmp_path: Path) -> Settings:
         start_worker=False,
         # 預設不建立領域、不匯入範例；需要的測試自己建立或呼叫 seed_examples_domain
         seed_examples=False,
+        # M8 之前寫的測試不必登入（當成系統管理員）；登入與權限的測試改成 False
+        skip_login=True,
     )
 
 

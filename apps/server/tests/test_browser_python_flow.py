@@ -53,7 +53,10 @@ def runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def portal(tmp_path: Path, runtime: None) -> Iterator[str]:
     data = tmp_path / "data"
     settings = Settings(
-        data_dir=data, database_url=sqlite_url(data / "rpa.db"), seed_examples=False
+        data_dir=data,
+        database_url=sqlite_url(data / "rpa.db"),
+        seed_examples=False,
+        skip_login=True,
     )
     app = create_app(settings)
     # 本機的運行環境（Portal 平常每分鐘問一次；測試直接給，不受其他測試的快取影響）

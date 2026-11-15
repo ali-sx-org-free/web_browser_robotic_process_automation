@@ -59,7 +59,10 @@ def portal(tmp_path: Path, request: pytest.FixtureRequest) -> Iterator[str]:
     data = tmp_path / "data"
     examples: Path | None = request.param
     settings = Settings(
-        data_dir=data, database_url=sqlite_url(data / "rpa.db"), examples_dir=examples
+        data_dir=data,
+        database_url=sqlite_url(data / "rpa.db"),
+        examples_dir=examples,
+        skip_login=True,
     )
     server = uvicorn.Server(uvicorn.Config(create_app(settings), log_level="warning"))
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

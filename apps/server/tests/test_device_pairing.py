@@ -179,7 +179,12 @@ def test_pairing_is_only_on_the_external_port(client: Client, remote: Client) ->
 def test_invitations_need_the_external_port(tmp_path: Path) -> None:
     data = tmp_path / "plain"
     app = create_app(
-        Settings(data_dir=data, database_url=sqlite_url(data / "rpa.db"), start_worker=False)
+        Settings(
+            data_dir=data,
+            database_url=sqlite_url(data / "rpa.db"),
+            start_worker=False,
+            skip_login=True,
+        )
     )
     with TestClient(app) as client:
         register(client)

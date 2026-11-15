@@ -50,6 +50,7 @@ from typing import IO, Final, cast
 from urllib.parse import parse_qs, urlsplit
 
 from desktop_e2e import (
+    CI_ACCOUNT,
     IFRAME_EXAMPLE,
     IFRAME_STATUS,
     POPUP_EXAMPLE,
@@ -76,14 +77,39 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 class Gateway:
-    """經由打包版的本機閘道打開管理 Portal（像 App 的視窗一樣帶著閘道的 Cookie）。"""
+    """經由打包版的本機閘道打開管理 Portal（像 App 的視窗一樣帶著閘道的 Cookie）。
+
+    M8 起管理 Portal 要登入：經由閘道登入一次（閘道轉送登入的 Cookie），之後的請求都帶著。
+    """
 
     def __init__(self, login: str) -> None:
         parts = urlsplit(login)
         self.origin = f"{parts.scheme}://{parts.netloc}"
         self.login = login
         self.secret = parse_qs(parts.query)["key"][0]
+        self.session: str | None = None
         self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
+
+    def sign_in(self) -> None:
+        request = urllib.request.Request(
+            self.origin + "/login",
+            data=json.dumps(CI_ACCOUNT).encode("utf-8"),
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Cookie": f"{COOKIE}={self.secret}",
+            },
+        )
+        try:
+            with self._opener.open(request, timeout=60) as response:
+                cookie = str(response.headers.get("Set-Cookie") or "")
+        except urllib.error.HTTPError as error:
+            text = error.read().decode("utf-8", "replace")
+            raise StepFailedError(f"經由閘道登入 → {error.code}: {text[:500]}") from None
+        if not cookie:
+            raise StepFailedError("經由閘道登入後沒有拿到登入的 Cookie（閘道沒轉送 Set-Cookie？）")
+        self.session = cookie.split(";", 1)[0]
 
     def request(
         self, method: str, path: str, payload: object = None, *, cookie: bool = True
@@ -91,7 +117,9 @@ class Gateway:
         data = None if payload is None else json.dumps(payload).encode("utf-8")
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
         if cookie:
-            headers["Cookie"] = f"{COOKIE}={self.secret}"
+            if self.session is None:
+                self.sign_in()
+            headers["Cookie"] = f"{COOKIE}={self.secret}; {self.session}"
         url = path if path.startswith("http") else self.origin + path
         request = urllib.request.Request(url, data=data, method=method, headers=headers)
         try:
@@ -205,7 +233,7 @@ def run(app: Path, folder: Path, update: Path | None = None) -> JsonObject:
             "--no-testsite",
         ]  # fmt: skip
         portal = subprocess.Popen(command, cwd=ROOT, stdout=handle, stderr=subprocess.STDOUT)
-        wait_until("管理 Portal 啟動", lambda: api.call("GET", "/api/recorders"), 120)
+        wait_until("管理 Portal 啟動", lambda: api.signed_in("/api/recorders"), 120)
         return base
 
     def invite() -> str:

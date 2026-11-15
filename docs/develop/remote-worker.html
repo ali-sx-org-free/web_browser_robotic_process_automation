@@ -116,6 +116,7 @@ uv run rpa worker --server http://192.168.1.10:8081 --invite （代碼）</pre>
           <li><strong>資料位置</strong>：<code>~/Library/Application Support/rpa/worker</code>（<code>pairing.json</code>、<code>settings.json</code>、日誌 <code>logs/</code>、任務的暫存；v0.9.0 起另有組合運行的共用工作資料夾 <code>work/workspaces/</code>）。RPA Python 運行環境第一次用到時解壓到 <code>~/Library/Caches/rpa/python/</code>（Windows 是 <code>%LOCALAPPDATA%\rpa\cache\python\</code>），之後沿用。<strong>權杖存在鑰匙圈</strong>（登入鑰匙圈裡的 <code>RPA Worker</code>）；鑰匙圈不能用時退回存在 <code>pairing.json</code>（只有你能讀寫），視窗的「權杖存放」會標出來。日誌不記權杖與邀請代碼。</li>
           <li><strong>登出、重新開機或關機</strong>：執行中的任務立刻被取消並回報（只等幾秒，不擋住登出）；來不及回報時，管理 Portal 約一分鐘後判定失聯。</li>
           <li><strong>同一台 Mac 也裝了錄製端</strong>：兩個 App 各自配對（Worker 邀請、錄製端邀請），資料夾與鑰匙圈項目分開，可以同時執行；下載的瀏覽器共用。</li>
+          <li><strong>驗收時全部放在一台電腦</strong>：管理 Portal、測試網站、命令列的錄製端與好幾個 Worker 一起跑的方法見<a href="acceptance.html">一台電腦的人工驗收</a>。</li>
           <li><strong>排查問題</strong>：<code>"/Applications/RPA Worker.app/Contents/MacOS/rpa-child" --worker</code> 是主控台版；同資料夾的 <code>rpa-worker --no-window --invite … --log 檔案</code> 不開視窗。兩者都要在登入中的桌面（例如「終端機」）執行，有頭模式才開得了瀏覽器；和 App 用同一份配對，同一時間只能開一份。</li>
           <li><strong>只支援 Apple 晶片</strong>（和錄製端相同）。Intel Mac 用開發環境的 <code>rpa worker</code>（<a href="#start">啟動 worker</a>）。</li>
         </ul>

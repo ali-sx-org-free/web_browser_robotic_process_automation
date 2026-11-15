@@ -32,6 +32,12 @@
       </select>
     </label>
     <span class="env">{{ t("app.env") }}</span>
+    {% set me = current_access() %}{% if me and me.user_id %}
+    <span class="user-menu" id="user-menu">
+      <a href="/account" title="{{ me.username }}{% if me.system_admin %} · {{ t('account.system_admin') }}{% endif %}">{{ me.display_name }}</a>
+      <form method="post" action="/logout"><button class="text-btn" type="submit">{{ t("app.logout") }}</button></form>
+    </span>
+    {% endif %}
   </div>
 </header>
 <aside id="sidebar" class="sidebar">

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:20dc04ce7bdf48d5">
+<meta name="translation-source" content="sha256:fb3818d7fa7e3c1c">
 <title>Management portal · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -126,7 +126,7 @@
           <li><strong>Check.</strong> A role’s “Check” confirms in a headless browser that its login state is still valid (logging in automatically when the role has automatic login steps). It runs on the server when the server has downloaded the role’s browser; otherwise (for example a server installed with the Linux installer) it runs on the recorder when you open the Portal through one, and the button is grey when you open the Portal directly. The check works on a copy of the login state and replaces the stored state only after passing; if a manual login or a run updated the state meanwhile, the newer one is kept. Checking first is optional: every run checks on the computer running it first.</li>
           <li><strong>Login required (needs_login).</strong> Every run starts with a “Login check” stage that opens the check URL: if the element is visible the run continues; if not (for example after a redirect to the login page) and automatic login is not possible, the run stops at “Login required” without running any step and keeps a screenshot of the check. The run page offers “Log in as …” and “Run again”, which repeats the run with the same inputs once you have logged in.</li>
           <li><strong>Roles never mix.</strong> Each role keeps its own login state (a Playwright storageState) in <code>roles/&lt;role&gt;/state.json</code> in the data folder, readable only by you; every run opens a fresh browser context and loads only the role the scenario names. Login states are never copied into run directories nor served by pages or the API. Run results also update the role's status (logged in, login required).</li>
-          <li><strong>Secrets.</strong> The same page sets secret values: they are stored in <code>secrets.json</code> in the data folder (readable only by you; encrypted in M8), and pages and the API only show names and update times, never values. Runs receive the values the scenario and its role use; anything not set there is looked up in an environment variable with the same name. The page also lists secrets that scenarios use but nobody has set.</li>
+          <li><strong>Secrets.</strong> The same page sets secret values: they are stored in <code>secrets.json</code> in the data folder (readable only by you; encrypted with AES-256-GCM since M8, and only system administrators set or delete them), and pages and the API only show names and update times, never values. Runs receive the values the scenario and its role use; anything not set there is looked up in an environment variable with the same name. The page also lists secrets that scenarios use but nobody has set.</li>
           <li><strong>The test site's two roles.</strong> Importing the examples also creates the roles used by BA-004 (regular user) and BA-005 (manager) from <code>scenarios/demo/roles.json</code>; the demo accounts are shown on the test site's login page. The two accounts see different to-dos, which shows that the roles do not mix.</li>
         </ul>
       </div>
@@ -259,7 +259,7 @@
         <ul>
           <li><strong>Three roles.</strong> The server (opening 8080 directly, on the server or through an SSH tunnel) shows every menu. A recorder (the portal opened in RPA Recorder through the external port) shows only Scenarios, Production, Runs and Projects by default. On the worker side, the RPA Worker app does not load portal pages and stays as it was.</li>
           <li><strong>Showing them for one recorder.</strong> Each recorder in “Cluster › Devices” has “Extra menus”: tick “Cluster” or “Admin” and they appear through that recorder (saved at once; reload the page on the recorder). For example when the server is a Linux machine without a desktop and the administrator manages it from their own Mac recorder.</li>
-          <li><strong>Menus, not permissions.</strong> A recorder's token can still open every page and API (decided on 2026-10-18; user permissions come with M8). Buttons that lead to a hidden menu are hidden too (“Manage domains” on a domain page, “Manage projects” on a project page, “View devices” while a run waits for a worker); action links such as “Add … from git” in composite dependency hints stay.</li>
+          <li><strong>Menus, not permissions.</strong> A recorder's token only stands for that device; since M8, opening the management portal through a Recorder also requires signing in, and what you can do depends on the account (see <a href="#accounts">Accounts, sign-in and permissions</a>). Buttons that lead to a hidden menu are hidden too (“Manage domains” on a domain page, “Manage projects” on a project page, “View devices” while a run waits for a worker); action links such as “Add … from git” in composite dependency hints stay.</li>
           <li><strong>Addresses unchanged.</strong> Only the grouping changed; <code>/runs</code>, <code>/devices</code>, <code>/domains</code> and the API are as before (from 2026-10-23 <code>/composites</code> opens Projects; from 2026-10-25 <code>/replay</code> opens <code>/runs?video=1</code>). A scenario page without a domain stays under Scenarios with no side item selected.</li>
         </ul>
       </div>
@@ -300,6 +300,10 @@
             <tr><td><code>/playground/runs/{sequence run}/videos.zip</code></td><td>Download the whole run's recordings: each node's original recordings numbered in replay order, with a <code>playlist.json</code>; 404 when there are none</td></tr>
             <tr><td><code>/playground/runs/{sequence run}/report.html</code></td><td>Download the summary report: a single HTML file that opens offline, with screenshots only for nodes that did not pass</td></tr>
             <tr><td><code>/devices</code></td><td>Devices (Cluster; M10.1; <code>/workers</code> redirects here): add a device and create an invitation, status, disable, invite again, delete; extra menus for each recorder; the default place to run</td></tr>
+            <tr><td><code>/login</code>, <code>/setup</code></td><td>Sign in; create the first system administrator while there are no accounts (on the server machine only; M8, see <a href="#accounts">Accounts, sign-in and permissions</a>)</td></tr>
+            <tr><td><code>/account</code></td><td>My account: roles in each domain, change password (M8)</td></tr>
+            <tr><td><code>/users</code></td><td>Accounts (Admin, system administrators): add, system administrator, disable, reset password (M8)</td></tr>
+            <tr><td><code>/audit</code></td><td>Audit log (Admin, system administrators): newest first, filter by account, the result of verifying the hash chain (M8)</td></tr>
           </tbody>
         </table>
       </div>
@@ -384,6 +388,11 @@
             <tr><td><code>PUT /api/settings/default-target</code></td><td>Default place to run (<code>target</code>: <code>local</code>, <code>remote</code>, <code>any</code>)</td></tr>
             <tr><td><code>GET</code>, <code>PUT /api/settings/server</code></td><td>This server's ID and name (<code>name</code>), written to revision, validation and publication records</td></tr>
             <tr><td><code>GET</code>, <code>PUT /api/settings/video</code></td><td>Recording settings (M12): <code>enabled</code>, <code>keepPassedDays</code>, <code>keepOtherDays</code> (0–3650), <code>maxTotalGb</code>; the response also has <code>usage</code> (how many recordings, their total size, how many are pinned). New runs follow the new settings and the retention rules apply right away</td></tr>
+            <tr><td><code>POST /login</code>, <code>POST /logout</code>, <code>POST /setup</code></td><td>Sign in (<code>username</code>, <code>password</code>, <code>next</code>; sets the cookie on success), sign out, create the first system administrator (127.0.0.1 only, while there are no accounts); M8. 401 <code>login_failed</code> when wrong, 429 after 5 failures for an account within 15 minutes</td></tr>
+            <tr><td><code>GET /api/me</code>, <code>POST /api/me/password</code></td><td>The current account and its roles in each domain; change your own password (<code>current</code>, <code>password</code>)</td></tr>
+            <tr><td><code>GET</code>, <code>POST /api/users</code>; <code>PATCH /api/users/{id}</code>; <code>POST …/password</code></td><td>Accounts (system administrators): add (<code>username</code>, <code>displayName</code>, <code>password</code>, <code>systemAdmin</code>), change display name, system administrator, disabled (the last system administrator cannot be removed: 409 <code>last_admin</code>), reset password</td></tr>
+            <tr><td><code>GET /api/domains/{domain}/members</code>; <code>PUT …/members/{username}</code>; <code>DELETE …/members/{id}</code></td><td>Domain members (administrators): list, add or change role (<code>role</code>: admin, editor, runner, viewer), remove</td></tr>
+            <tr><td><code>GET /api/audit</code>, <code>GET /api/audit/verify</code></td><td>Audit log (system administrators): <code>user</code>, <code>before</code>, <code>limit</code>; verify the hash chain (<code>ok</code>, <code>checked</code>, <code>brokenAt</code>)</td></tr>
             <tr><td><code>POST /client-api/v1/pair</code></td><td>Only on the external port, no token (M10.1): exchanges <code>code</code> and <code>app</code> for a token and returns the device ID, name, <code>token</code>, and the server's protocol, fingerprint and version; 401 <code>invite_invalid</code> for a wrong or used code, 401 <code>invite_expired</code>, 409 <code>invite_wrong_app</code> (the code is kept), 409 when the device is disabled; the formats are in <code>rpa_worker.pairing</code></td></tr>
             <tr><td><code>/worker-api/v1/…</code></td><td>Only on the external port, token required: <code>hello</code>, <code>claim</code>, <code>runs/{run ID}/heartbeat</code>, <code>…/artifacts</code> (zip), <code>…/role-state</code>, <code>…/finish</code>, <code>…/fail</code>, <code>…/files/{ID}</code> (download an uploaded file the job uses, M7c); the formats are in <code>rpa_worker.protocol</code></td></tr>
           </tbody>
@@ -407,7 +416,8 @@
             <dt><code>roles/<wbr>&lt;role&gt;/<wbr>state.json</code></dt><dd>a role's login state (readable only by you)</dd>
             <dt><code>recordings/<wbr>&lt;recording ID&gt;/</code></dt><dd>masked raw recording and converted draft</dd>
             <dt><code>debug/<wbr>&lt;session&gt;/</code></dt><dd>debugging screenshots (deleted when the session ends)</dd>
-            <dt><code>secrets.json</code></dt><dd>secret values (readable only by you)</dd>
+            <dt><code>secrets.json</code></dt><dd>secret values (readable only by you; encrypted since M8)</dd>
+            <dt><code>secrets.key</code></dt><dd>the key that encrypts secrets (M8; readable only by you; back it up with the data; absent when <code>RPA_SECRETS_KEY</code> is set)</dd>
             <dt><code>backups/</code></dt><dd>the database and <code>scenes/</code> from before the upgrade to domain folders; the database from before composite scenarios moved into folders; a domain folder before “use the remote” after a conflict</dd>
             <dt><code>git/</code></dt><dd>git sync (M11 PR 3, readable only by you): <code>repos/&lt;domain&gt;.git</code> bare repositories (only used to fetch and create commits), <code>credentials.json</code> (HTTPS tokens), <code>keys/&lt;domain&gt;</code> (SSH deploy keys), <code>known_hosts</code>. git runs without the system and user configuration or credential helpers; a token reaches only that one git process through GIT_ASKPASS</dd>
           </dl>
@@ -440,7 +450,8 @@
           <dl class="spec-list">
             <dt><code>--host</code>, <code>--port</code></dt><dd>Default <code>127.0.0.1:8080</code>; without <code>--port</code>, if another program uses 8080 the next free port up to 8089 is used. If the port is taken by the management portal itself, only its address is shown and no second one is started</dd>
             <dt><code>RPA_DATA_DIR</code></dt><dd>Data folder, default <code>data</code>; or use <code>--data</code> (see <a href="#data-folder">Data folder</a>)</dd>
-            <dt><code>RPA_DATABASE_URL</code></dt><dd>SQLite by default; PostgreSQL comes in M8</dd>
+            <dt><code>RPA_DATABASE_URL</code></dt><dd>SQLite by default; switching production to PostgreSQL comes later (not part of M8, the user decided on 2026-11-14)</dd>
+            <dt><code>RPA_SECRETS_KEY</code></dt><dd>The key that encrypts secrets (base64 of 32 bytes, M8); without it the server uses <code>secrets.key</code> in the data folder (created on first start). Back up the key together with the data folder</dd>
             <dt><code>RPA_LANG</code></dt><dd>Default language, also used for run reports; pages can switch at the top right</dd>
             <dt><code>--no-testsite</code></dt><dd>Do not start the test site (by default it starts at <code>127.0.0.1:8765</code>, or the running one is reused)</dd>
             <dt><code>RPA_EXAMPLES_DIR</code></dt><dd>Examples folder of “Test site automation”, default <code>scenarios/demo</code></dd>
@@ -455,15 +466,30 @@
       </section>
     </div>
 
+    <section class="panel" id="accounts">
+      <div class="panel-header"><h2>Accounts, sign-in and permissions</h2><span class="muted">M8, <a href="../adr/0025-multi-user.html">ADR 0025</a></span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>The first system administrator.</strong> After an upgrade or a new install there are no accounts: opening the management portal on the server machine (<code>http://127.0.0.1:8080</code>) leads to “Create the first system administrator”; from another computer or a Recorder you only see an explanation. On a server without a browser use <code>rpa user create USERNAME --admin</code>.</li>
+          <li><strong>Signing in.</strong> Pages and <code>/api</code> always require signing in; without it pages go to the sign-in page and come back afterwards, and <code>/api</code> returns 401. A session ends after 7 days without use and lasts at most 30 days; changing or resetting the password, or disabling the account, ends that account's sessions. After 5 failures for an account within 15 minutes, signing in pauses. Your name at the top right leads to “My account” (roles in each domain, change password), next to “Sign out”. Forgotten password: a system administrator resets it on the Accounts page, or run <code>rpa user password USERNAME</code> on the server machine.</li>
+          <li><strong>Accounts (system administrators).</strong> Admin › Accounts adds local accounts (lowercase letters, digits and . _ -; passwords of at least 8 characters), makes or removes system administrators, disables or enables, and resets passwords. Accounts are not deleted; the last active system administrator cannot be removed or disabled, and you cannot disable yourself.</li>
+          <li><strong>Domain members.</strong> Every domain page has “Members” at the bottom: administrator, editor, runner, viewer (what each can do is in <a href="multi-user.html">Multi-user and internal systems</a>). Domain administrators and system administrators add accounts, change roles and remove them; a change applies from the next request. System administrators can do everything without joining. Things without a domain (unassigned scenarios) are visible only to system administrators.</li>
+          <li><strong>What you can see.</strong> Scenarios, composite scenes, runs, composite runs, batches and replays follow their domain: lists only show domains you can see, opening another domain's URL gives 404, and actions you can see but not perform give 403. The composite editor's scenario library only lists scenarios in domains you can see. Menu items only system administrators can use (devices, API clients, accounts, audit log) are hidden; recording is only for people who are an editor in at least one domain.</li>
+          <li><strong>Audit log (system administrators).</strong> Admin › Audit log: sign-ins, failed sign-ins, sign-outs and every request that changes something (account, method and path, result, source address, which Recorder it came through); request content is not recorded. It is append-only and chained by hashes, with the verification result at the top; changing or deleting an entry in the middle breaks the chain from that entry on.</li>
+          <li><strong>Unchanged.</strong> Worker and Recorder tokens, device pairing and the external Agent API keys work as before; the API description (<code>/api/openapi.json</code>, <code>/api/docs</code>) needs no sign-in.</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel" id="security">
       <div class="panel-header"><h2>Security and limits</h2></div>
       <div class="panel-body prose">
         <ul>
-          <li><strong>No sign-in.</strong> By default it only listens on <code>127.0.0.1</code>; <code>rpa serve</code> warns when another address is used. Authentication and permissions come in M8.</li>
+          <li><strong>Signing in is always required (M8).</strong> Pages and <code>/api</code> require signing in; by default the server only listens on <code>127.0.0.1</code>. The sign-in cookie is HttpOnly and SameSite=Lax, and Secure when opened over HTTPS; HTTP is plain text on the LAN, and HTTPS comes in M9.</li>
           <li><strong>Cross-site requests are blocked.</strong> A write request that carries an <code>Origin</code> header must come from the same origin, so other websites cannot call the local API in the background.</li>
           <li><strong>Files in run folders.</strong> Only files inside the run folder are served; only <code>report.html</code> is shown as a web page, with a content security policy that allows nothing but inline styles and the screenshots.</li>
           <li><strong>Script scenarios run arbitrary code.</strong> As in M2, only trusted people should edit Python script scenarios.</li>
-          <li><strong>Login states and secrets are stored on this computer.</strong> Both live in the data folder, readable only by you; they are never served by pages or <code>/api</code> nor written to run directories, reports or logs, and passwords in recordings are masked before saving. M8 encrypts them.</li>
+          <li><strong>Login states and secrets are stored on this computer.</strong> Both live in the data folder, readable only by you; they are never served by pages or <code>/api</code> nor written to run directories, reports or logs, and passwords in recordings are masked before saving. Secret values are encrypted since M8 (for the key see <a href="#settings">Settings</a>); login states are still files readable only by you.</li>
           <li><strong>Remote workers receive the secrets and login states a run needs.</strong> Only in the claim response; the worker keeps them in memory and in private temporary files during the run, deleted afterwards. Over HTTP the Worker API is plain text on the LAN: use it only on a trusted network; tokens are stored only as hashes and can be disabled or replaced at any time.</li>
         </ul>
       </div>
@@ -474,7 +500,7 @@
       <div class="panel-body">
         <dl class="spec-list">
           <dt>M5</dt><dd>The AI assistant only edits drafts; publishing goes through the same gate</dd>
-          <dt>M8</dt><dd>Authentication and permissions, encrypted secrets, PostgreSQL</dd>
+          <dt>M8</dt><dd>Accounts, sign-in and per-domain permissions, encrypted secrets, the audit log (see <a href="#accounts">Accounts, sign-in and permissions</a>); switching production to PostgreSQL is not part of it</dd>
           <dt>M9</dt><dd>Scheduling, worker labels and concurrency, HTTPS, server-sent events instead of polling (remote workers arrived early in M9a)</dd>
         </dl>
       </div>

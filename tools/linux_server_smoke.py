@@ -10,6 +10,7 @@ setup-linux.sh 裝的 .venv-server::
 """
 
 import argparse
+import http.cookiejar
 import json
 import os
 import signal
@@ -24,7 +25,11 @@ from tempfile import TemporaryDirectory
 from typing import cast
 
 ROOT = Path(__file__).resolve().parents[1]
-OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+OPENER = urllib.request.build_opener(
+    urllib.request.ProxyHandler({}),
+    # M8 起管理 Portal 要登入：建立第一個系統管理員後帶著登入的 Cookie
+    urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()),
+)
 
 
 def request(
@@ -97,8 +102,15 @@ def smoke(rpa: Path = ROOT / ".venv-server/bin/rpa", cwd: Path = ROOT) -> None:
                     request(admin, "/worker-api/v1/hello", {}, status=404)
                     request(worker, "/worker-api/v1/hello", {}, status=401)
                     if restart:
-                        request(admin, "/api/workers/linux-smoke")
+                        request(admin, "/api/workers/linux-smoke")  # 登入在重新啟動後仍有效
                     else:
+                        # M8：還沒有帳號時要先在伺服器這台建立第一個系統管理員
+                        request(admin, "/api/workers", status=401)
+                        request(
+                            admin,
+                            "/setup",
+                            {"username": "smoke", "password": "smoke-password"},
+                        )
                         request(
                             admin,
                             "/api/workers",

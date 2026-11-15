@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{#- 帳號（M8，系統管理員）：新增本地帳號、系統管理員、停用、重設密碼；領域的角色在各領域頁的「成員」。 -#}
+{% block description %}{{ t("users.description") }}{% endblock %}
+{% block content %}
+<div class="stack">
+  <section class="panel">
+    <div class="panel-header"><h2>{{ t("users.new") }}</h2></div>
+    <form class="panel-body field-row" id="user-create">
+      <label class="field">{{ t("auth.username") }}<input name="username" required maxlength="64" pattern="[a-z0-9][a-z0-9._\-]{0,63}" autocomplete="off"></label>
+      <label class="field">{{ t("auth.display_name") }}<input name="displayName" maxlength="100" autocomplete="off"></label>
+      <label class="field">{{ t("users.initial_password") }}<input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+      <label class="field"><span><input type="checkbox" name="systemAdmin"> {{ t("account.system_admin") }}</span></label>
+      <button class="button primary" type="submit">{{ t("users.create") }}</button>
+      <span class="form-error" role="alert"></span>
+    </form>
+  </section>
+  <section class="panel" id="user-list">
+    <div class="panel-header"><h2>{{ t("nav.users") }}<span class="count">{{ users | length }}</span></h2></div>
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr><th>{{ t("auth.username") }}</th><th>{{ t("members.roles") }}</th><th>{{ t("users.last_login") }}</th><th>{{ t("users.actions") }}</th></tr></thead>
+      <tbody>
+      {% for user in users %}
+        <tr data-user="{{ user.id }}">
+          <td>{{ user.display_name }} <span class="cell-sub mono">{{ user.username }}</span>
+            {% if user.system_admin %}{{ m.badge("published", t("account.system_admin")) }}{% endif %}
+            {% if user.disabled %}{{ m.badge("disabled", t("users.disabled")) }}{% endif %}</td>
+          <td>{% for domain_id, role in user.roles | dictsort %}<span class="cell-sub">{{ domain_names.get(domain_id, domain_id) }}：{{ t("members.role_" + role) }}</span>{% else %}<span class="muted">—</span>{% endfor %}</td>
+          <td>{% if user.last_login_at %}{{ display_time(user.last_login_at) }}{% else %}—{% endif %}</td>
+          <td class="role-actions">
+            {% if not me or me.user_id != user.id %}
+            <button class="text-btn" type="button" data-action="user-admin" data-value="{{ 'false' if user.system_admin else 'true' }}">{{ t("users.revoke_admin") if user.system_admin else t("users.make_admin") }}</button>
+            <button class="text-btn" type="button" data-action="user-disable" data-value="{{ 'false' if user.disabled else 'true' }}">{{ t("users.enable") if user.disabled else t("users.disable") }}</button>
+            {% endif %}
+            <button class="text-btn" type="button" data-action="user-password">{{ t("users.reset_password") }}</button>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    <form class="panel-body field-row" id="user-password" hidden>
+      <label class="field"><span id="user-password-label"></span><input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+      <button class="button" type="submit">{{ t("users.reset_password") }}</button>
+      <span class="form-error" role="alert"></span>
+    </form>
+  </section>
+</div>
+{% endblock %}

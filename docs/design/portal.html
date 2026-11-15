@@ -125,7 +125,7 @@
           <li><strong>檢查。</strong>角色的「檢查」用無頭瀏覽器確認登入狀態是否仍然有效（有自動登入步驟時，沒登入就自動登入）。伺服器有下載角色用的瀏覽器時在伺服器檢查；沒有時（例如 Linux 安裝腳本裝的伺服器），透過錄製端打開管理 Portal 就在錄製端檢查，直接打開時按鈕是灰的。檢查用登入狀態的複本，通過後才取代原本的；檢查期間人工登入或執行更新了登入狀態時，保留較新的那份。不先檢查也可以：每次執行都會先在執行的那台檢查。</li>
           <li><strong>需要登入（needs_login）。</strong>每次執行先在「登入檢查」階段打開確認網址：看得到元素就繼續；沒有（例如被轉到登入頁）而且不能自動登入時，停在「需要登入」，不執行任何步驟，並留下登入檢查的截圖。執行頁有「登入角色」與「重新執行」：登入後用同樣的入參再跑一次。</li>
           <li><strong>角色互不干擾。</strong>登入狀態（Playwright storageState）每個角色一份，存在資料目錄的 <code>roles/&lt;角色&gt;/state.json</code>，只有本人能讀寫；每次執行開新的瀏覽器 context，只載入場景指定的那個角色。登入狀態不會複製進執行目錄，也不經由網頁或 API 提供。執行的結果也會更新角色的狀態（已登入、需要登入）。</li>
-          <li><strong>Secrets。</strong>同一頁可以設定 Secrets 的值：存在資料目錄的 <code>secrets.json</code>（只有本人能讀寫，M8 改為加密），頁面與 API 只顯示名稱與更新時間，永遠不回傳值。執行時把場景與角色用到的值交給執行引擎；沒有設定的再從同名的環境變數找。頁面也列出場景用到、但還沒設定的 Secrets。</li>
+          <li><strong>Secrets。</strong>同一頁可以設定 Secrets 的值：存在資料目錄的 <code>secrets.json</code>（只有本人能讀寫；M8 起用 AES-256-GCM 加密，只有系統管理員能設定與刪除），頁面與 API 只顯示名稱與更新時間，永遠不回傳值。執行時把場景與角色用到的值交給執行引擎；沒有設定的再從同名的環境變數找。頁面也列出場景用到、但還沒設定的 Secrets。</li>
           <li><strong>測試網站的兩個角色。</strong>匯入範例時，BA-004（一般使用者）與 BA-005（主管）用到的角色依 <code>scenarios/demo/roles.json</code> 一起建立；示範帳號寫在測試網站的登入頁。兩個帳號看到的待辦不同，用來確認角色之間沒有混用。</li>
         </ul>
       </div>
@@ -258,7 +258,7 @@
         <ul>
           <li><strong>三段。</strong>伺服器（直接打開 8080，例如伺服器那台或 SSH 通道）看得到全部選單；錄製端（RPA 錄製端 App 經由對外埠打開的 Portal）預設只有場景管理、場景生產、場景運行、專案空間；Worker 端的 RPA Worker App 不載入 Portal 的頁面，維持原樣。</li>
           <li><strong>替個別錄製端打開。</strong>「叢集管理 › 裝置」的錄製端清單每台有「另外顯示的選單」：勾「叢集管理」「管理後台」，透過那台就看得到（立刻儲存，那台重新整理頁面就生效）。例如伺服器是沒有桌面的 Linux、管理者用自己的 Mac 錄製端管理時。</li>
-          <li><strong>只是選單，不是權限。</strong>錄製端的權杖照舊能打開所有頁面與 API（2026-10-18 的決定，使用者權限在 M8）。看不到的選單，頁面上通往它的按鈕也不顯示（領域頁的「管理領域」、專案頁的「管理專案」、等待 worker 時的「查看裝置」）；組合場景依賴提示的「從 git 新增」之類的動作連結照舊。</li>
+          <li><strong>只是選單，不是權限。</strong>錄製端的權杖只代表那台裝置；M8 起透過錄製端打開管理 Portal 也要登入，能做什麼看登入的帳號（見<a href="#accounts">帳號、登入與權限</a>）。看不到的選單，頁面上通往它的按鈕也不顯示（領域頁的「管理領域」、專案頁的「管理專案」、等待 worker 時的「查看裝置」）；組合場景依賴提示的「從 git 新增」之類的動作連結照舊。</li>
           <li><strong>網址不變。</strong>只換分組；<code>/runs</code>、<code>/devices</code>、<code>/domains</code> 等網址與 API 都和之前一樣（2026-10-23 起 <code>/composites</code> 轉到專案空間；2026-10-25 起 <code>/replay</code> 轉到 <code>/runs?video=1</code>）。還沒分到領域的場景頁停在場景管理、左側不標示任何一項。</li>
         </ul>
       </div>
@@ -299,6 +299,10 @@
             <tr><td><code>/playground/runs/{序列執行}/videos.zip</code></td><td>下載整次的錄影：各節點的原始錄影依回看的順序編號，附 <code>playlist.json</code>；沒有任何錄影時 404</td></tr>
             <tr><td><code>/playground/runs/{序列執行}/report.html</code></td><td>下載匯總報告：單一 HTML，離線可開，只嵌入沒通過的節點的截圖</td></tr>
             <tr><td><code>/devices</code></td><td>裝置（叢集管理；M10.1；<code>/workers</code> 轉到這裡）：新增並產生邀請、狀態、停用、重新邀請、刪除；錄製端另外顯示的選單；預設執行位置</td></tr>
+            <tr><td><code>/login</code>、<code>/setup</code></td><td>登入；還沒有任何帳號時建立第一個系統管理員（只有伺服器那台電腦，M8，見<a href="#accounts">帳號、登入與權限</a>）</td></tr>
+            <tr><td><code>/account</code></td><td>我的帳號：在各領域的角色、改密碼（M8）</td></tr>
+            <tr><td><code>/users</code></td><td>帳號（管理後台，系統管理員）：新增、系統管理員、停用、重設密碼（M8）</td></tr>
+            <tr><td><code>/audit</code></td><td>稽核紀錄（管理後台，系統管理員）：最新的在前、依帳號篩選、雜湊鏈的驗證結果（M8）</td></tr>
           </tbody>
         </table>
       </div>
@@ -383,6 +387,11 @@
             <tr><td><code>PUT /api/settings/default-target</code></td><td>預設執行位置（<code>target</code>：<code>local</code>、<code>remote</code>、<code>any</code>）</td></tr>
             <tr><td><code>GET</code>、<code>PUT /api/settings/server</code></td><td>這台伺服器的代號與名稱（<code>name</code>）；寫進版本、驗證、發布的紀錄</td></tr>
             <tr><td><code>GET</code>、<code>PUT /api/settings/video</code></td><td>錄影設定（M12）：<code>enabled</code>、<code>keepPassedDays</code>、<code>keepOtherDays</code>（0～3650）、<code>maxTotalGb</code>；回應另有 <code>usage</code>（幾段、多大、釘選幾段）。改了之後新的任務照新設定，保留規則立刻套用</td></tr>
+            <tr><td><code>POST /login</code>、<code>POST /logout</code>、<code>POST /setup</code></td><td>登入（<code>username</code>、<code>password</code>、<code>next</code>；成功時設 Cookie）、登出、建立第一個系統管理員（只有 127.0.0.1、還沒有帳號時）；M8。不對時 401 <code>login_failed</code>，同一個帳號 15 分鐘內輸錯 5 次是 429</td></tr>
+            <tr><td><code>GET /api/me</code>、<code>POST /api/me/password</code></td><td>目前的帳號與各領域的角色；改自己的密碼（<code>current</code>、<code>password</code>）</td></tr>
+            <tr><td><code>GET</code>、<code>POST /api/users</code>；<code>PATCH /api/users/{編號}</code>；<code>POST …/password</code></td><td>帳號（系統管理員）：新增（<code>username</code>、<code>displayName</code>、<code>password</code>、<code>systemAdmin</code>）、改顯示名稱、系統管理員、停用（最後一個系統管理員不能拿掉，409 <code>last_admin</code>）、重設密碼</td></tr>
+            <tr><td><code>GET /api/domains/{領域}/members</code>；<code>PUT …/members/{帳號}</code>；<code>DELETE …/members/{編號}</code></td><td>領域成員（管理員）：列出、加入或改角色（<code>role</code>：admin、editor、runner、viewer）、移除</td></tr>
+            <tr><td><code>GET /api/audit</code>、<code>GET /api/audit/verify</code></td><td>稽核紀錄（系統管理員）：<code>user</code>、<code>before</code>、<code>limit</code>；驗證雜湊鏈（<code>ok</code>、<code>checked</code>、<code>brokenAt</code>）</td></tr>
             <tr><td><code>POST /client-api/v1/pair</code></td><td>只在對外埠、不需要權杖（M10.1）：<code>code</code>、<code>app</code> 換權杖，回應裝置代號、名稱、<code>token</code> 與伺服器的協定、指紋、版本；代碼不對或已用過 401 <code>invite_invalid</code>、過期 401 <code>invite_expired</code>、App 種類不對 409 <code>invite_wrong_app</code>（代碼保留）、裝置停用 409；格式在 <code>rpa_worker.pairing</code></td></tr>
             <tr><td><code>/worker-api/v1/…</code></td><td>只在對外埠、要權杖：<code>hello</code>、<code>claim</code>、<code>runs/{執行編號}/heartbeat</code>、<code>…/artifacts</code>（zip）、<code>…/role-state</code>、<code>…/finish</code>、<code>…/fail</code>、<code>…/files/{代號}</code>（下載任務用到的上傳檔，M7c）；格式在 <code>rpa_worker.protocol</code></td></tr>
           </tbody>
@@ -406,7 +415,8 @@
             <dt><code>roles/<wbr>&lt;角色&gt;/<wbr>state.json</code></dt><dd>角色的登入狀態（只有本人能讀寫）</dd>
             <dt><code>recordings/<wbr>&lt;錄製編號&gt;/</code></dt><dd>遮罩過的原始錄製稿與轉換結果</dd>
             <dt><code>debug/<wbr>&lt;工作階段&gt;/</code></dt><dd>調試的截圖（工作階段結束就刪除）</dd>
-            <dt><code>secrets.json</code></dt><dd>Secrets 的值（只有本人能讀寫）</dd>
+            <dt><code>secrets.json</code></dt><dd>Secrets 的值（只有本人能讀寫；M8 起加密）</dd>
+            <dt><code>secrets.key</code></dt><dd>Secrets 的加密金鑰（M8；只有本人能讀寫，備份時一起備份；設了 <code>RPA_SECRETS_KEY</code> 時沒有這個檔）</dd>
             <dt><code>backups/</code></dt><dd>升級到領域資料夾之前的資料庫與 <code>scenes/</code>；組合場景搬進資料夾之前的資料庫；衝突時「以遠端為準」之前的領域資料夾</dd>
             <dt><code>git/</code></dt><dd>git 同步（M11 PR 3，只有本人能讀寫）：<code>repos/&lt;領域&gt;.git</code> 裸倉庫（只用來取得與建立提交）、<code>credentials.json</code>（HTTPS 權杖）、<code>keys/&lt;領域&gt;</code>（SSH 部署金鑰）、<code>known_hosts</code>。git 子程序不讀系統與使用者的設定、不用憑證快取，權杖只經由 GIT_ASKPASS 交給那一次子程序</dd>
           </dl>
@@ -439,7 +449,8 @@
           <dl class="spec-list">
             <dt><code>--host</code>、<code>--port</code></dt><dd>預設 <code>127.0.0.1:8080</code>；沒有指定埠號而 8080 被其他程式占用時，自動改用下一個空的埠號（到 8089）。占用的如果就是管理 Portal，只顯示它的網址，不再開第二個</dd>
             <dt><code>RPA_DATA_DIR</code></dt><dd>資料夾，預設 <code>data</code>；也可以用 <code>--data</code>（見<a href="#data-folder">資料夾</a>）</dd>
-            <dt><code>RPA_DATABASE_URL</code></dt><dd>預設 SQLite；PostgreSQL 在 M8</dd>
+            <dt><code>RPA_DATABASE_URL</code></dt><dd>預設 SQLite；正式環境改用 PostgreSQL 之後再做（M8 不含，使用者 2026-11-14 決定）</dd>
+            <dt><code>RPA_SECRETS_KEY</code></dt><dd>Secrets 的加密金鑰（base64 的 32 位元組，M8）；沒設時用資料目錄的 <code>secrets.key</code>（第一次啟動時產生）。備份資料目錄時金鑰要一起備份</dd>
             <dt><code>RPA_LANG</code></dt><dd>預設語言，也是執行報告的語言；頁面右上角可以切換</dd>
             <dt><code>--no-testsite</code></dt><dd>不要一起啟動測試網站（預設會在 <code>127.0.0.1:8765</code> 啟動；已經在執行就沿用）</dd>
             <dt><code>RPA_EXAMPLES_DIR</code></dt><dd>「測試網站自動化」的範例資料夾，預設 <code>scenarios/demo</code></dd>
@@ -454,15 +465,30 @@
       </section>
     </div>
 
+    <section class="panel" id="accounts">
+      <div class="panel-header"><h2>帳號、登入與權限</h2><span class="muted">M8，<a href="../adr/0025-multi-user.html">ADR 0025</a></span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>第一個系統管理員。</strong>升級或新裝之後還沒有任何帳號：在伺服器那台電腦打開管理 Portal（<code>http://127.0.0.1:8080</code>）會到「建立第一個系統管理員」；從別台電腦或錄製端打開只看到說明。沒有瀏覽器的伺服器用 <code>rpa user create 帳號 --admin</code>。</li>
+          <li><strong>登入。</strong>頁面與 <code>/api</code> 一律要登入；沒登入時頁面轉到登入頁、登入後回到原本的頁面，<code>/api</code> 回 401。工作階段 7 天沒用就失效、最長 30 天；改密碼、重設密碼或停用時那個帳號的登入失效。同一個帳號 15 分鐘內輸錯 5 次先暫停登入。右上角是自己的名稱（「我的帳號」：各領域的角色、改密碼）與「登出」。忘記密碼：系統管理員在「帳號」頁重設，或在伺服器那台用 <code>rpa user password 帳號</code>。</li>
+          <li><strong>帳號（系統管理員）。</strong>「管理後台 › 帳號」新增本地帳號（小寫英文、數字與 . _ -；密碼至少 8 個字）、設為或取消系統管理員、停用或啟用、重設密碼。帳號不刪除；最後一個能用的系統管理員不能取消或停用，也不能停用自己。</li>
+          <li><strong>領域的成員。</strong>每個領域頁下面有「成員」：管理員、編輯者、執行者、檢視者（能做什麼見<a href="multi-user.html">多用戶與內部系統</a>）。領域管理員與系統管理員可以加入帳號、改角色、移除；改了下一個請求就生效。系統管理員不必加入也能做所有事。沒有領域的東西（未分配的場景）只有系統管理員看得到。</li>
+          <li><strong>看得到什麼。</strong>場景、組合場景、執行、組合運行、批次與回看照所在的領域：清單只列看得到的領域，直接打開別的領域的網址是 404，看得到但不能做的操作是 403。組合場景的場景庫只列看得到的領域裡的場景。選單裡只有系統管理員能用的（裝置、API 用戶端、帳號、稽核紀錄）不顯示；錄製只給至少在一個領域是編輯者的人。</li>
+          <li><strong>稽核紀錄（系統管理員）。</strong>「管理後台 › 稽核紀錄」：登入、登入失敗、登出，以及每一個改變東西的請求（帳號、方法與路徑、結果、來源位址、透過哪台錄製端）；不記請求內容。只增不改，每一筆串成雜湊鏈，頁面上方顯示驗證結果；改了或刪了中間的紀錄就從那一筆起對不上。</li>
+          <li><strong>不受影響的。</strong>Worker 與錄製端的權杖、裝置配對、對外 Agent API 的金鑰照舊；API 的說明（<code>/api/openapi.json</code>、<code>/api/docs</code>）不必登入。</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel" id="security">
       <div class="panel-header"><h2>安全與限制</h2></div>
       <div class="panel-body prose">
         <ul>
-          <li><strong>沒有登入。</strong>預設只聽 <code>127.0.0.1</code>；改成其他位址時 <code>rpa serve</code> 會提醒。認證與權限在 M8。</li>
+          <li><strong>一律要登入（M8）。</strong>頁面與 <code>/api</code> 都要登入；預設只聽 <code>127.0.0.1</code>。登入的 Cookie 是 HttpOnly、SameSite=Lax，用 HTTPS 打開時加上 Secure；HTTP 在區網上是明文，HTTPS 在 M9。</li>
           <li><strong>擋掉跨站請求。</strong>寫入請求帶了 <code>Origin</code> 標頭時必須同源，避免其他網站在背景呼叫本機的 API。</li>
           <li><strong>執行目錄的檔案。</strong>只提供執行目錄內的檔案；只有 <code>report.html</code> 當成網頁顯示，並加上只允許內嵌樣式與截圖的內容安全政策。</li>
           <li><strong>腳本場景等同執行任意程式。</strong>與 M2 相同，Python 腳本場景只給信任的人編輯。</li>
-          <li><strong>登入狀態與 Secrets 存在這台電腦。</strong>兩者都在資料目錄、只有本人能讀寫，不經由網頁或 <code>/api</code> 提供，也不寫進執行目錄、報告與日誌；錄製稿裡的密碼遮罩後才保存。M8 加密存放。</li>
+          <li><strong>登入狀態與 Secrets 存在這台電腦。</strong>兩者都在資料目錄、只有本人能讀寫，不經由網頁或 <code>/api</code> 提供，也不寫進執行目錄、報告與日誌；錄製稿裡的密碼遮罩後才保存。Secrets 的值從 M8 起加密存放（金鑰見<a href="#settings">設定</a>）；登入狀態仍是只有本人能讀寫的檔案。</li>
           <li><strong>遠端 worker 拿得到執行要用的 Secrets 與登入狀態。</strong>只在領取任務的回應裡，worker 放在記憶體與執行期間只有本人能讀寫的暫存檔，執行完刪除。Worker API 用 HTTP 時在區網上是明文：只在信任的網路使用；權杖只存雜湊，可以隨時停用或重新產生。</li>
         </ul>
       </div>
@@ -473,7 +499,7 @@
       <div class="panel-body">
         <dl class="spec-list">
           <dt>M5</dt><dd>AI 助手只改草稿，發布仍走同一個門檻</dd>
-          <dt>M8</dt><dd>認證與權限、Secrets 加密、PostgreSQL</dd>
+          <dt>M8</dt><dd>帳號、登入與以領域為單位的權限、Secrets 加密、稽核紀錄（見<a href="#accounts">帳號、登入與權限</a>）；正式環境改用 PostgreSQL 不在這次範圍</dd>
           <dt>M9</dt><dd>排程、worker 標籤與併發、HTTPS、伺服器推送事件取代輪詢（遠端 worker 已在 M9a 提前完成）</dd>
         </dl>
       </div>

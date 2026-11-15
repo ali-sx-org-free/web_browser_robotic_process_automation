@@ -175,7 +175,10 @@ jobs:
             if curl -fsS -o /dev/null http://127.0.0.1:8090/api/openapi.json; then break; fi
             sleep 1
           done
-          if ! curl -fsS 'http://127.0.0.1:8090/api/scenes?domain=testsite' | grep -qi 'ba-001'; then
+          # M8 起要登入：還沒有帳號，在伺服器這台建立第一個系統管理員，之後帶著 Cookie
+          curl -fsS -c cookies.txt -H 'Content-Type: application/json' \
+            -d '{"username": "ci", "password": "ci-password"}' http://127.0.0.1:8090/setup > /dev/null
+          if ! curl -fsS -b cookies.txt 'http://127.0.0.1:8090/api/scenes?domain=testsite' | grep -qi 'ba-001'; then
             cat server.log
             exit 1
           fi
@@ -232,7 +235,7 @@ jobs:
             test ! -e rpa-server/run/update.state
             test ! -e rpa-server/run/restart.request
             echo "重新啟動完成：$(echo "$(date +%s.%N) - $start" | bc) 秒（期間曾經連不上：${down:-否}）"
-            curl -fsS 'http://127.0.0.1:8090/api/scenes?domain=testsite' | grep -qi 'ba-001'
+            curl -fsS -b cookies.txt 'http://127.0.0.1:8090/api/scenes?domain=testsite' | grep -qi 'ba-001'
             # 同一個更新檔再裝一次：不用更新
             rpa-server/bin/rpa update /source/dist/update-test/next.zip | grep -q '不用更新'
 

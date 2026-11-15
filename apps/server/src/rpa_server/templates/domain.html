@@ -67,6 +67,32 @@
 {% else %}
 <div class="panel empty">{{ t("domain.empty") }}</div>
 {% endif %}
+{% set members = members | default([]) %}{% set member_roles = member_roles | default([]) %}{% set can_manage = can_manage | default(false) %}
+<section class="panel" id="members" data-domain="{{ domain.id }}">
+  <div class="panel-header"><h2>{{ t("members.title") }}<span class="count">{{ members | length }}</span></h2><span class="muted">{{ t("members.hint") }}</span></div>
+  <div class="table-scroll"><table>
+    <thead><tr><th>{{ t("members.user") }}</th><th>{{ t("members.role") }}</th><th></th></tr></thead>
+    <tbody>
+    {% for member in members %}
+      <tr data-user="{{ member.user_id }}" data-username="{{ member.username }}">
+        <td>{{ member.display_name }} <span class="cell-sub mono">{{ member.username }}</span>{% if member.disabled %} {{ m.badge("disabled", t("users.disabled")) }}{% endif %}</td>
+        <td>{% if can_manage %}<select data-action="member-role" aria-label="{{ t('members.role') }}">{% for role in member_roles %}<option value="{{ role }}"{% if role == member.role %} selected{% endif %}>{{ t("members.role_" + role) }}</option>{% endfor %}</select>{% else %}{{ t("members.role_" + member.role) }}{% endif %}</td>
+        <td>{% if can_manage %}<button class="text-btn" type="button" data-action="member-remove">{{ t("members.remove") }}</button>{% endif %}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="3" class="muted">{{ t("members.empty") }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% if can_manage %}
+  <form class="panel-body field-row" id="member-add">
+    <label class="field">{{ t("members.username") }}<input name="username" required maxlength="64" autocomplete="off"></label>
+    <label class="field">{{ t("members.role") }}<select name="role">{% for role in member_roles %}<option value="{{ role }}"{% if role == "viewer" %} selected{% endif %}>{{ t("members.role_" + role) }}</option>{% endfor %}</select></label>
+    <button class="button" type="submit">{{ t("members.add") }}</button>
+    <span class="form-error" role="alert"></span>
+  </form>
+  {% endif %}
+</section>
 <template id="new-scene-form">
   <div class="notice">{{ t("scenes.new_notice") }}</div>
   <label>{{ t("scenes.new_id") }}<input name="id" required pattern="[a-z0-9][a-z0-9_-]{0,63}" maxlength="64" placeholder="demo-001" autocomplete="off"></label>

@@ -49,8 +49,10 @@ from rpa_core.dsl import validate_text
 from rpa_core.dsl.editing import SECTION_KEYS, json_document, section_text
 from rpa_core.dsl.files import MAX_ATTACHMENT_BYTES, guess_media_type
 from rpa_server.agents import AUDIT_LIMIT, DEFAULT_SCOPES, ClientPolicy
+from rpa_server.auth import require, require_system
 from rpa_server.batch_table import Table, TableError, parse_text, read_table, sheet_names
 from rpa_server.composite_report import report_json
+from rpa_server.config import COMPOSITES_DOMAIN
 from rpa_server.domain import Engine, Target
 from rpa_server.errors import ServiceError, invalid, not_found
 from rpa_server.gitsync import Auth, GitSource
@@ -533,6 +535,14 @@ def rerun_cells(cells: dict[str, dict[str, str]] | None) -> dict[int, dict[str, 
     return changed
 
 
+def role_domain(body: RoleBody) -> None:
+    """M8：全域角色只有系統管理員能建立或改成全域；領域的角色要能編輯那個領域。"""
+    if body.domain_id:
+        require("edit", body.domain_id)
+    else:
+        require_system()
+
+
 def _values(body: RoleBody) -> dict[str, object]:
     """只有使用者送來的欄位（PATCH 沒送的欄位不改）。"""
     sent = body.model_dump(by_alias=True, exclude_unset=True)
@@ -714,11 +724,17 @@ def api_router(services: Services) -> APIRouter:
 
     @router.post("/scenes", status_code=201)
     def create_scene(body: SceneCreate) -> dict[str, object]:
+        # M8：要能編輯放進去的領域（沒指定時放「未分配」，只有系統管理員）
+        require("edit", body.domain_id or services.unassigned_domain())
         scene = services.create_scene(body.id, body.name, body.category, domain_id=body.domain_id)
         return scene.to_json()
 
     @router.post("/scenes/import")
     def import_examples(body: ImportRequest | None = None) -> dict[str, object]:
+        if body is None or body.domain_id is None:
+            require_system()
+        else:
+            require("edit", body.domain_id)
         return services.import_examples(body.domain_id if body else None).to_json()
 
     @router.get("/scenes/{scene_id}")
@@ -746,6 +762,8 @@ def api_router(services: Services) -> APIRouter:
     @router.patch("/scenes/{scene_id}")
     def update_scene(scene_id: str, body: SceneUpdate) -> dict[str, object]:
         fields = body.model_fields_set
+        if "domain_id" in fields:  # M8：搬到別的領域也要能編輯那個領域
+            require("edit", body.domain_id or services.unassigned_domain())
         scene = services.update_scene(
             scene_id,
             base_url=body.base_url if "base_url" in fields else None,
@@ -1133,6 +1151,7 @@ def api_router(services: Services) -> APIRouter:
 
     @router.post("/roles", status_code=201)
     def create_role(body: RoleBody) -> dict[str, object]:
+        role_domain(body)
         return roles.create_role(body.id or "", _values(body)).to_json()
 
     @router.get("/roles/{role_id}")
@@ -1141,6 +1160,8 @@ def api_router(services: Services) -> APIRouter:
 
     @router.patch("/roles/{role_id}")
     def update_role(role_id: str, body: RoleBody) -> dict[str, object]:
+        if "domain_id" in body.model_fields_set:
+            role_domain(body)
         return roles.update_role(role_id, _values(body)).to_json()
 
     @router.delete("/roles/{role_id}")
@@ -1322,6 +1343,7 @@ def api_router(services: Services) -> APIRouter:
     @router.post("/workflows", status_code=201)
     def create_workflow(body: WorkflowCreate) -> dict[str, object]:
         """新增序列；帶 definition 就是匯入。"""
+        require("edit", body.domain_id or COMPOSITES_DOMAIN)
         record = workflows.create_workflow(
             body.name,
             body.description,
@@ -1373,6 +1395,8 @@ def api_router(services: Services) -> APIRouter:
 
     @router.patch("/workflows/{workflow_id}")
     def manage_workflow(workflow_id: int, body: WorkflowManage) -> dict[str, object]:
+        if body.domain_id is not None:
+            require("edit", body.domain_id)
         record = workflows.manage(
             workflow_id,
             code=body.code,

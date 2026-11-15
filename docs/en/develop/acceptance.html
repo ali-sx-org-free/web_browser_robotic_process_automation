@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:d28871df65ff003c">
+<title>Manual acceptance on one computer · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="acceptance" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>Manual acceptance on one computer</h1>
+      <p>Before a PR is merged, run the management portal, the test site, a command-line Recorder and several workers on one computer, and check each item in the task record's acceptance steps. The production server, its data and paired apps are left alone.</p>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="notice">This method checks features and screens. Packaged apps, the network between two computers, workers on Windows and the headless Linux bundle are covered by CI's end-to-end tests and checked again with a draft release before publishing (see <a href="#limits">What this method can't check</a>).</div>
+
+    <section class="panel" id="when">
+      <div class="panel-header"><h2>When to use it</h2></div>
+      <div class="panel-body prose">
+        <ul class="points">
+          <li><strong>Before merging a PR.</strong> The task record's "Manual acceptance (suggested steps)" says what to look at; this page says how to set up the environment on one computer. Three states are recorded separately: code merged, automated tests passed, manual acceptance passed (<a href="../../../handoff/acceptance.html">Status and acceptance records</a>).</li>
+          <li><strong>Several stacked PRs at once.</strong> When each PR is branched from the previous one, the top branch contains all of them; merge them in order.</li>
+          <li><strong>A Mac is easiest.</strong> A Linux desktop or Windows works too with the same commands (paths and how to find the LAN address differ on Windows).</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="prepare">
+      <div class="panel-header"><h2>Preparation</h2><span class="muted">Branch, dependencies, a new folder</span></div>
+      <div class="panel-body prose">
+<pre class="source">cd ~/code/web_browser_robotic_process_automation
+git fetch origin
+git switch the-branch-to-check
+git pull --ff-only
+git log -1 --oneline      # must match the latest commit on the PR page
+uv sync --locked          # required when dependencies changed (M8 added cryptography)</pre>
+        <p>Use a new folder for each acceptance, for example <code>~/rpa-m8-check</code>, holding the portal's data (<code>data</code>) and the work folders of the Recorder and each worker. Only a new folder creates "Test site automation" and imports the example scenarios on first start; to start over midway, stop the portal, delete <code>data</code> and start again.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="windows">
+      <div class="panel-header"><h2>Terminal windows</h2><span class="muted">One terminal window per process, all inside the clone</span></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Window</th><th>Command</th><th>Why it is set up this way</th></tr></thead>
+          <tbody>
+            <tr><td>1 Test site</td><td><code>uv run python -m testsite</code></td><td>On 127.0.0.1:8765. In its own window, the portal finds a test site already on 8765 and uses it; when the portal restarts, the test site keeps running, so a row half-way through on a worker doesn't fail for losing the site.</td></tr>
+            <tr><td>2 Management portal</td><td><code>uv run rpa serve --host 0.0.0.0 --port 8080 --data ~/rpa-xx-check/data --worker-port 8081 --no-local-worker</code></td><td><code>--no-local-worker</code>: every run goes to the workers below, as in production; choose "Remote worker" as the location for runs, batches and composite runs. <code>--host 0.0.0.0</code>: lets you use the LAN address to act as another computer (next section).</td></tr>
+            <tr><td>3 Recorder</td><td><code>uv run rpa recorder --invite 'invitation' --work-dir ~/rpa-xx-check/agent-recorder --no-open</code></td><td>Add a Recorder and create an invitation under "Cluster › Devices". The local address it prints is the "Recorder address": open the portal through it so recording, step debugging and manual sign-in open their browser on the Recorder; the header shows "Via recorder".</td></tr>
+            <tr><td>4, 5 Workers</td><td><code>uv run rpa worker --invite 'invitation' --work-dir ~/rpa-xx-check/agent-worker-1</code> (the second uses <code>agent-worker-2</code>)</td><td>A worker runs one execution at a time; to check "rows at once" or nodes running at once, start two, each with its own <code>--work-dir</code>. Restarting needs no new invitation: <code>uv run rpa worker --work-dir …</code>.</td></tr>
+            <tr><td>6 Old version (when needed)</td><td><code>git worktree add ~/rpa-xx-check/main-code origin/main</code>, then <code>uv sync --locked</code> in that folder and run the old commands there</td><td>To check "old worker asked to update" or "upgrade from the old version". A worktree means the clone's branch stays as it is.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="simulate">
+      <div class="panel-header"><h2>Acting as several computers and several people</h2></div>
+      <div class="panel-body prose">
+        <ul class="points">
+          <li><strong>Another computer.</strong> Open the portal with this computer's LAN address (macOS: <code>ipconfig getifaddr en0</code>, or <code>en1</code> when that prints nothing) and the server treats the requests as coming from another computer. For example, M8's "the first system administrator can only be created on the server": <code>http://LAN-address:8080</code> shows only an explanation, <code>http://127.0.0.1:8080</code> can create it. The portal must be started with <code>--host 0.0.0.0</code>.</li>
+          <li><strong>Several users (sign-in is required from M8).</strong> Sign in with one account in a normal browser window and another in a private window; use another browser for a third. Normal windows of one browser share the sign-in, and so do different ports on <code>127.0.0.1</code> (8080 and the Recorder address), so the Recorder address is usually already signed in; to see "signing in through a Recorder" open the Recorder address in a private window.</li>
+          <li><strong>The same account signed in "somewhere else".</strong> Keep a cookie of its own with curl: <code>curl -c file -H 'Content-Type: application/json' -d '{"username":"…","password":"…"}' http://127.0.0.1:8080/login</code>, then <code>curl -b file …/api/me</code> to see whether that sign-in still works (for example, it should end after a password change).</li>
+          <li><strong>Two workers.</strong> Windows 4 and 5 in the table above.</li>
+          <li><strong>An old worker or portal.</strong> Window 6 in the table above. For an upgrade test, run the old portal on other ports (for example <code>--port 8090 --worker-port 8091</code>) with another <code>--data</code> to create the data, stop it, then start the new version with the same <code>--data</code>; the old portal can run without <code>--no-local-worker</code>, so runs happen inside the portal and nothing needs pairing.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="restart">
+      <div class="panel-header"><h2>Restarts and upgrades</h2></div>
+      <div class="panel-body prose">
+        <ul class="points">
+          <li>Press Ctrl+C in window 2 to stop the portal, then ↑ and Enter to start it with the same command. Workers and the Recorder lose the connection briefly and retry; their pairing is kept in their work folders, so no new invitation is needed.</li>
+          <li>The test site in window 1 is not affected. A run half-way through finishes on its worker, and the portal collects the result once it is back.</li>
+          <li>Switching code (for example from main to the branch under test) is the same: stop it, then start from another folder or after switching branches with the same <code>--data</code>; tables are migrated on start.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="record">
+      <div class="panel-header"><h2>Recording the results</h2></div>
+      <div class="panel-body prose">
+        <ul class="points">
+          <li>Each step states what you should see; when it doesn't match, note the address, the run or batch ID (<code>run-…</code>, <code>batch-…</code>) and the screen.</li>
+          <li>Hand the results to the responsible agent to fill in the task record's "Verification and review" and "Later entries": version (commit), environment (computer, operating system), which steps were done, the results and what was not checked. Not done, skipped and cancelled do not count as passed (<a href="../../../AGENTS.md">AGENTS.md</a>).</li>
+          <li>Also note documentation that doesn't match the program (for example a different button name).</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel" id="cleanup">
+      <div class="panel-header"><h2>Cleaning up</h2></div>
+      <div class="panel-body prose">
+        <ol>
+          <li>Press Ctrl+C in each window to stop the portal, the test site, the Recorder and the workers.</li>
+          <li>If you used a worktree, run <code>git worktree remove ~/rpa-xx-check/main-code</code> in the clone, then delete the whole <code>~/rpa-xx-check</code>.</li>
+          <li><code>git switch main</code>.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="panel" id="faq">
+      <div class="panel-header"><h2>Common problems</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>What you see</th><th>What to do</th></tr></thead>
+          <tbody>
+            <tr><td>8080, 8081 or 8765 is in use</td><td>The production server or the previous acceptance is still running. Stop it, or use <code>--port 8090 --worker-port 8091</code> (the invitation and Agent API addresses change accordingly).</td></tr>
+            <tr><td>"Test site automation" has fewer cards than expected</td><td>The folder isn't new, or the program comes from another branch. Stop the portal, delete <code>data</code>, check <code>git branch --show-current</code> and <code>git log -1</code>, then start again.</td></tr>
+            <tr><td>The docs don't match the portal, or the newest ADRs are missing</td><td>You opened an old worktree or another branch. Check the path in the address bar. The portal, the Recorder and the workers use that code too, so restart all of them after switching to the right branch.</td></tr>
+            <tr><td>A device never shows "Online"</td><td>Look for errors in its window; if the invitation expired, create a new one on the Devices page. In a window with <code>RPA_WORKER_TOKEN</code> set, run <code>unset RPA_WORKER_TOKEN</code> first.</td></tr>
+            <tr><td>A run or batch stays "Queued"</td><td>The location is "This computer" (there is no local worker with <code>--no-local-worker</code>), or the workers are offline.</td></tr>
+            <tr><td>Two rows don't run at the same time</td><td>Both workers must be online and idle; also check "Rows queued at once across all batches" above the batch list.</td></tr>
+            <tr><td>The browser for step debugging or recording doesn't open on the Recorder</td><td>You used <code>127.0.0.1:8080</code> instead of the address the Recorder printed.</td></tr>
+            <tr><td>You keep being sent to the sign-in page, or switching accounts changes another window too (M8)</td><td>Normal windows of one browser share the sign-in; use a private window or another browser for another account.</td></tr>
+            <tr><td>An account is paused from signing in (M8, five wrong passwords)</td><td>Wait 15 minutes, or restart the portal (the pause is kept only in the running portal).</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="limits">
+      <div class="panel-header"><h2>What this method can't check</h2></div>
+      <div class="panel-body prose">
+        <ul class="points">
+          <li><strong>Packaged apps.</strong> Installing RPA Recorder and RPA Worker, the first-start download and updates: CI's "Desktop build" runs end-to-end tests on the packaged apps on macOS and Windows, and before publishing, a draft release is installed once on a real computer (<a href="remote-worker.html">Remote workers</a>).</li>
+          <li><strong>The network between two computers.</strong> Firewalls, LAN addresses, the external port: see <a href="operations.html">Deployment &amp; operations</a>.</li>
+          <li><strong>Headless Linux servers.</strong> Installing and upgrading the bundle is checked by CI's "Server bundle" job on Rocky 8; upgrade production as described in <a href="setup.html#linux-package">Dev environment › Bundle</a>.</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

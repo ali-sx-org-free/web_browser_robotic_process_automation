@@ -23,6 +23,7 @@ class Upstream:
     requests: list[dict[str, object]] = field(default_factory=list[dict[str, object]])
     status: int = 200
     location: str | None = None
+    extra: dict[str, str] = field(default_factory=dict[str, str])
 
     def serve(self) -> ThreadingHTTPServer:
         upstream = self
@@ -49,6 +50,8 @@ class Upstream:
                 if upstream.location:
                     self.send_header("Location", upstream.location)
                 self.send_header("Set-Cookie", "rpa_lang=en; Path=/")
+                for key, value in upstream.extra.items():
+                    self.send_header(key, value)
                 self.end_headers()
                 self.wfile.write(data)
 
@@ -188,6 +191,17 @@ def test_unauthorized_is_reported(gateway: Gateway, upstream: tuple[Upstream, st
     page = {"Accept": "text/html", "Sec-Fetch-Mode": "navigate"}
     status, _, data = request(gateway, "GET", "/scenes", headers=page)
     assert (status, data) == (401, b"NOTICE unauthorized")  # 打開頁面時說明
+
+
+def test_login_required_is_not_a_token_problem(
+    gateway: Gateway, upstream: tuple[Upstream, str]
+) -> None:
+    """M8：管理 Portal 要使用者登入時的 401 照樣轉送，不當成權杖失效。"""
+    upstream[0].status = 401
+    upstream[0].extra = {"X-RPA-Login": "required"}
+    status, headers, _ = request(gateway, "GET", "/api/scenes")
+    assert (status, headers["x-rpa-login"]) == (401, "required")
+    assert gateway.unauthorized == []  # type: ignore[attr-defined]
 
 
 def test_local_pages_are_on_their_own_port(

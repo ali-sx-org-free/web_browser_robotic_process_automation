@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>M8 多用戶與治理 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>M8 多用戶與治理（不含 PostgreSQL）</h1><p>本地帳號與登入、以領域為單位的角色、Secrets 加密、稽核紀錄。設計記在 <a href="../../docs/adr/0025-multi-user.html">ADR 0025</a>；使用上的說明在 <a href="../../docs/design/portal.html#accounts">管理 Portal › 帳號、登入與權限</a>。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261114-m8-multi-user；2026-11-14 16:45 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者在 Claude 專案對話（2026-11-14 06:12 America/Los_Angeles（PST，UTC−08:00），原文）：「3、M8 多用戶與治理，但不包含正式環境改用PostgreSQL部分。」06:19 回答四個問題（<a href="../decisions.html#decisions">決定紀錄</a>）：登入方式「先只做本地帳號」；權限單位「以領域為單位」；Secrets「金鑰自動產生存檔」；升級模式「一律要登入」。路線圖 M8 的驗收「API 測試在 SQLite 與 PostgreSQL 上都通過」中 PostgreSQL 的部分這次不做。</dd>
+        <dt>範圍／不包含</dt><dd>帳號（本地）、登入與工作階段、第一個系統管理員、領域成員與角色、所有頁面與 API 的權限、清單依領域篩選、Secrets 加密、稽核紀錄、<code>rpa user</code>、文件與測試。不包含：正式環境改用 PostgreSQL；OIDC／LDAP（只留欄位）；排程的權限（M9）；HTTPS（M9）；發布（時間由使用者決定）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude（Opus 5.5）；審閱、人工驗收與合併：使用者。</dd>
+        <dt>修改檔案／整合者</dt><dd>rpa-server：<code>access.py</code>、<code>auth.py</code>、<code>audit.py</code>、<code>gate.py</code>、<code>account_routes.py</code>（新）；<code>models.py</code>、<code>migrations/versions/0020_multi_user.py</code>（新）、<code>secret_store.py</code>、<code>services.py</code>、<code>app.py</code>、<code>config.py</code>（<code>skip_login</code>）、<code>api.py</code>（建立時指定領域的檢查）、<code>pages.py</code>、<code>render.py</code>（選單）、<code>batches.py</code>、<code>workflows.py</code>、<code>roles.py</code>（清單篩選）、樣板 <code>auth.html</code>、<code>account.html</code>、<code>users.html</code>、<code>audit.html</code>（新）、<code>base.html</code>、<code>domain.html</code>、<code>batches.html</code>、<code>static/login.js</code>（新）、<code>portal.js</code>、<code>portal-app.css</code>、多語言目錄、<code>pyproject.toml</code>（<code>cryptography</code>）。rpa CLI：<code>user.py</code>（新）、<code>main.py</code>、多語言目錄。<code>tools/linux_server_smoke.py</code>。測試：<code>test_gate.py</code>、<code>test_secret_store.py</code>、<code>test_multi_user.py</code>、<code>apps/cli/tests/test_user_cli.py</code>（新）；<code>conftest.py</code> 與 9 個自己建 <code>Settings</code> 的測試加上 <code>skip_login</code>；選單的兩個測試多了帳號、稽核紀錄。文件：ADR 0025（新）、ADR 索引、文檔導覽、<code>design/multi-user.html</code>、<code>design/portal.html</code>、<code>design/architecture.html</code>、路線圖（含英文版）。</dd>
+        <dt>狀態</dt><dd>實作與文件完成，等待 CI、審閱與人工驗收。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>feat/m8-multi-user</code>，從 <code>feat/m7-wrapup</code>（<span class="mono">6e38988</span>）開，遷移 0020 接在 M7 收尾的 0019 後面；PR base 是 main。<strong>合併順序：#26 → #27 → 本 PR。</strong></dd>
+        <dt>交接版本／同步狀態</dt><dd>推送到 <code>feat/m8-multi-user</code>；以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端工作區 Linux x86_64、系統 Python 3.13；有 starlette、anyio、pydantic、cryptography、Chromium，沒有 FastAPI、SQLAlchemy、httpx2、OpenCC：伺服器 API 層的測試與簡中交給 CI 與 bootstrap。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="decisions">
+      <div class="panel-header"><h2>決定與實作選擇</h2></div>
+      <div class="panel-body"><p>D1～D4 是使用者的決定（06:19）。下面 I1～I8 是 Claude 的實作選擇，理由見 ADR 0025，審閱時可以改。</p></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>#</th><th>項目</th><th>內容</th></tr></thead>
+        <tbody>
+          <tr><td>D1</td><td>登入方式</td><td>先只做本地帳號；<code>users.provider</code>、<code>subject</code> 預留給 OIDC、LDAP。</td></tr>
+          <tr><td>D2</td><td>權限單位</td><td>以領域為單位：管理員、編輯者、執行者、檢視者，管場景、組合場景、執行、回看（與批次）；另有系統管理員。</td></tr>
+          <tr><td>D3</td><td>Secrets</td><td>AES-GCM（<code>cryptography</code>）；金鑰自動產生存成 0600 的 <code>secrets.key</code>，<code>RPA_SECRETS_KEY</code> 可以覆寫；Secrets 維持全域、只有系統管理員能改；接受這次升級要換完整分發包。</td></tr>
+          <tr><td>D4</td><td>升級模式</td><td>一律要登入；第一個系統管理員只能在伺服器那台（127.0.0.1）建立；裝置配對與 Agent API 金鑰照舊。</td></tr>
+          <tr><td>I1</td><td>密碼與工作階段</td><td>scrypt（N=2^15）；密碼至少 8 個字；Cookie 是隨機權杖、名稱加伺服器代號、HttpOnly、SameSite=Lax；7 天沒用失效、最長 30 天；15 分鐘內輸錯 5 次暫停。</td></tr>
+          <tr><td>I2</td><td>權限的寫法</td><td>登入關卡的規則表（第一個符合的；沒列出的寫入預設拒絕），看不到 404、不能做 403；建立時才指定領域的在路由裡再檢查。</td></tr>
+          <tr><td>I3</td><td>清單篩選</td><td>目前的使用者放 ContextVar，服務層的清單只列看得到的領域；背景工作不受限制。</td></tr>
+          <tr><td>I4</td><td>稽核</td><td>登入、登入失敗、登出、建立第一個管理員與每一個 <code>/api</code> 寫入請求（不含內容）；雜湊鏈，頁面上方顯示驗證結果。</td></tr>
+          <tr><td>I5</td><td>帳號管理</td><td>不刪除只停用；最後一個系統管理員不能拿掉；不能停用自己；<code>rpa user create／password</code> 給沒有瀏覽器的伺服器與忘記密碼時用。</td></tr>
+          <tr><td>I6</td><td>開放的路徑</td><td>API 的說明（openapi.json、docs）不必登入：<code>rpa serve</code> 用它認出已經在執行的 Portal。</td></tr>
+          <tr><td>I7</td><td>舊的測試</td><td><code>Settings.skip_login</code>（<code>from_env</code> 不讀）讓 M8 之前的測試當成系統管理員；登入與權限有自己的測試。</td></tr>
+          <tr><td>I8</td><td>介面</td><td>右上角顯示自己的名稱與登出；只有系統管理員能用的選單不顯示；批次清單的共用上限只給系統管理員看；「本機 · 單一使用者」改成「本機部署」。</td></tr>
+          <tr><td>I9</td><td>錄製端的閘道</td><td>沒登入的 401 帶 <code>X-RPA-Login: required</code>；閘道照樣轉送，不呼叫 <code>on_unauthorized</code>（不當成裝置權杖失效）。桌面端的端到端測試先在伺服器這台建立 CI 的系統管理員，經由閘道時也先登入。</td></tr>
+          <tr><td>I10</td><td>被擋下的寫入</td><td>沒有權限被登入關卡擋下的 <code>/api</code> 寫入（403、404）也記進稽核紀錄（2026-11-14 寫驗收教程時發現原本沒記）。</td></tr>
+          <tr><td>I11</td><td>解不開的 Secrets</td><td>金鑰換過或不見時，「登入與憑證」標成「解不開」並說明怎麼補救；場景與組合場景執行前的檢查當成沒有設定（原本顯示「已設定」、執行時才失敗）。Secrets 表單的說明改成加密與金鑰檔；透過錄製端時頁首的「單一使用者」拿掉。</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>上面的實作、測試與文件；PR #28 的 CI 全部通過（見驗證與審閱），已轉為可審閱。</li>
+        <li><strong>未完成／阻礙：</strong>人工驗收；PostgreSQL 之後另排。</li>
+        <li><strong>下一個具體動作：</strong>等使用者審閱與驗收；合併順序 #26 → #27 → #28（#28 疊在 #27 上）。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="acceptance">
+      <div class="panel-header"><h2>人工驗收（建議步驟，未執行）</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>第一個系統管理員：</strong>用新的資料夾啟動（<code>uv run rpa serve --data data-m8</code>），瀏覽器打開 <code>http://127.0.0.1:8080</code>：轉到「建立第一個系統管理員」，建立後直接登入，右上角是自己的名稱。從別台電腦（或錄製端）打開只看到說明。</li>
+        <li><strong>帳號與成員：</strong>「管理後台 › 帳號」新增 amy、bob；「測試網站自動化」領域頁下面的「成員」把 amy 設成執行者、bob 設成檢視者。用另一個瀏覽器（或無痕視窗）登入 amy：只看到這個領域；可以執行 BA-001，打不開編輯頁（403）；選單沒有裝置、API 用戶端、帳號、稽核紀錄。bob 執行時回 403。</li>
+        <li><strong>看不到的領域：</strong>新增領域「人資」，不把 amy 加進去：amy 的清單沒有它，直接打開 <code>/domains/hr</code> 是 404。</li>
+        <li><strong>密碼：</strong>amy 在「我的帳號」改密碼後，另一個已登入的 amy 視窗要重新登入；系統管理員重設 amy 的密碼或停用 amy 後，amy 的登入都失效。連續輸錯 5 次會暫停登入 15 分鐘。</li>
+        <li><strong>Secrets：</strong>升級前已設定的 Secrets 在升級後照樣能用（執行時有值），資料目錄的 <code>secrets.json</code> 裡看不到明文，多了 <code>secrets.key</code>。amy 不能設定或刪除 Secrets。</li>
+        <li><strong>稽核紀錄：</strong>「管理後台 › 稽核紀錄」看得到上面的登入、新增帳號、成員、執行請求與登入失敗，上方顯示雜湊鏈完整。</li>
+        <li><strong>沒有瀏覽器的伺服器：</strong>另一個資料夾執行 <code>uv run rpa user create root --admin --data data-cli</code> 後用它啟動，直接用 root 登入；<code>uv run rpa user password root --data data-cli</code> 重設密碼。</li>
+        <li><strong>錄製端與 Worker：</strong>已配對的錄製端打開管理 Portal 時先登入，之後錄製、調試照常；Worker 照常領取與執行；Agent API 照常用金鑰。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>第一次提交前的工作區；雲端 Linux、系統 Python 3.13</td><td><code>ruff check</code>、<code>ruff format --check</code>（packages、apps、tools）；<code>pyright</code>（<code>access.py</code>、<code>gate.py</code>、<code>secret_store.py</code> 與兩個測試）；<code>pytest apps/server/tests/test_gate.py test_secret_store.py test_batch_table.py</code>；<code>node --check</code>（portal.js、login.js）；樣板用替身資料渲染（auth、account、users、audit）</td><td>ruff、格式、pyright 0 errors；62 passed；腳本語法通過；樣板渲染通過，檢視者的選單沒有帳號頁</td><td>伺服器 API 層與 CLI 的測試、遷移與模型的比對、其他伺服器模組的 pyright 要 FastAPI、SQLAlchemy，交給 CI；簡中交給 bootstrap</td></tr>
+          <tr><td><span class="mono">808bd25</span>（GitHub Actions）</td><td>完整的 CI、桌面端建置（Worker／錄製端在 macOS、Windows 打包後的端到端，含經由錄製端閘道登入與逐步調試）、伺服器分發包（Linux 冒煙：先建立系統管理員再呼叫 API）、一鍵安裝腳本、RPA Python 運行環境</td><td>除了 CI 的兩項都通過；CI 剩 Secrets 測試的舊預期（查明文）與簡中待產生</td><td>—</td></tr>
+          <tr><td><span class="mono">72990f6</span>（bot）→ <span class="mono">27dfe21</span> → <span class="mono">20c08ed</span>（合併 M7 收尾的紀錄）</td><td>bootstrap 產生 ADR 0025 簡中；Secrets 測試改查密文；CI（依改動範圍：靜態檢查、Python 3.12／3.13 測試）</td><td>全部通過</td><td>人工驗收</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：全部通過（見上表）。人工驗收：未執行。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>等待使用者審閱與驗收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-11-14 07:30～16:45 America/Los_Angeles（PST，UTC−08:00），Claude：中間停了一段（使用者 16:16 說「繼續」）。從 <code>feat/m7-wrapup</code> 開 <code>feat/m8-multi-user</code>，依序做 Secrets 加密、模型與遷移、帳號與工作階段、權限（規則表與清單篩選）、稽核、頁面與腳本、<code>rpa user</code>、測試與文件。這段期間 PR #27 的 Windows 測試有一個 <code>test_python_script_scenario[firefox]</code> 失敗（子程序結束碼 1，和這次的改動無關），已要求重跑失敗的工作。</li>
+        <li>2026-11-14 16:45～17:05 America/Los_Angeles（PST，UTC−08:00），Claude：PR #28 第一輪 CI（<code>a946775</code>）失敗的原因與修正——<code>domain.html</code> 的成員區塊在測試的渲染（沒傳成員）時未定義 → 給預設值；遷移比對測試的資料表清單少了四張新表；<code>test_secret_values_are_never_returned</code> 的欄位多了 <code>readable</code>；<code>rpa user create</code> 在還沒建立的資料夾上打不開資料庫 → 先建立資料夾；<code>test_domain_roles</code> 打開未發布場景的執行頁是 409（不是 403 就對）；伺服器分發包與桌面端（Worker／錄製端）的端到端測試沒登入 → 先建立 CI 的系統管理員並帶著 Cookie（I9）；SQLAlchemy 2.1 的 <code>Result.tuples()</code> 棄用警告。Windows Worker 測試的 <code>test_element_outside_the_frame_is_not_found[firefox]</code> 逾時與本次無關（同 M7 的 firefox 偶發）。</li>
+        <li>2026-11-14 17:25 America/Los_Angeles（PST，UTC−08:00），Claude：第二輪只剩 <code>test_secret_values_are_never_returned</code> 還在檔案裡找明文（M8 起是密文）→ 改成檢查檔案裡沒有明文、執行時解得回來。合併 M7 收尾的紀錄後全部通過；PR #27、#28 轉為可審閱。</li>
+        <li>2026-11-14 18:32～18:55 America/Los_Angeles（PST，UTC−08:00），Claude：使用者要驗收教程（Claude Doc「<a href="https://claude.ai/artifact/Ut17ASMRBbMeF92GAPqWtg">M7 收尾與 M8 多用戶人工驗收教程（一台電腦）</a>」：十步加回報表，一次驗 #26～#28），並要求把一台電腦驗收的方法寫成工程文檔：新增 <code>docs/develop/acceptance.html</code>（含英文版），登記在文檔導覽，從首頁的建議閱讀順序、遠端 worker 頁與 <a href="../acceptance.html">狀態與驗收紀錄</a> 連過去。寫教程時核對程式，修正：首頁與 ADR 索引的數字（架構決策 24 項、M8 進行中）；I10、I11；ADR 0025 的稽核範圍寫明含被擋下的寫入。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

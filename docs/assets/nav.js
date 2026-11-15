@@ -217,6 +217,11 @@ window.DOCS_NAV = {
           "id": "adr-0024",
           "href": "adr/0024-batch-runs.html",
           "name": {"zh-Hant": "0024 批次執行", "zh-Hans": "0024 批量运行", "en": "0024 Batch runs"}
+        },
+        {
+          "id": "adr-0025",
+          "href": "adr/0025-multi-user.html",
+          "name": {"zh-Hant": "0025 多用戶", "zh-Hans": "0025 多用户", "en": "0025 Multi-user"}
         }
       ]
     },
@@ -244,6 +249,11 @@ window.DOCS_NAV = {
           "id": "remote-worker",
           "href": "develop/remote-worker.html",
           "name": {"zh-Hant": "遠端 worker", "zh-Hans": "远程 worker", "en": "Remote workers"}
+        },
+        {
+          "id": "acceptance",
+          "href": "develop/acceptance.html",
+          "name": {"zh-Hant": "一台電腦驗收", "zh-Hans": "一台电脑验收", "en": "One-machine acceptance"}
         },
         {
           "id": "agent-api-guide",
