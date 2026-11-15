@@ -1770,6 +1770,56 @@
         });
       });
     });
+    // 誰能用（M8.1，ADR 0026）：登入角色與 Secrets 綁定的帳號與 API 用戶端；關掉對話框時有改過就重新載入
+    async function grantsDialog(button) {
+      const kind = button.dataset.kind === 'secret' ? 'secrets/' : 'roles/';
+      const base = '/api/' + kind + path(button.dataset.target) + '/grants';
+      let changed = false;
+      const label = (name, id) => (name && name !== id ? fill(messages.grants_named, {name, id}) : id);
+      const render = data => {
+        const rows = [
+          ...data.users.map(user => ({kind: messages.grants_user, text: label(user.displayName, user.username), body: {user: user.username}})),
+          ...data.clients.map(client => ({kind: messages.grants_client, text: label(client.name, client.id), body: {client: client.id}})),
+        ];
+        const list = rows.length
+          ? '<ul class="checklist">' + rows.map((row, index) =>
+            '<li><span class="tag">' + esc(row.kind) + '</span> ' + esc(row.text) +
+            ' <button class="text-btn" type="button" data-grant-remove="' + index + '">' + esc(messages.grants_remove) + '</button></li>').join('') + '</ul>'
+          : '<p class="muted">' + esc(messages.grants_empty) + '</p>';
+        const dialog = qs('#dialog-content');
+        dialog.innerHTML = '<p>' + esc(messages['grants_intro_' + data.kind]) + '</p>' + list +
+          '<form class="field-row" data-grant-add>' +
+          '<label class="field">' + esc(messages.grants_who) + '<select name="kind"><option value="user">' + esc(messages.grants_user) +
+          '</option><option value="client">' + esc(messages.grants_client) + '</option></select></label>' +
+          '<label class="field">' + esc(messages.grants_name) + '<input name="name" required maxlength="64" autocomplete="off"></label>' +
+          '<button class="button primary" type="submit">' + esc(messages.grants_add) + '</button></form>' +
+          '<p class="form-error" role="alert"></p>';
+        qsa('[data-grant-remove]', dialog).forEach(item => item.addEventListener('click', async () => {
+          const result = await api('DELETE', base, rows[Number(item.dataset.grantRemove)].body);
+          if (!result.ok) return toast(errorMessage(result));
+          changed = true;
+          render(result.data);
+        }));
+        qs('[data-grant-add]', dialog).addEventListener('submit', async event => {
+          event.preventDefault();
+          const values = new FormData(event.target);
+          const name = String(values.get('name') || '').trim();
+          const result = await api('POST', base, values.get('kind') === 'client' ? {client: name} : {user: name});
+          if (!result.ok) {
+            qs('.form-error', dialog).textContent = errorMessage(result);
+            return;
+          }
+          changed = true;
+          render(result.data);
+        });
+      };
+      const result = await api('GET', base);
+      if (!result.ok) return toast(errorMessage(result));
+      modal(fill(messages.grants_title, {name: button.dataset.name}), '', null);
+      render(result.data);
+      $('#dialog').addEventListener('close', () => { if (changed) location.reload(); }, {once: true});
+    }
+    qsa('[data-action="grants"]').forEach(button => button.addEventListener('click', () => grantsDialog(button)));
     // 登入或檢查進行中：狀態改變時重新載入
     if (root.hasAttribute('data-poll')) {
       const states = () => qsa('tr[data-role]').map(row => row.dataset.state).join('|');

@@ -45,6 +45,7 @@ from rpa_runner.commands import module_command
 from rpa_runner.files import LOGIN, read_json_or
 from rpa_runner.installed import DISPLAY_NAMES, missing_browsers
 from rpa_runner.login import ENV_LOGIN, EXIT_NEEDS_LOGIN, LoginSettings
+from rpa_server.access import current_principal
 from rpa_server.auth import visible_domains
 from rpa_server.domain import DOMAIN_ID, RoleRecord, RoleStatus, now
 from rpa_server.errors import ServiceError
@@ -56,6 +57,7 @@ from rpa_server.storage import Storage
 
 if TYPE_CHECKING:
     from rpa_server.devices import RecorderHub
+    from rpa_server.grants import Grants
     from rpa_server.packs import PackStore
 
 __all__ = ["CHECK_SECONDS", "LOGIN_SECONDS", "PICK_LIMIT", "RoleService", "parse_locator"]
@@ -310,6 +312,7 @@ class RoleService:
         hosts: "RecorderHub | None" = None,
         packs: "PackStore | None" = None,
         default_domain: Callable[[], str] | None = None,
+        grants: "Grants | None" = None,
     ) -> None:
         self.sessions = sessions
         self.storage = storage
@@ -326,6 +329,8 @@ class RoleService:
         """角色定義寫進領域資料夾（M11）；None 時只用資料庫（單元測試）。"""
         self.default_domain = default_domain
         """沒指定領域時放在哪個領域（「未分類」，需要時建立）。"""
+        self.grants = grants
+        """誰能用哪些登入角色與 Secrets（M8.1）；None 時不限制（單元測試）。"""
         self._lock = threading.Lock()
         self._logins: dict[str, _LoginSession] = {}
         self._picks: dict[str, _PickSession] = {}
@@ -416,7 +421,32 @@ class RoleService:
                 or_(Role.domain_id.is_(None), Role.domain_id.in_(sorted(allowed)))
             )
         with self.sessions() as session:
-            return [self._record(role, used, activities) for role in session.scalars(statement)]
+            return [
+                self._record(role, used, activities)
+                for role in session.scalars(statement)
+                if self.visible(role.id, role.domain_id)
+            ]
+
+    def visible(self, role_id: str, domain_id: str | None) -> bool:
+        """M8.1：看得到這個登入角色的是綁定的人與能管綁定的人（所在領域的管理員）；
+        背景工作與系統管理員不限。"""
+        principal = current_principal()
+        if principal is None or principal.unrestricted or self.grants is None:
+            return True
+        if self.grants.can_use(principal, "role", role_id):
+            return True
+        if principal.user_id is None or domain_id is None:
+            return False  # API 用戶端只看綁定的；全域角色只有系統管理員管
+        managed = visible_domains("manage")
+        return managed is None or domain_id in managed
+
+    def domain_of(self, role_id: str) -> tuple[bool, str | None]:
+        """登入角色在不在、在哪個領域（None 是全域）。"""
+        with self.sessions() as session:
+            role = session.get(Role, role_id)
+            if role is None or role.missing:
+                return False, None
+            return True, role.domain_id
 
     def get_role(self, role_id: str) -> RoleRecord:
         used = self.scene_roles()
@@ -558,6 +588,8 @@ class RoleService:
             session.delete(role)
             session.commit()
         shutil.rmtree(self.storage.roles / role_id, ignore_errors=True)
+        if self.grants is not None:
+            self.grants.forget("role", role_id)
 
     def clear_state(self, role_id: str) -> RoleRecord:
         """登出：刪除登入狀態檔。"""
@@ -1123,7 +1155,30 @@ class RoleService:
     # ------------------------------------------------------------ Secrets
 
     def list_secrets(self) -> list[SecretInfo]:
-        return self.secrets.names()
+        """M8.1：只列綁定的 Secrets；系統管理員與背景工作看得到全部。"""
+        names = self.secrets.names()
+        principal = current_principal()
+        if principal is None or self.grants is None:
+            return names
+        allowed = self.grants.allowed(principal, "secret")
+        return names if allowed is None else [info for info in names if info.name in allowed]
+
+    def auto_login_secrets(self, text: str | None) -> tuple[str, ...]:
+        """自動登入的步驟用到的 Secrets 名稱（存檔前檢查綁定用）。"""
+        if not text or not text.strip():
+            return ()
+        try:
+            _, names = parse_steps(text)
+        except ServiceError:
+            return ()
+        return tuple(names)
+
+    def secret_info(self, name: str) -> SecretInfo:
+        """有這個 Secret 時回傳它（不含值），沒有時 404。"""
+        for info in self.secrets.names():
+            if info.name == name:
+                return info
+        raise _error(404, "secret_not_found", t("error.secret_not_found", name=name))
 
     def set_secret(self, name: str, value: str) -> SecretInfo:
         if not SECRET_NAME.fullmatch(name):
@@ -1135,6 +1190,8 @@ class RoleService:
     def delete_secret(self, name: str) -> None:
         if not self.secrets.delete(name):
             raise _error(404, "secret_not_found", t("error.secret_not_found", name=name))
+        if self.grants is not None:
+            self.grants.forget("secret", name)
 
     def secret_values(self, names: Sequence[str]) -> dict[str, str]:
         """執行用：指定名稱中有保存的值。"""

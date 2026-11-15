@@ -37,6 +37,7 @@ def test_migrations_match_models(tmp_path: Path) -> None:
             "audit_events",
             "batch_rows",
             "batches",
+            "credential_grants",
             "device_invites",
             "domain_members",
             "domains",

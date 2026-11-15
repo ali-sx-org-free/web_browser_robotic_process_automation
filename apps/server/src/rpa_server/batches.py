@@ -32,6 +32,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.dsl import Scenario
+from rpa_server.access import CURRENT, Principal, current_principal, resolve_actor
 from rpa_server.auth import visible_domains
 from rpa_server.batch_table import (
     MAX_CELL,
@@ -270,6 +271,8 @@ class BatchService:
                 number = scene.published_number
                 name = scene.name
             scenario = self.services.revision_scenario(scene_id, number)
+        principal = resolve_actor(CURRENT, client_id)
+        self._check_use(scene_id, workflow_id, number, principal)  # M8.1
         chosen = _check_mapping(scenario, table.columns, mapping)
         moment = now()
         batch_id = new_batch_id()
@@ -293,6 +296,7 @@ class BatchService:
                     target=target,
                     created_at=moment,
                     client_id=client_id,
+                    user_id=principal.user_id if principal is not None else None,
                     idempotency_key=key,
                 )
             )
@@ -377,6 +381,7 @@ class BatchService:
                 batch = self._batch(session, batch_id)
                 if batch.status != "draft":
                     raise conflict("batch_not_draft", t("error.batch_not_draft", id=batch_id))
+                self._claim(batch)
                 target = self.services.resolve_target(cast("Target | None", batch.target))
                 headless = self.services.resolve_headless(batch.headless, target)
                 scenario = self._scenario(batch)
@@ -451,6 +456,7 @@ class BatchService:
                 batch = self._batch(session, batch_id)
                 if batch.status not in ("finished", "stopped"):
                     raise conflict("batch_not_finished", t("error.batch_not_finished", id=batch_id))
+                self._claim(batch)
                 scenario = self._scenario(batch)
                 mapping = _mapping(batch)
                 found = self._rows(session, batch_id)
@@ -654,6 +660,7 @@ class BatchService:
                     headless=batch.headless,
                     target=cast("Target | None", batch.target),
                     client_id=batch.client_id,
+                    actor=self._actor(batch),
                 )
             if stop_on_failure and failed:
                 if not active:
@@ -695,6 +702,7 @@ class BatchService:
                     client_id=options.client_id,
                     inputs=_node_inputs(values),
                     batch=(batch_id, number),
+                    actor=options.actor,
                 )
                 run_id, settled = record.id, record.finished
             else:
@@ -710,6 +718,7 @@ class BatchService:
                     target=options.target,
                     client_id=options.client_id,
                     batch=(batch_id, number),
+                    actor=options.actor,
                 )
                 run_id, settled = run.id, False
         except ServiceError as error:
@@ -963,6 +972,32 @@ class BatchService:
                     outputs[f"{run.node_id}{BATCH_SEPARATOR}{name}"] = value
         return found
 
+    def _check_use(
+        self, scene_id: str | None, workflow_id: int | None, number: int, actor: Principal | None
+    ) -> None:
+        """M8.1：要能用場景（組合場景是每個節點）的登入角色與 Secrets。"""
+        if workflow_id is not None:
+            self.services.workflows.check_use(workflow_id, number, actor)
+        else:
+            self.services.check_revision_use(scene_id or "", number, actor)
+
+    def _claim(self, batch: Batch) -> None:
+        """開始或重跑：檢查按下去的人，之後排的每一列都用他（M8.1）。"""
+        principal = current_principal()
+        if principal is None:
+            return  # 背景工作：照記下的人
+        self._check_use(batch.scene_id, batch.workflow_id, batch.revision_number, principal)
+        if principal.user_id is not None:
+            batch.user_id = principal.user_id
+        elif principal.key.startswith("client:"):
+            batch.user_id = None
+
+    def _actor(self, batch: Batch) -> Principal | None:
+        """排一列時用誰檢查：最近開始或重跑的帳號，否則建立的 API 用戶端；都沒有時不檢查。"""
+        if batch.user_id is not None:
+            return self.services.actor_of(user_id=batch.user_id, client_id=None)
+        return self.services.actor_of(user_id=None, client_id=batch.client_id)
+
     def _scenario(self, batch: Batch) -> Scenario:
         if batch.workflow_id is not None:
             return self.services.workflows.batch_scenario(batch.workflow_id, batch.revision_number)
@@ -1004,6 +1039,8 @@ class _Options:
     headless: bool | None
     target: Target | None
     client_id: str | None
+    actor: Principal | None
+    """用誰的登入角色與 Secrets 綁定檢查（M8.1）。"""
 
 
 def _node_inputs(values: Mapping[str, object]) -> dict[str, dict[str, object]]:

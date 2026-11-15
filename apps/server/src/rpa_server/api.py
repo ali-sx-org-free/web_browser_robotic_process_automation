@@ -48,6 +48,7 @@ from pydantic.alias_generators import to_camel
 from rpa_core.dsl import validate_text
 from rpa_core.dsl.editing import SECTION_KEYS, json_document, section_text
 from rpa_core.dsl.files import MAX_ATTACHMENT_BYTES, guess_media_type
+from rpa_server.access import current_principal
 from rpa_server.agents import AUDIT_LIMIT, DEFAULT_SCOPES, ClientPolicy
 from rpa_server.auth import require, require_system
 from rpa_server.batch_table import Table, TableError, parse_text, read_table, sheet_names
@@ -56,6 +57,7 @@ from rpa_server.config import COMPOSITES_DOMAIN
 from rpa_server.domain import Engine, Target
 from rpa_server.errors import ServiceError, invalid, not_found
 from rpa_server.gitsync import Auth, GitSource
+from rpa_server.grants import GrantKind
 from rpa_server.i18n import t
 from rpa_server.recordings import RecordingTarget
 from rpa_server.services import Services, render_contract
@@ -309,6 +311,13 @@ class PickBody(_Body):
 
 class SecretValue(_Body):
     value: str = Field(max_length=10_000)
+
+
+class GrantBody(_Body):
+    """指定誰能用（M8.1）：帳號（帳號名稱）或 API 用戶端（代號），擇一。"""
+
+    user: str | None = Field(default=None, max_length=64)
+    client: str | None = Field(default=None, max_length=64)
 
 
 class TargetBody(_Body):
@@ -1149,46 +1158,118 @@ def api_router(services: Services) -> APIRouter:
             "display": services.display_here(),
         }
 
+    # M8.1（ADR 0026）：登入角色看得到、用得到的只有綁定的人；自動登入用到的 Secrets，存檔的人
+    # 也要已綁定。指定誰能用的是所在領域的管理員（全域的是系統管理員，規則在 gate）。
+    grants = services.grants
+
+    def use_role(role_id: str) -> None:
+        roles.get_role(role_id)  # 不在時 404
+        grants.check(current_principal(), role=role_id)
+
+    def use_auto_login(body: RoleBody) -> None:
+        if body.auto_login is not None:
+            grants.check(current_principal(), secrets=roles.auto_login_secrets(body.auto_login))
+
     @router.post("/roles", status_code=201)
     def create_role(body: RoleBody) -> dict[str, object]:
         role_domain(body)
-        return roles.create_role(body.id or "", _values(body)).to_json()
+        use_auto_login(body)
+        record = roles.create_role(body.id or "", _values(body))
+        principal = current_principal()
+        if principal is not None and principal.user_id is not None:
+            grants.grant("role", record.id, principal.key, by=principal.label)  # 建立的人自動綁定
+        return record.to_json()
 
     @router.get("/roles/{role_id}")
     def get_role(role_id: str) -> dict[str, object]:
-        return roles.get_role(role_id).to_json()
+        record = roles.get_role(role_id)
+        if not roles.visible(record.id, record.domain_id):
+            raise not_found("role_not_found", t("error.role_not_found", id=role_id))
+        return record.to_json()
 
     @router.patch("/roles/{role_id}")
     def update_role(role_id: str, body: RoleBody) -> dict[str, object]:
         if "domain_id" in body.model_fields_set:
             role_domain(body)
+        use_role(role_id)
+        use_auto_login(body)
         return roles.update_role(role_id, _values(body)).to_json()
 
     @router.delete("/roles/{role_id}")
     def delete_role(role_id: str) -> dict[str, object]:
+        use_role(role_id)
         roles.delete_role(role_id)
         return {"deleted": role_id}
 
     @router.delete("/roles/{role_id}/state")
     def clear_role_state(role_id: str) -> dict[str, object]:
         """登出：刪除這個角色的登入狀態。"""
+        use_role(role_id)
         return roles.clear_state(role_id).to_json()
+
+    def holders(kind: GrantKind, target: str) -> dict[str, object]:
+        return {"kind": kind, "target": target, **grants.holders(kind, target).to_json()}
+
+    def who(body: GrantBody) -> str:
+        return grants.principal_key(username=body.user, client_id=body.client)
+
+    def by() -> str | None:
+        principal = current_principal()
+        return principal.label if principal is not None else None
+
+    @router.get("/roles/{role_id}/grants")
+    def role_grants(role_id: str) -> dict[str, object]:
+        roles.get_role(role_id)
+        return holders("role", role_id)
+
+    @router.post("/roles/{role_id}/grants", status_code=201)
+    def add_role_grant(role_id: str, body: GrantBody) -> dict[str, object]:
+        roles.get_role(role_id)
+        grants.grant("role", role_id, who(body), by=by())
+        return holders("role", role_id)
+
+    @router.delete("/roles/{role_id}/grants")
+    def remove_role_grant(role_id: str, body: GrantBody) -> dict[str, object]:
+        roles.get_role(role_id)
+        grants.revoke("role", role_id, who(body))
+        return holders("role", role_id)
+
+    @router.get("/secrets/{name}/grants")
+    def secret_grants(name: str) -> dict[str, object]:
+        roles.secret_info(name)
+        return holders("secret", name)
+
+    @router.post("/secrets/{name}/grants", status_code=201)
+    def add_secret_grant(name: str, body: GrantBody) -> dict[str, object]:
+        roles.secret_info(name)
+        grants.grant("secret", name, who(body), by=by())
+        return holders("secret", name)
+
+    @router.delete("/secrets/{name}/grants")
+    def remove_secret_grant(name: str, body: GrantBody) -> dict[str, object]:
+        roles.secret_info(name)
+        grants.revoke("secret", name, who(body))
+        return holders("secret", name)
 
     @router.post("/roles/{role_id}/check", status_code=202)
     def check_role(role_id: str) -> dict[str, object]:
+        use_role(role_id)
         return roles.check(role_id).to_json()
 
     @router.post("/roles/{role_id}/login", status_code=202)
     def start_login(role_id: str) -> dict[str, object]:
         """人工登入：在執行 Portal 的電腦上開瀏覽器視窗到登入網址。"""
+        use_role(role_id)
         return roles.start_login(role_id).to_json()
 
     @router.post("/roles/{role_id}/login/finish", status_code=202)
     def finish_login(role_id: str) -> dict[str, object]:
+        use_role(role_id)
         return roles.finish_login(role_id).to_json()
 
     @router.post("/roles/{role_id}/login/cancel")
     def cancel_login(role_id: str) -> dict[str, object]:
+        use_role(role_id)
         roles.cancel_login(role_id)
         return roles.get_role(role_id).to_json()
 
@@ -1292,10 +1373,11 @@ def api_router(services: Services) -> APIRouter:
 
     @router.get("/debug/{session_id}")
     def get_debug(session_id: str) -> dict[str, object]:
-        return debug.get(session_id).to_json()
+        return debug.use(session_id).to_json()
 
     @router.post("/debug/{session_id}/steps/{index}")
     def debug_step(session_id: str, index: int, body: DebugStep | None = None) -> dict[str, object]:
+        debug.use(session_id)
         body = body or DebugStep()
         session = debug.run_step(
             session_id, index, force=body.force, path=body.path, choices=body.choices
@@ -1304,31 +1386,38 @@ def api_router(services: Services) -> APIRouter:
 
     @router.post("/debug/{session_id}/run-to/{index}")
     def debug_run_to(session_id: str, index: int) -> dict[str, object]:
+        debug.use(session_id)
         return debug.run_to(session_id, index).to_json()
 
     @router.post("/debug/{session_id}/locate")
     def debug_locate(session_id: str, body: DebugLocate) -> dict[str, object]:
+        debug.use(session_id)
         return debug.locate(session_id, body.locator).to_json()
 
     @router.post("/debug/{session_id}/screenshot")
     def debug_screenshot(session_id: str) -> dict[str, object]:
+        debug.use(session_id)
         return debug.screenshot(session_id).to_json()
 
     @router.post("/debug/{session_id}/reset")
     def debug_reset(session_id: str) -> dict[str, object]:
+        debug.use(session_id)
         return debug.reset(session_id).to_json()
 
     @router.post("/debug/{session_id}/reload")
     def debug_reload(session_id: str, body: DebugReload) -> dict[str, object]:
+        debug.use(session_id, body.revision)
         return debug.reload(session_id, body.revision).to_json()
 
     @router.post("/debug/{session_id}/restart", status_code=202)
     def debug_restart(session_id: str, body: DebugReload) -> dict[str, object]:
         """用指定版本重新開始（換版本失敗時）：沿用瀏覽器、模式、網址與入參，從第 1 步開始。"""
+        debug.use(session_id, body.revision)
         return debug.restart(session_id, body.revision).to_json()
 
     @router.delete("/debug/{session_id}")
     def close_debug(session_id: str) -> dict[str, object]:
+        debug.use(session_id)
         debug.close(session_id)
         return {"closed": session_id}
 
@@ -1549,6 +1638,7 @@ def api_router(services: Services) -> APIRouter:
     @router.delete("/agents/{client_id}")
     def delete_agent(client_id: str) -> dict[str, object]:
         agents.delete_client(client_id)
+        services.grants.forget_principal(f"client:{client_id}")  # M8.1：它的綁定一起刪
         return {"deleted": client_id}
 
     @router.get("/agent-audit")

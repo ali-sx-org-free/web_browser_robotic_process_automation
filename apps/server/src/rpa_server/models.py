@@ -245,6 +245,8 @@ class Batch(Base):
     finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     client_id: Mapped[str | None] = mapped_column(String(64), index=True)
     """由哪個 API 用戶端建立（M14）；Portal 建立的是 None。"""
+    user_id: Mapped[int | None] = mapped_column(index=True)
+    """最近一次開始或重跑的帳號（M8.1）：之後排的每一列用他的登入角色與 Secrets 綁定檢查。"""
     idempotency_key: Mapped[str | None] = mapped_column(String(100), unique=True)
 
 
@@ -425,6 +427,8 @@ class WorkflowRun(Base):
     M11 PR 2 之前的執行（與它們的重跑）沒有，不寫驗證紀錄。"""
     client_id: Mapped[str | None] = mapped_column(String(64), index=True)
     """觸發的對外 API 用戶端（M14）；Portal 觸發的是 None。節點的執行也記同一個用戶端。"""
+    user_id: Mapped[int | None] = mapped_column(index=True)
+    """開始的帳號（M8.1）：之後的每個節點用他的登入角色與 Secrets 綁定檢查。"""
     batch_id: Mapped[str | None] = mapped_column(ForeignKey("batches.id"), index=True)
     """屬於哪個批次（M7 收尾，組合場景的批次）；單獨的組合運行是 None。"""
     batch_row: Mapped[int | None] = mapped_column()
@@ -634,6 +638,25 @@ class DomainMember(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     role: Mapped[str] = mapped_column(String(10))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class CredentialGrant(Base):
+    """登入角色與 Secrets 的使用權限（M8.1，ADR 0026）：綁定到帳號或 API 用戶端。
+
+    ``kind`` 是 role 或 secret，``target`` 是登入角色代號或 Secret 名稱，``principal`` 是
+    ``user:帳號 id`` 或 ``client:用戶端代號``。系統管理員不必綁定。
+    """
+
+    __tablename__ = "credential_grants"
+    __table_args__ = (UniqueConstraint("kind", "target", "principal"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(10))
+    target: Mapped[str] = mapped_column(String(200))
+    principal: Mapped[str] = mapped_column(String(80), index=True)
+    granted_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    granted_by: Mapped[str | None] = mapped_column(String(64))
+    """指定的人（帳號）；升級時自動綁定的是 None。"""
 
 
 class AuditEvent(Base):

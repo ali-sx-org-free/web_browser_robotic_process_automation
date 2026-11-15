@@ -4,27 +4,38 @@
 可以做所有事。rpa_server.gate 在每個請求設好 :func:`use_access`；服務層的清單依
 :func:`visible_domains` 只列看得到的領域。背景工作（worker、排程、啟動）沒有設定，不受限制。
 帳號與工作階段在 rpa_server.auth。
+
+M8.1（ADR 0026）：登入角色與 Secrets 另外綁定到帳號與 API 用戶端；用它們的是誰由
+:func:`current_principal` 決定（Agent API 的請求由 :func:`use_client` 設好用戶端）。
 """
 
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Final, Literal
 
 from rpa_server.errors import ServiceError, not_found
 from rpa_server.i18n import t
 
 __all__ = [
+    "CURRENT",
     "FULL_ACCESS",
     "ROLES",
     "Access",
+    "Actor",
     "Capability",
+    "Principal",
     "Role",
+    "bind_client",
     "current_access",
+    "current_principal",
     "require",
     "require_system",
+    "resolve_actor",
     "use_access",
+    "use_client",
     "visible_domains",
 ]
 
@@ -99,6 +110,82 @@ def use_access(access: Access | None) -> Generator[None]:
         yield
     finally:
         _current.reset(token)
+
+
+@dataclass(frozen=True, slots=True)
+class Principal:
+    """用登入角色與 Secrets 的是誰（M8.1）：帳號或 API 用戶端。
+
+    ``key`` 是綁定時記的 ``user:帳號 id`` 或 ``client:用戶端代號``；``label`` 用在錯誤訊息。
+    系統管理員不受綁定限制（``unrestricted``）；停用的帳號什麼都不能用（``blocked``）。
+    """
+
+    key: str
+    label: str
+    unrestricted: bool = False
+    blocked: bool = False
+
+    @property
+    def user_id(self) -> int | None:
+        """帳號的 id；API 用戶端與內部呼叫是 None。"""
+        kind, _, value = self.key.partition(":")
+        return int(value) if kind == "user" and value.isdigit() else None
+
+    @staticmethod
+    def user(user_id: int, username: str, *, system_admin: bool = False) -> "Principal":
+        return Principal(f"user:{user_id}", username, unrestricted=system_admin)
+
+    @staticmethod
+    def client(client_id: str) -> "Principal":
+        return Principal(f"client:{client_id}", client_id)
+
+
+class _Context(Enum):
+    CURRENT = "current"
+
+
+CURRENT: Final = _Context.CURRENT
+"""「用目前請求的人」：服務的 ``actor`` 參數預設值（背景工作改傳記下的人，或 None 不檢查）。"""
+Actor = Principal | None | Literal[_Context.CURRENT]
+
+_client: ContextVar[str | None] = ContextVar("rpa_client", default=None)
+
+
+@contextmanager
+def use_client(client_id: str | None) -> Generator[None]:
+    """Agent API 的請求：之後的服務呼叫以這個 API 用戶端的綁定檢查。"""
+    token = _client.set(client_id)
+    try:
+        yield
+    finally:
+        _client.reset(token)
+
+
+def bind_client(client_id: str) -> None:
+    """Agent API：在這個請求的 task 裡記下用戶端（不必還原：ContextVar 隨 task 結束）。"""
+    _client.set(client_id)
+
+
+def current_principal() -> Principal | None:
+    """目前請求用登入角色與 Secrets 的是誰；背景工作是 None（由呼叫的人另外指定）。"""
+    client = _client.get()
+    if client is not None:
+        return Principal.client(client)
+    access = current_access()
+    if access is None:
+        return None
+    if access.user_id is None:  # 內部呼叫與測試的 FULL_ACCESS
+        return Principal("internal", access.username, unrestricted=True)
+    return Principal.user(access.user_id, access.username, system_admin=access.system_admin)
+
+
+def resolve_actor(actor: Actor, client_id: str | None = None) -> Principal | None:
+    """服務的 ``actor`` 參數：CURRENT 時是觸發的 API 用戶端或目前請求的人。"""
+    if actor is not CURRENT:
+        return actor
+    if client_id is not None:
+        return Principal.client(client_id)
+    return current_principal()
 
 
 def visible_domains(capability: Capability = "view") -> frozenset[str] | None:

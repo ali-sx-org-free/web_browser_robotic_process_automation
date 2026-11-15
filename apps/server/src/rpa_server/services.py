@@ -52,6 +52,7 @@ from rpa_runner.contract import prepare_inputs
 from rpa_runner.files import RESULT, SCREENSHOT
 from rpa_runner.pyruntime import platform_tag
 from rpa_runner.run import new_run_id
+from rpa_server.access import CURRENT, Actor, Principal, current_principal, resolve_actor
 from rpa_server.addresses import PortalAddress
 from rpa_server.agents import AgentService
 from rpa_server.audit import AuditLog
@@ -87,6 +88,7 @@ from rpa_server.domain import (
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.gate import SESSION_COOKIE
 from rpa_server.gitsync import GitSource, GitSync
+from rpa_server.grants import Grants
 from rpa_server.i18n import follow_locale, t
 from rpa_server.jobs import RunQueue
 from rpa_server.models import Batch, Domain, Revision, Role, Run, Scene
@@ -264,6 +266,8 @@ class SceneNeeds:
     role_status: str | None
     secrets: tuple[tuple[str, bool], ...]
     """(名稱, 是否已設定)；環境變數有同名的值也算已設定。"""
+    forbidden: tuple[str, ...] = ()
+    """目前的人還沒被指定使用的登入角色與 Secrets（M8.1）；執行、驗證時會被拒絕。"""
 
     @property
     def missing_secrets(self) -> list[str]:
@@ -275,6 +279,7 @@ class SceneNeeds:
             "roleRegistered": self.role_registered,
             "roleStatus": self.role_status,
             "secrets": [{"name": name, "set": ready} for name, ready in self.secrets],
+            "forbidden": list(self.forbidden),
         }
 
 
@@ -387,6 +392,8 @@ class Services:
         """帳號、登入工作階段與領域成員（M8，ADR 0025）。"""
         self.audit = AuditLog(sessions)
         """稽核紀錄（M8）：登入、登出與每一個改變東西的請求。"""
+        self.grants = Grants(sessions)
+        """登入角色與 Secrets 綁定到帳號與 API 用戶端（M8.1，ADR 0026）。"""
         self._cookie: str | None = None
         self.examples_dir = examples_dir
         self.extra_examples = tuple(extra_examples)
@@ -417,6 +424,7 @@ class Services:
             hosts=self.recorders,
             packs=self.packs,
             default_domain=self.unassigned_domain,
+            grants=self.grants,
         )
         self.git = GitSync(
             sessions,
@@ -486,7 +494,17 @@ class Services:
         )
         reports = self.packs.load_all()
         self._scene_cache.clear()
+        self._seed_grants()
         return reports
+
+    def _seed_grants(self) -> None:
+        """M8.1 升級：既有的 API 用戶端綁到可用領域裡的登入角色與所有 Secrets（只做一次）。"""
+        with self.sessions() as session:
+            roles = [(role.id, role.domain_id) for role in session.scalars(select(Role))]
+        names = [info.name for info in self.roles.secrets.names()]
+        count = self.grants.seed_clients(roles, names)
+        if count:
+            self.audit.record("grants_seeded", detail=str(count))
 
     def reload_domain(self, domain_id: str) -> LoadReport:
         """重新載入一個領域資料夾（在資料夾外面改了檔案之後，D10）。"""
@@ -1161,6 +1179,24 @@ class Services:
             return t("revision.call_unpublished", **params)
         return None
 
+    # ------------------------------------------------------------ M8.1：登入角色與 Secrets
+
+    def check_use(self, scenario: Scenario | None, actor: Actor = CURRENT) -> None:
+        """要能用場景的登入角色與 Secrets（ADR 0026）。子場景必須用同一個角色、Secrets 也要
+        宣告在呼叫的場景（M7.2），所以看這個場景就夠。actor 是 None（沒有人的背景工作）時
+        不檢查。"""
+        if scenario is None:
+            return
+        role = scenario.login.role if scenario.login is not None else None
+        self.grants.check(resolve_actor(actor), role=role, secrets=scenario.secrets)
+
+    def check_revision_use(self, scene_id: str, number: int, actor: Actor = CURRENT) -> None:
+        self.check_use(self._load_scenario(scene_id, number), actor)
+
+    def actor_of(self, *, user_id: int | None, client_id: str | None) -> Principal | None:
+        """背景工作記下的人（批次、組合運行）。"""
+        return self.grants.principal_for(user_id=user_id, client_id=client_id)
+
     def _load_scenario(self, scene_id: str, number: int) -> Scenario:
         scenario = validate_file(self.storage.scenario_path(scene_id, number)).scenario
         if scenario is None:
@@ -1213,6 +1249,7 @@ class Services:
                 issues=[issue_json(issue) for issue in checked.issues],
             )
         scenario = checked.scenario
+        self.check_use(scenario)  # M8.1：存檔的人要能用場景的登入角色與 Secrets
         if domain_id is None:
             domain_id = self.unassigned_domain()  # 每個場景都在某個領域資料夾裡（M11）
         with self.packs.lock, self.sessions() as session:
@@ -1379,6 +1416,7 @@ class Services:
                     issues=[issue_json(issue) for issue in checked.issues],
                 )
             scenario = checked.scenario
+            self.check_use(scenario)
             number = scene.latest_number + 1
             moment = now()
             revision = Revision(
@@ -1559,6 +1597,7 @@ class Services:
         required_worker: str | None = None,
         client_id: str | None = None,
         batch: tuple[str, int] | None = None,
+        actor: Actor = CURRENT,
     ) -> RunRecord:
         """排入一次執行。驗證可以用任何版本（預設最新）；正式執行只用已發布版本；
         試驗場序列的節點（workflow）用序列固定的版本，只能是發布過的版本（M6）。
@@ -1568,6 +1607,8 @@ class Services:
         target 是執行位置（M9a），沒指定時用預設執行位置；
         required_worker 指定只能由哪台 worker 執行；client_id 是觸發的 API 用戶端（M14）。
         headless 沒指定時：執行的地方能顯示瀏覽器視窗就用有頭模式，不能就用無頭模式。
+        actor 是用登入角色與 Secrets 的人（M8.1）：預設是觸發的 API 用戶端或目前請求的人；
+        批次的列與組合運行的節點傳開始的人，沒有人時是 None（不檢查）。
         """
         inputs = dict(inputs or {})
         target = self.resolve_target(target)
@@ -1595,6 +1636,7 @@ class Services:
                     t("error.revision_unpublished", id=scene_id, number=revision.number),
                 )
             scenario = self._load_scenario(scene_id, revision.number)
+            self.check_use(scenario, resolve_actor(actor, client_id))
             _, problems = prepare_inputs(scenario, inputs)
             if problems:
                 raise _invalid(
@@ -1785,6 +1827,7 @@ class Services:
                     "content_changed", t("error.content_changed", id=scene_id, number=number)
                 )
             self._check_usable(revision)
+            self.check_use(self._load_scenario(scene_id, number))  # M8.1
             entry, _ = self.packs.scene_entry(scene_id)
             target = entry.revisions.get(number) if entry is not None else None
             proofs = target.proofs() if target is not None else []
@@ -2161,17 +2204,28 @@ class Services:
         return defaults
 
     def scene_needs(self, scenario: Scenario) -> SceneNeeds:
-        """場景版本執行前要準備好的角色與 Secrets。"""
-        stored = {info.name for info in self.roles.list_secrets() if info.readable}
+        """場景版本執行前要準備好的角色與 Secrets；``forbidden`` 是目前的人還沒被指定使用的。"""
+        stored = {info.name for info in self.roles.secrets.names() if info.readable}
         secrets = tuple((name, name in stored or name in os.environ) for name in scenario.secrets)
         role = scenario.login.role if scenario.login is not None else None
+        principal = current_principal()
+        forbidden: list[str] = []
+        if role is not None and not self.grants.can_use(principal, "role", role):
+            forbidden.append(t("needs.forbidden_role", role=role))
+        allowed = self.grants.allowed(principal, "secret") if principal is not None else None
+        if allowed is not None:
+            forbidden += [
+                t("needs.forbidden_secret", name=name)
+                for name in scenario.secrets
+                if name not in allowed
+            ]
         if role is None:
-            return SceneNeeds(None, False, None, secrets)
+            return SceneNeeds(None, False, None, secrets, tuple(forbidden))
         try:
             record = self.roles.get_role(role)
         except ServiceError:
-            return SceneNeeds(role, False, None, secrets)
-        return SceneNeeds(role, True, record.status, secrets)
+            return SceneNeeds(role, False, None, secrets, tuple(forbidden))
+        return SceneNeeds(role, True, record.status, secrets, tuple(forbidden))
 
     def save_contract(
         self,

@@ -1022,15 +1022,28 @@ def page_router(services: Services) -> APIRouter:
     @router.get("/roles", include_in_schema=False)
     def roles() -> HTMLResponse:
         records = services.roles.list_roles()
-        secrets = services.roles.list_secrets()
+        secrets = services.roles.list_secrets()  # M8.1：只列綁定的（系統管理員全部）
         usage = services.secret_usage()
-        stored = {info.name for info in secrets}  # 解不開的列在上面、標成「解不開」，不算缺
+        # 解不開的列在上面、標成「解不開」，不算缺；沒綁定的也不算缺（只是這個人看不到）
+        stored = {info.name for info in services.roles.secrets.names()}
         missing = [(name, users) for name, users in sorted(usage.items()) if name not in stored]
+        access = current_access()
+        system = access is None or access.system_admin
         return page(
             "roles.html",
             page="roles",
             title=t("nav.roles"),
             roles=records,
+            # M8.1：「誰能用」由所在領域的管理員指定，全域的登入角色與 Secrets 由系統管理員
+            granting={
+                role.id
+                for role in records
+                if system or (role.domain_id is not None and _can("manage", role.domain_id))
+            },
+            grant_counts=services.grants.counts("role"),
+            secret_grant_counts=services.grants.counts("secret"),
+            system_admin=system,
+            role_domains=[d for d in services.list_domains() if _can("edit", d.id)],
             secrets=secrets,
             usage=usage,
             missing=missing,

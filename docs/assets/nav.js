@@ -222,6 +222,11 @@ window.DOCS_NAV = {
           "id": "adr-0025",
           "href": "adr/0025-multi-user.html",
           "name": {"zh-Hant": "0025 多用戶", "zh-Hans": "0025 多用户", "en": "0025 Multi-user"}
+        },
+        {
+          "id": "adr-0026",
+          "href": "adr/0026-credential-grants.html",
+          "name": {"zh-Hant": "0026 登入角色的使用權限", "zh-Hans": "0026 登录角色的使用权限", "en": "0026 Credential grants"}
         }
       ]
     },

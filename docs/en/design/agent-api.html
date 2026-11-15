@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:803f966caef07f61">
+<meta name="translation-source" content="sha256:12bfed27b5cdb475">
 <title>Agent API · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -182,7 +182,7 @@
             <tr><td><code>GET /openapi.json</code></td><td>OpenAPI for this API</td><td>Any</td><td>New</td></tr>
             <tr><td><code>GET /dsl/schema</code></td><td>JSON Schema of the scenario DSL (as <code>rpa schema</code>)</td><td>Any</td><td>New</td></tr>
             <tr><td><code>POST /dsl/check</code></td><td>Checks YAML without saving and returns the line, step and field of each problem</td><td>Any</td><td>New</td></tr>
-            <tr><td><code>GET /domains</code>, <code>/roles</code>, <code>/secrets</code></td><td>Domains; roles and login state; secret names only</td><td>scenes:read</td><td>Existing</td></tr>
+            <tr><td><code>GET /domains</code>, <code>/roles</code>, <code>/secrets</code></td><td>Domains; roles and login state; secret names only. From M8.1 only the login roles and secrets granted to this client are listed (<a href="../adr/0026-credential-grants.html">ADR 0026</a>)</td><td>scenes:read</td><td>Existing</td></tr>
             <tr><td><code>GET /recorders</code></td><td>Allowed recorders: online or not, display, browsers, app version and supported features</td><td>debug</td><td>New</td></tr>
             <tr><td><code>GET /workers</code></td><td>Allowed Workers: online or not, platform, busy or not</td><td>runs:validate or runs:execute</td><td>Existing (filtered)</td></tr>
             <tr><td><code>GET /scenes</code>, <code>GET /scenes/{id}</code></td><td>Scenarios, revision lists, publishing state, the roles and secrets they need</td><td>scenes:read</td><td>Existing</td></tr>
