@@ -544,12 +544,13 @@ def page_router(services: Services) -> APIRouter:
     def account() -> HTMLResponse:
         access = current_access()
         names = {domain.id: domain.name for domain in services.list_domains()}
+        roles: Mapping[str, str] = access.roles if access is not None else {}
         return page(
             "account.html",
             page="account",
             title=t("account.title"),
             me=access,
-            memberships=sorted((access.roles if access else {}).items()),
+            memberships=sorted(roles.items()),
             domain_names=names,
         )
 
