@@ -1,10 +1,21 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
-{#- 批次執行的清單（M7.3）：最近的批次，最新的在前。新的批次從場景頁的「批次執行」建立。 -#}
+{#- 批次執行的清單（M7.3）：最近的批次，最新的在前。新的批次從場景頁（或組合場景頁，M7 收尾）的
+    「批次執行」建立。上面是所有批次共用的上限（M7 收尾）。 -#}
 {% block crumb %}{{ t("nav.batches") }}{% if scene %} › {{ scene }}{% endif %}{% endblock %}
 {% block description %}{{ t("batches.description") }}{% endblock %}
 {% block content %}
 <div class="stack">
+  <form class="panel" id="batch-shared">
+    <div class="panel-body field-row">
+      <label class="field">{{ t("batches.shared_limit") }}
+        <input type="number" name="sharedLimit" min="1" max="100" value="{{ shared.limit }}">
+      </label>
+      <span class="cell-sub">{{ t("batches.shared_hint", active=shared.active) }}</span>
+      <button class="button" type="submit">{{ t("batch.save") }}</button>
+      <span class="form-error" role="alert"></span>
+    </div>
+  </form>
   {% if batches %}
   <div class="table-scroll">
     <table>
@@ -22,7 +33,7 @@
       {% for item in batches %}
         <tr data-batch="{{ item.id }}">
           <td><span class="tag mono">{{ item.id }}</span><span class="cell-sub">{{ m.time(item.created_at) }}{% if item.source %} · {{ item.source }}{% endif %}</span></td>
-          <td><a href="/scenes/{{ item.scene_id }}">{{ item.scene_id }}</a> {{ item.scene_name }}</td>
+          <td>{% if item.composite %}<a href="/playground/{{ item.workflow_id }}">{{ t("batch.composite") }}</a>{% else %}<a href="/scenes/{{ item.scene_id }}">{{ item.scene_id }}</a>{% endif %} {{ item.scene_name }}</td>
           <td>v{{ item.revision }}</td>
           <td>{{ m.badge(item.status, t("batch_status." + item.status)) }}</td>
           <td class="numeric">{{ item.counts.get("total", 0) }}</td>

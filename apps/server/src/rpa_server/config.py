@@ -6,6 +6,7 @@
 | ``RPA_DATABASE_URL`` | ``sqlite:///<資料目錄>/rpa.db`` | 正式環境改成 PostgreSQL（M8，ADR 0008） |
 | ``RPA_LANG`` | ``zh-Hant`` | 頁面的預設語言，也是執行報告的語言 |
 | ``RPA_EXAMPLES_DIR`` | ``scenarios/demo``（存在時） | 「測試網站自動化」領域的範例場景 |
+| ``RPA_EXTRA_EXAMPLES`` | ``scenarios/examples/flow`` | 一起匯入的資料夾（os.pathsep 分隔） |
 | ``RPA_UPLOAD_MAX_FILE_MB`` | ``50`` | 上傳檔（檔案入參）單一檔案的上限（M7c，D4） |
 | ``RPA_UPLOAD_MAX_RUN_MB`` | ``200`` | 一次執行的檔案合計上限 |
 | ``RPA_UPLOAD_KEEP_DAYS`` | ``90`` | 上傳檔在最後一次使用後保留幾天（D7） |
@@ -16,6 +17,8 @@ Worker API 的埠與要不要跑本機 worker（M9a）由 ``rpa serve --worker-p
 ``--no-local-worker`` 決定。
 
 第一次啟動（還沒有任何領域）時，建立「測試網站自動化」領域並匯入範例場景（seed_examples）。
+``RPA_EXTRA_EXAMPLES`` 沒設時，用預設的範例資料夾才一起匯入流程控制的範例（M7.1）；
+設了 ``RPA_EXAMPLES_DIR`` 就只用它。
 
 執行時預設用有頭模式（headed，顯示瀏覽器視窗）；這台電腦沒有圖形介面時（例如沒有 DISPLAY 的
 Linux 伺服器）只能用無頭模式（headless），見 :func:`has_display`。
@@ -34,6 +37,7 @@ __all__ = [
     "COMPOSITES_DOMAIN",
     "COMPOSITES_PROJECT",
     "DEFAULT_EXAMPLES",
+    "DEFAULT_FLOW_EXAMPLES",
     "EXAMPLES_DOMAIN",
     "RECORDER_MENUS",
     "Settings",
@@ -42,6 +46,8 @@ __all__ = [
 ]
 
 DEFAULT_EXAMPLES = Path("scenarios") / "demo"
+DEFAULT_FLOW_EXAMPLES = Path("scenarios") / "examples" / "flow"
+"""流程控制的範例（M7.1）：和 BA 範例一起匯入「測試網站自動化」，同樣對本機測試網站執行。"""
 EXAMPLES_DOMAIN = "testsite"
 """範例場景所屬的領域代號：「測試網站自動化」，案例都對本機測試網站執行。"""
 COMPOSITES_DOMAIN = "composites"
@@ -74,6 +80,8 @@ class Settings:
     database_url: str
     locale: Locale = DEFAULT_LOCALE
     examples_dir: Path | None = None
+    extra_examples: tuple[Path, ...] = ()
+    """和 examples_dir 一起匯入的範例資料夾（M7.1 的流程範例）；examples_dir 沒有時不匯入。"""
     start_worker: bool = True
     """測試可以關掉背景 worker，改成手動 ``worker.run_once()``。"""
     seed_examples: bool = True
@@ -116,11 +124,21 @@ class Settings:
             examples_dir: Path | None = Path(examples)
         else:
             examples_dir = DEFAULT_EXAMPLES if DEFAULT_EXAMPLES.is_dir() else None
+        extra_env = env.get("RPA_EXTRA_EXAMPLES")
+        extra: tuple[Path, ...] = ()
+        if extra_env is not None:  # 空字串代表不要
+            extra = tuple(
+                Path(item).expanduser() for item in extra_env.split(os.pathsep) if item.strip()
+            )
+        elif not examples and DEFAULT_FLOW_EXAMPLES.is_dir():
+            # 指定了範例資料夾就只用它；用預設的時候，流程範例一起匯入
+            extra = (DEFAULT_FLOW_EXAMPLES,)
         return cls(
             data_dir=data,
             database_url=env.get("RPA_DATABASE_URL") or sqlite_url(data / "rpa.db"),
             locale=parse_locale(env.get("RPA_LANG", "")) or DEFAULT_LOCALE,
             examples_dir=examples_dir,
+            extra_examples=extra,
             display=has_display(env),
             upload_max_file=_number(env, "RPA_UPLOAD_MAX_FILE_MB", 50) * 1024**2,
             upload_max_run=_number(env, "RPA_UPLOAD_MAX_RUN_MB", 200) * 1024**2,

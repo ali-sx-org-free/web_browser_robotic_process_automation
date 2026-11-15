@@ -9,6 +9,14 @@
 排程每次都從資料庫重新算（哪幾列在跑、哪幾列還沒跑、這一輪有沒有失敗），同一個通知來兩次、
 伺服器重啟後（:meth:`BatchService.recover`）都能接著走。表格的讀入與換算在
 :mod:`rpa_server.batch_table`。
+
+M7 收尾（2026-11-14）：
+
+- **組合場景的批次**：每一列是一次組合運行（目的 execution，版本在建立時固定）；表格可以給的是
+  每個節點沒有接上游出參的入參，寫成「節點代號.入參」（:func:`rpa_server.workflows.batch_inputs`）。
+  ``batch_rows.run_id`` 是組合運行的編號；組合運行結束（最後一個節點結束、取消）時排下一列。
+- **批次之間共用的上限**（:data:`SHARED_LIMIT_SETTING`）：所有批次合計同時排入幾列；一列結束時
+  先排同一個批次，再依開始的先後補其他等著的批次。
 """
 
 import threading
@@ -38,23 +46,33 @@ from rpa_server.batch_table import (
 from rpa_server.domain import FINISHED, Engine, RunRecord, Target, now
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import t
-from rpa_server.models import Batch, BatchRow, Run, Scene
+from rpa_server.models import Batch, BatchRow, Run, Scene, Setting
+from rpa_server.models import WorkflowRun as WorkflowRunRow
+from rpa_server.workflows import BATCH_SEPARATOR
 
 if TYPE_CHECKING:
     from rpa_server.services import Services
 
 __all__ = [
+    "DEFAULT_SHARED_LIMIT",
     "MAX_CONCURRENCY",
+    "MAX_SHARED_LIMIT",
+    "SHARED_LIMIT_SETTING",
     "BatchRecord",
     "BatchRowRecord",
     "BatchService",
     "BatchStatus",
+    "CompositeRun",
     "OnFailure",
 ]
 
 BatchStatus = Literal["draft", "running", "finished", "stopped"]
 OnFailure = Literal["continue", "stop"]
 MAX_CONCURRENCY: Final = 10
+SHARED_LIMIT_SETTING: Final = "batches"
+"""設定表的鍵：``{"sharedLimit": 所有批次合計同時排入幾列}``（M7 收尾）。"""
+DEFAULT_SHARED_LIMIT: Final = 10
+MAX_SHARED_LIMIT: Final = 100
 _ACTIVE: Final = frozenset({"queued", "running"})
 _NOT_PASSED: Final = FINISHED - {"passed"}
 """結束了卻沒有通過：失敗、逾時、取消、需要登入。"""
@@ -75,33 +93,58 @@ class BatchRowRecord:
     error: str | None
     history: list[dict[str, object]] = field(default_factory=list[dict[str, object]])
     """這一列的每一次執行（最新的在前）：id、status、createdAt。"""
+    composite: "CompositeRun | None" = None
+    """組合場景的批次：最近一次組合運行（這時 run 是 None）。"""
 
     @property
     def rerunnable(self) -> bool:
         """批次結束後「重跑沒有通過的列」會包含這一列。"""
         return self.status not in ("passed", "pending", "queued", "running")
 
+    @property
+    def run_id(self) -> str | None:
+        latest = self.run or self.composite
+        return latest.id if latest is not None else None
+
+    @property
+    def output(self) -> Mapping[str, object] | None:
+        latest = self.run or self.composite
+        return latest.output if latest is not None else None
+
     def to_json(self) -> dict[str, object]:
-        run = self.run
+        latest = self.run or self.composite
         return {
             "number": self.number,
             "cells": self.cells,
             "inputs": self.inputs,
             "problems": [problem.to_json() for problem in self.problems],
             "status": self.status,
-            "runId": run.id if run is not None else None,
-            "output": run.output if run is not None else None,
+            "runId": self.run_id,
+            "output": self.output,
             "error": self.error,
             "attempts": self.attempts,
-            "durationSeconds": run.duration_seconds if run is not None else None,
+            "durationSeconds": latest.duration_seconds if latest is not None else None,
             "runs": self.history,
         }
 
 
 @dataclass(frozen=True, slots=True)
+class CompositeRun:
+    """組合場景的批次的一列：最近一次組合運行（M7 收尾）。``output`` 是通過的節點的出參，
+    寫成「節點代號.出參」。"""
+
+    id: str
+    status: str
+    output: dict[str, object] | None
+    duration_seconds: float | None
+    error: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class BatchRecord:
     id: str
-    scene_id: str
+    scene_id: str | None
+    """場景的批次；組合場景的批次是 None（看 workflow_id）。"""
     scene_name: str
     revision: int
     status: BatchStatus
@@ -122,15 +165,22 @@ class BatchRecord:
     counts: dict[str, int]
     """每種狀態幾列（列表只有 total、passed、failed、active、notRun）。"""
     rows: list[BatchRowRecord] = field(default_factory=list[BatchRowRecord])
+    workflow_id: int | None = None
+    """組合場景的批次（M7 收尾）：哪個組合場景。"""
 
     @property
     def total(self) -> int:
         return self.counts.get("total", 0)
 
+    @property
+    def composite(self) -> bool:
+        return self.workflow_id is not None
+
     def to_json(self, *, rows: bool = True) -> dict[str, object]:
         data: dict[str, object] = {
             "id": self.id,
             "sceneId": self.scene_id,
+            "workflowId": self.workflow_id,
             "sceneName": self.scene_name,
             "revision": self.revision,
             "status": self.status,
@@ -175,9 +225,10 @@ class BatchService:
 
     def create(
         self,
-        scene_id: str,
+        scene_id: str | None,
         table: Table,
         *,
+        workflow_id: int | None = None,
         source: str | None = None,
         mapping: Mapping[str, str | None] | None = None,
         on_failure: str = "continue",
@@ -189,25 +240,34 @@ class BatchService:
         client_id: str | None = None,
         idempotency_key: str | None = None,
     ) -> BatchRecord:
-        """建立批次（draft）：固定場景目前發布的版本，欄位沒指定時依標題對應。"""
+        """建立批次（draft）：固定場景（或 ``workflow_id`` 的組合場景）目前發布的版本，欄位沒指定時
+        依標題對應。"""
         key = (idempotency_key or "").strip() or None
         with self.sessions() as session:
             if key is not None:
                 found = session.scalars(select(Batch).where(Batch.idempotency_key == key)).first()
                 if found is not None:
                     return self.get(found.id)
-            scene = session.get(Scene, scene_id)
-            if scene is None:
-                raise not_found("scene_not_found", t("error.scene_not_found", id=scene_id))
-            if scene.missing:
-                raise conflict("scene_missing", t("error.scene_missing", id=scene_id))
-            if scene.archived:
-                raise conflict("scene_archived", t("error.scene_archived", id=scene_id))
-            if scene.published_number is None:
-                raise conflict("not_published", t("error.not_published", id=scene_id))
-            number = scene.published_number
-            name = scene.name
-        scenario = self.services.revision_scenario(scene_id, number)
+        if workflow_id is not None:
+            scene_id = None
+            name, number = self.services.workflows.batch_target(workflow_id)
+            scenario = self.services.workflows.batch_scenario(workflow_id, number)
+            _check_composite_base_url(base_url)
+        else:
+            scene_id = scene_id or ""
+            with self.sessions() as session:
+                scene = session.get(Scene, scene_id)
+                if scene is None:
+                    raise not_found("scene_not_found", t("error.scene_not_found", id=scene_id))
+                if scene.missing:
+                    raise conflict("scene_missing", t("error.scene_missing", id=scene_id))
+                if scene.archived:
+                    raise conflict("scene_archived", t("error.scene_archived", id=scene_id))
+                if scene.published_number is None:
+                    raise conflict("not_published", t("error.not_published", id=scene_id))
+                number = scene.published_number
+                name = scene.name
+            scenario = self.services.revision_scenario(scene_id, number)
         chosen = _check_mapping(scenario, table.columns, mapping)
         moment = now()
         batch_id = new_batch_id()
@@ -216,6 +276,7 @@ class BatchService:
                 Batch(
                     id=batch_id,
                     scene_id=scene_id,
+                    workflow_id=workflow_id,
                     revision_number=number,
                     scene_name=name,
                     status="draft",
@@ -284,6 +345,8 @@ class BatchService:
             if "engine" in fields:
                 batch.engine = engine
             if "base_url" in fields:
+                if batch.workflow_id is not None:
+                    _check_composite_base_url(base_url)
                 batch.base_url = _check_base_url(base_url)
             if "headless" in fields:
                 batch.headless = headless
@@ -350,12 +413,25 @@ class BatchService:
                         select(Run.id).where(Run.batch_id == batch_id, Run.status.in_(_ACTIVE))
                     )
                 )
+                composites = list(
+                    session.scalars(
+                        select(WorkflowRunRow.id).where(
+                            WorkflowRunRow.batch_id == batch_id, WorkflowRunRow.status == "running"
+                        )
+                    )
+                )
                 session.commit()
             for run_id in active:
                 try:
                     self.services.cancel_run(run_id)
                 except ServiceError:
                     continue
+            for run_id in composites:
+                try:
+                    self.services.workflows.cancel(run_id)
+                except ServiceError:
+                    continue
+            self._advance_waiting()
         return self.get(batch_id)
 
     def rerun(
@@ -427,14 +503,36 @@ class BatchService:
         return self.get(batch_id)
 
     def row_finished(self, run_id: str) -> None:
-        """一列的執行結束了：排下一列、停下或完成。結果每次都從資料庫重新算。"""
+        """一次執行結束了：是批次的一列（或組合場景的批次那一列的最後一個節點）時，排下一列、
+        停下或完成，再補其他等著共用上限的批次。結果每次都從資料庫重新算。"""
         with self._lock:
             with self.sessions() as session:
                 run = session.get(Run, run_id)
-                if run is None or run.batch_id is None or run.status not in FINISHED:
+                if run is None or run.status not in FINISHED:
                     return
                 batch_id = run.batch_id
+                if batch_id is None and run.workflow_run_id is not None:
+                    composite = session.get(WorkflowRunRow, run.workflow_run_id)
+                    if composite is None or composite.status == "running":
+                        return
+                    batch_id = composite.batch_id
+                if batch_id is None:
+                    return
             self._advance(batch_id)
+            self._advance_waiting()
+
+    def workflow_finished(self, workflow_run_id: str) -> None:
+        """組合運行結束了（例如被取消）：是批次的一列時同 :meth:`row_finished`。"""
+        with self._lock:
+            with self.sessions() as session:
+                composite = session.get(WorkflowRunRow, workflow_run_id)
+                if composite is None or composite.status == "running":
+                    return
+                batch_id = composite.batch_id
+            if batch_id is None:
+                return
+            self._advance(batch_id)
+            self._advance_waiting()
 
     def recover(self) -> int:
         """伺服器啟動時：還在執行中的批次依各列的結果接著走。"""
@@ -445,12 +543,77 @@ class BatchService:
                 self._advance(batch_id)
         return len(running)
 
+    # ------------------------------------------------------------ 共用的上限（M7 收尾）
+
+    def shared_limit(self) -> int:
+        """所有批次合計同時排入幾列。"""
+        with self.sessions() as session:
+            row = session.get(Setting, SHARED_LIMIT_SETTING)
+            value = row.value.get("sharedLimit") if row else None
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 1:
+            return min(value, MAX_SHARED_LIMIT)
+        return DEFAULT_SHARED_LIMIT
+
+    def set_shared_limit(self, value: int) -> int:
+        """改共用的上限；調高時馬上補等著的批次，調低時已經排入的照跑。"""
+        if not 1 <= value <= MAX_SHARED_LIMIT:
+            raise invalid(
+                "batch_shared_limit",
+                t("error.batch_shared_limit", value=value, max=MAX_SHARED_LIMIT),
+            )
+        with self._lock:
+            with self.sessions() as session:
+                row = session.get(Setting, SHARED_LIMIT_SETTING)
+                if row is None:
+                    session.add(Setting(key=SHARED_LIMIT_SETTING, value={"sharedLimit": value}))
+                else:
+                    row.value = {**row.value, "sharedLimit": value}
+                session.commit()
+            self._advance_waiting()
+        return value
+
+    def shared_usage(self) -> dict[str, int]:
+        """共用的上限與目前排入（排隊中、執行中）的列數。"""
+        with self.sessions() as session:
+            active = self._active_rows(session)
+        return {"limit": self.shared_limit(), "active": active}
+
+    @staticmethod
+    def _active_rows(session: Session) -> int:
+        """所有批次目前排入的列：排隊中、執行中的執行與執行中的組合運行。"""
+        runs = session.scalar(
+            select(func.count())
+            .select_from(Run)
+            .where(Run.batch_id.is_not(None), Run.status.in_(_ACTIVE))
+        )
+        composites = session.scalar(
+            select(func.count())
+            .select_from(WorkflowRunRow)
+            .where(WorkflowRunRow.batch_id.is_not(None), WorkflowRunRow.status == "running")
+        )
+        return int(runs or 0) + int(composites or 0)
+
+    def _advance_waiting(self) -> None:
+        """依開始的先後補執行中的批次（共用的上限空出來時）。"""
+        with self.sessions() as session:
+            running = list(
+                session.scalars(
+                    select(Batch.id)
+                    .where(Batch.status == "running")
+                    .order_by(Batch.started_at, Batch.id)
+                )
+            )
+        for batch_id in running:
+            self._advance(batch_id)
+
     def _advance(self, batch_id: str) -> None:
         """依目前的結果往下走（呼叫端持有鎖）。
 
         只看這一輪（開始或重跑時選的列，round_number 與批次相同）：有沒有通過的列、而且要停下時，
-        等在跑的跑完才停；否則補滿「同時幾列」。排不進去的列記下原因、算沒有通過，接著排下一列。
+        等在跑的跑完才停；否則補滿「同時幾列」（也不超過所有批次共用的上限）。排不進去的列記下
+        原因、算沒有通過，接著排下一列。
         """
+        shared = self.shared_limit()
         while True:
             with self.sessions() as session:
                 batch = session.get(Batch, batch_id)
@@ -459,7 +622,7 @@ class BatchService:
                 scenario = self._scenario(batch)
                 mapping = _mapping(batch)
                 rows = self._rows(session, batch_id)
-                runs = self._latest_runs(session, rows)
+                runs = self._latest_runs(session, batch, rows)
                 current = [row for row in rows if row.round_number == batch.round_number]
                 active = [
                     row
@@ -479,15 +642,16 @@ class BatchService:
                 ]
                 todo = [item for item in todo if not item[2][1]]
                 stop_on_failure = batch.on_failure == "stop"
-                slots = batch.concurrency - len(active)
-                options = (
-                    batch.scene_id,
-                    batch.revision_number,
-                    cast("Engine | None", batch.engine),
-                    batch.base_url,
-                    batch.headless,
-                    cast("Target | None", batch.target),
-                    batch.client_id,
+                slots = min(batch.concurrency - len(active), shared - self._active_rows(session))
+                options = _Options(
+                    scene_id=batch.scene_id,
+                    workflow_id=batch.workflow_id,
+                    revision=batch.revision_number,
+                    engine=cast("Engine | None", batch.engine),
+                    base_url=batch.base_url,
+                    headless=batch.headless,
+                    target=cast("Target | None", batch.target),
+                    client_id=batch.client_id,
                 )
             if stop_on_failure and failed:
                 if not active:
@@ -512,23 +676,40 @@ class BatchService:
         number: int,
         attempt: int,
         values: Mapping[str, object],
-        options: tuple[str, int, Engine | None, str | None, bool | None, Target | None, str | None],
+        options: "_Options",
     ) -> bool:
-        scene_id, revision, engine, base_url, headless, target, client_id = options
+        """排入一列；排不進去（或組合運行一開始就結束）時回傳 False，由呼叫端重新算。"""
+        key = f"{batch_id}-{number}-{attempt}"
         try:
-            run = self.services.request_run(
-                scene_id,
-                purpose="execution",
-                number=revision,
-                inputs=values,
-                engine=engine,
-                base_url=base_url,
-                idempotency_key=f"{batch_id}-{number}-{attempt}",
-                headless=headless,
-                target=target,
-                client_id=client_id,
-                batch=(batch_id, number),
-            )
+            if options.workflow_id is not None:
+                record = self.services.workflows.start(
+                    options.workflow_id,
+                    engine=options.engine,
+                    headless=options.headless,
+                    idempotency_key=key,
+                    target=options.target,
+                    purpose="execution",
+                    revision=options.revision,
+                    client_id=options.client_id,
+                    inputs=_node_inputs(values),
+                    batch=(batch_id, number),
+                )
+                run_id, settled = record.id, record.finished
+            else:
+                run = self.services.request_run(
+                    options.scene_id or "",
+                    purpose="execution",
+                    number=options.revision,
+                    inputs=values,
+                    engine=options.engine,
+                    base_url=options.base_url,
+                    idempotency_key=key,
+                    headless=options.headless,
+                    target=options.target,
+                    client_id=options.client_id,
+                    batch=(batch_id, number),
+                )
+                run_id, settled = run.id, False
         except ServiceError as error:
             details = error.details.get("problems")
             items = [
@@ -544,10 +725,10 @@ class BatchService:
             return False
         with self.sessions() as session:
             row = self._row(session, batch_id, number)
-            row.run_id = run.id
+            row.run_id = run_id
             row.attempts = attempt
             session.commit()
-        return True
+        return not settled
 
     def _finish(self, batch_id: str, status: BatchStatus, error: str | None) -> None:
         with self.sessions() as session:
@@ -574,21 +755,36 @@ class BatchService:
             scenario = self._scenario(batch)
             mapping = _mapping(batch)
             rows = self._rows(session, batch_id)
-            runs = self._latest_runs(session, rows)
+            runs = self._latest_runs(session, batch, rows)
             history: dict[int, list[dict[str, object]]] = {}
-            for run in session.scalars(
-                select(Run)
-                .where(Run.batch_id == batch_id)
-                .order_by(Run.created_at.desc(), Run.id.desc())
-            ):
-                if run.batch_row is not None:
-                    history.setdefault(run.batch_row, []).append(
-                        {
-                            "id": run.id,
-                            "status": run.status,
-                            "createdAt": _iso(_aware(run.created_at)),
-                        }
+            past = (
+                session.execute(
+                    select(
+                        WorkflowRunRow.batch_row,
+                        WorkflowRunRow.id,
+                        WorkflowRunRow.status,
+                        WorkflowRunRow.created_at,
                     )
+                    .where(WorkflowRunRow.batch_id == batch_id)
+                    .order_by(WorkflowRunRow.created_at.desc(), WorkflowRunRow.id.desc())
+                )
+                if batch.workflow_id is not None
+                else session.execute(
+                    select(Run.batch_row, Run.id, Run.status, Run.created_at)
+                    .where(Run.batch_id == batch_id)
+                    .order_by(Run.created_at.desc(), Run.id.desc())
+                )
+            )
+            for number, run_id, status, created_at in past:
+                if number is not None:
+                    history.setdefault(number, []).append(
+                        {"id": run_id, "status": status, "createdAt": _iso(_aware(created_at))}
+                    )
+            outputs = (
+                self._composite_outputs(session, list(runs))
+                if batch.workflow_id is not None
+                else {}
+            )
             records: list[BatchRowRecord] = []
             for row in rows:
                 cells = cells_json(row.cells)
@@ -601,7 +797,10 @@ class BatchService:
                         inputs=values,
                         problems=problems,
                         status=_row_status(batch, row, run, problems),
-                        run=run_record(run) if run is not None else None,
+                        run=run_record(run) if isinstance(run, Run) else None,
+                        composite=_composite(run, outputs)
+                        if isinstance(run, WorkflowRunRow)
+                        else None,
                         attempts=row.attempts,
                         error=row.error if row.error is not None else run.error if run else None,
                         history=history.get(row.number, []),
@@ -617,6 +816,7 @@ class BatchService:
         *,
         scene_id: str | None = None,
         client_id: str | None = None,
+        workflow_id: int | None = None,
         limit: int = 100,
     ) -> list[BatchRecord]:
         """最近的批次（最新的在前），不含每一列。
@@ -627,18 +827,23 @@ class BatchService:
             statement = select(Batch).order_by(Batch.created_at.desc(), Batch.id.desc())
             if scene_id is not None:
                 statement = statement.where(Batch.scene_id == scene_id)
+            if workflow_id is not None:
+                statement = statement.where(Batch.workflow_id == workflow_id)
             if client_id is not None:
                 statement = statement.where(Batch.client_id == client_id)
             batches = list(session.scalars(statement.limit(limit)))
             ids = [batch.id for batch in batches]
             tallies: dict[str, dict[str, int]] = {batch_id: {} for batch_id in ids}
             if ids:
+                # 場景的批次接 runs、組合場景的批次接 workflow_runs（編號不會重複）
+                status_of = func.coalesce(Run.status, WorkflowRunRow.status)
                 grouped = session.execute(
-                    select(BatchRow.batch_id, Run.status, func.count())
+                    select(BatchRow.batch_id, status_of, func.count())
                     .select_from(BatchRow)
                     .outerjoin(Run, Run.id == BatchRow.run_id)
+                    .outerjoin(WorkflowRunRow, WorkflowRunRow.id == BatchRow.run_id)
                     .where(BatchRow.batch_id.in_(ids))
-                    .group_by(BatchRow.batch_id, Run.status)
+                    .group_by(BatchRow.batch_id, status_of)
                 )
                 for batch_id, found, count in grouped:
                     status = cast("str | None", found)  # 外連接：還沒排入的列是 NULL
@@ -659,15 +864,16 @@ class BatchService:
     def export(self, batch_id: str, kind: Literal["csv", "xlsx"]) -> tuple[str, str, bytes]:
         """匯出結果：(檔名, 媒體類型, 內容)。"""
         record = self.get(batch_id)
-        scenario = self.services.revision_scenario(record.scene_id, record.revision)
+        with self.sessions() as session:
+            scenario = self._scenario(self._batch(session, batch_id))
         outputs = list(scenario.outputs)
         rows = [
             ExportRow(
                 number=row.number,
                 cells=row.cells,
                 status=row.status,
-                run_id=row.run.id if row.run is not None else None,
-                output=row.run.output if row.run is not None else None,
+                run_id=row.run_id,
+                output=row.output,
                 error=row.error
                 or ("；".join(item.message for item in row.problems) if row.problems else None),
                 attempts=row.attempts,
@@ -705,18 +911,49 @@ class BatchService:
         ).one()
 
     @staticmethod
-    def _latest_runs(session: Session, rows: Sequence[BatchRow]) -> dict[str, Run]:
+    def _latest_runs(
+        session: Session, batch: Batch, rows: Sequence[BatchRow]
+    ) -> dict[str, Run | WorkflowRunRow]:
+        """每一列最近一次的執行；組合場景的批次是組合運行。"""
         ids = [row.run_id for row in rows if row.run_id is not None]
-        found: dict[str, Run] = {}
+        found: dict[str, Run | WorkflowRunRow] = {}
         for start in range(0, len(ids), 500):
             chunk = ids[start : start + 500]
-            found.update(
-                (run.id, run) for run in session.scalars(select(Run).where(Run.id.in_(chunk)))
-            )
+            if batch.workflow_id is not None:
+                found.update(
+                    (item.id, item)
+                    for item in session.scalars(
+                        select(WorkflowRunRow).where(WorkflowRunRow.id.in_(chunk))
+                    )
+                )
+            else:
+                found.update(
+                    (run.id, run) for run in session.scalars(select(Run).where(Run.id.in_(chunk)))
+                )
+        return found
+
+    @staticmethod
+    def _composite_outputs(session: Session, ids: Sequence[str]) -> dict[str, dict[str, object]]:
+        """組合運行 → 通過的節點的出參（「節點代號.出參」；同一個節點取最後一次）。"""
+        found: dict[str, dict[str, object]] = {}
+        for start in range(0, len(ids), 500):
+            chunk = ids[start : start + 500]
+            for run in session.scalars(
+                select(Run)
+                .where(Run.workflow_run_id.in_(chunk), Run.status == "passed")
+                .order_by(Run.created_at, Run.id)
+            ):
+                if run.workflow_run_id is None or run.node_id is None:
+                    continue
+                outputs = found.setdefault(run.workflow_run_id, {})
+                for name, value in (run.output or {}).items():
+                    outputs[f"{run.node_id}{BATCH_SEPARATOR}{name}"] = value
         return found
 
     def _scenario(self, batch: Batch) -> Scenario:
-        return self.services.revision_scenario(batch.scene_id, batch.revision_number)
+        if batch.workflow_id is not None:
+            return self.services.workflows.batch_scenario(batch.workflow_id, batch.revision_number)
+        return self.services.revision_scenario(batch.scene_id or "", batch.revision_number)
 
     def _statuses(
         self,
@@ -726,7 +963,7 @@ class BatchService:
         scenario: Scenario,
         mapping: Mapping[str, str | None],
     ) -> dict[int, str]:
-        runs = self._latest_runs(session, rows)
+        runs = self._latest_runs(session, batch, rows)
         return {
             row.number: _row_status(
                 batch,
@@ -742,8 +979,31 @@ _KEEP: Final = frozenset({"passed", "queued", "running", "pending"})
 """沒指定重跑哪幾列時不重跑的狀態。"""
 
 
+@dataclass(frozen=True, slots=True)
+class _Options:
+    """排入一列時用的設定（批次固定的）。"""
+
+    scene_id: str | None
+    workflow_id: int | None
+    revision: int
+    engine: Engine | None
+    base_url: str | None
+    headless: bool | None
+    target: Target | None
+    client_id: str | None
+
+
+def _node_inputs(values: Mapping[str, object]) -> dict[str, dict[str, object]]:
+    """組合場景的批次：「節點代號.入參」→ 節點代號 → 入參 → 值。"""
+    found: dict[str, dict[str, object]] = {}
+    for key, value in values.items():
+        node, _, name = key.partition(BATCH_SEPARATOR)
+        found.setdefault(node, {})[name] = value
+    return found
+
+
 def _row_status(
-    batch: Batch, row: BatchRow, run: Run | None, problems: Sequence[RowProblem]
+    batch: Batch, row: BatchRow, run: Run | WorkflowRunRow | None, problems: Sequence[RowProblem]
 ) -> str:
     """一列的狀態：有執行就是那次執行的狀態；還沒開始的批次與這一輪還沒排入的列是 pending；
     沒被選進這一輪、也從來沒有執行的列是 skipped。"""
@@ -760,10 +1020,23 @@ def _row_status(
     return "skipped"
 
 
+def _composite(item: WorkflowRunRow, outputs: Mapping[str, dict[str, object]]) -> CompositeRun:
+    created = _aware(item.created_at)
+    finished = _aware(item.finished_at) if item.finished_at is not None else None
+    return CompositeRun(
+        id=item.id,
+        status=item.status,
+        output=outputs.get(item.id) if item.status == "passed" else None,
+        duration_seconds=max(0.0, (finished - created).total_seconds()) if finished else None,
+        error=item.error,
+    )
+
+
 def _record(batch: Batch, counts: dict[str, int], rows: list[BatchRowRecord]) -> BatchRecord:
     return BatchRecord(
         id=batch.id,
         scene_id=batch.scene_id,
+        workflow_id=batch.workflow_id,
         scene_name=batch.scene_name,
         revision=batch.revision_number,
         status=cast("BatchStatus", batch.status),
@@ -825,6 +1098,12 @@ def _check_concurrency(value: int) -> int:
             "batch_concurrency", t("error.batch_concurrency", value=value, max=MAX_CONCURRENCY)
         )
     return value
+
+
+def _check_composite_base_url(value: str | None) -> None:
+    """組合場景的批次不能指定網址：每個節點用自己場景的網址（和組合場景的執行相同）。"""
+    if value is not None and value.strip():
+        raise invalid("batch_composite_base_url", t("error.batch_composite_base_url"))
 
 
 def _check_base_url(value: str | None) -> str | None:

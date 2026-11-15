@@ -63,7 +63,18 @@
             <li>「同時幾列」只決定排入多少；同一台 Worker 一次一列，要真的平行需要多台 Worker。</li>
             <li>伺服器多兩張表（<code>batches</code>、<code>batch_rows</code>）與 <code>runs</code> 的兩個欄位，要一個資料庫遷移（0018）。</li>
             <li>自己讀寫 xlsx 只處理常見的情況（第一個工作表、共用字串、內嵌字串、數字與日期格式）；公式取 Excel 存下的計算結果，沒有存結果的公式讀成空白。</li>
-            <li>第一版只有發布過的場景；組合場景（專案裡的組合）的批次執行、排程觸發與「批次之間共用的上限」之後再看需求。</li>
+            <li>第一版只有發布過的場景；組合場景（專案裡的組合）的批次執行、選工作表與「批次之間共用的上限」2026-11-14 補上（見下面「後來的變更」），排程觸發屬於 M9 的定時執行。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="changes">
+        <div class="panel-header"><h2>後來的變更</h2></div>
+        <div class="panel-body prose">
+          <p>2026-11-14，M7 收尾（使用者 2026-11-14 06:12 America/Los_Angeles（PST，UTC−08:00）要求「M7還有未做完的部分做完」，見<a href="../../handoff/tasks/20261114-m7-wrapup.html">任務紀錄</a>）：</p>
+          <ul>
+            <li><strong>組合場景的批次。</strong>每一列是一次組合運行（目的 execution），版本固定在建立時發布的那一版（之後發布新版本也照跑這一版）。表格可以給的是每個節點沒有接上游出參的入參，名稱寫成「節點代號.入參」；節點寫了固定值的，固定值當成預設值。給了的值存在組合運行（<code>workflow_runs.inputs</code>），取代那個節點的固定值或預設值；從失敗的節點繼續時照用。檔案入參不能從表格給（同場景的批次），也不能指定網址（組合場景的執行本來就沒有）。<code>batches.workflow_id</code> 有值時 <code>scene_id</code> 是 NULL，<code>batch_rows.run_id</code> 是組合運行的編號；遷移 0019。組合運行結束（最後一個節點結束、取消）時排下一列。為了不和「取消組合運行」互等，取消時在組合場景的鎖外面取消節點的執行。</li>
+            <li><strong>選工作表。</strong><code>POST /api/batch-sheets</code> 列出 Excel 檔的工作表，建立批次時寫 <code>sheet</code>；表單只在有好幾個工作表時出現。來源寫成「檔名 › 工作表」。</li>
+            <li><strong>批次之間共用的上限。</strong>設定 <code>batches.sharedLimit</code>（1～100，預設 10）：所有批次合計同時排入的列數（排隊中、執行中的執行與執行中的組合運行）。每個批次自己的「同時幾列」照算；一列結束時先排同一個批次，再依開始的先後補其他執行中的批次，調高時馬上補。預設 10 等於一個批次「同時幾列」的上限，所以只有一個批次時和以前相同。</li>
           </ul>
         </div>
       </section>

@@ -50,7 +50,7 @@ from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwrigh
 from pydantic import ValidationError
 
 from rpa_core.dsl import Locator, Scenario, ValidationResult, validate_file, validate_text
-from rpa_core.dsl.calls import CallKey, is_call_path, load_calls
+from rpa_core.dsl.calls import CallKey, load_calls, read_call_bundle, write_call_files
 from rpa_core.dsl.issues import Issue, format_issue
 from rpa_core.dsl.steps import ForEachStep, RepeatStep, Step, StepPath, TryStep, branches
 from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, parse_locale, set_locale
@@ -245,7 +245,7 @@ class _Session:
         # 子場景（M7.2）：伺服器把 calls/ 的檔案包成一個 JSON 檔送來，放回場景檔旁邊再校驗
         bundle = getattr(args, "calls", None)
         if bundle:
-            _write_calls(Path(args.scenario).parent, _read_calls(Path(bundle)))
+            write_call_files(Path(args.scenario).parent, read_call_bundle(Path(bundle)))
         self.scenario = _valid(validate_file(Path(args.scenario)))
         self.calls: dict[CallKey, Scenario] = load_calls(Path(args.scenario).parent, self.scenario)[
             0
@@ -560,7 +560,7 @@ class _Session:
             folder = self.out / f"load-{self.loads}"
             folder.mkdir(parents=True, exist_ok=True)
             (folder / "scenario.yaml").write_text(text, encoding="utf-8")
-            _write_calls(folder, cast("dict[object, object]", bundle))
+            write_call_files(folder, cast("dict[object, object]", bundle))
             scenario = _valid(validate_file(folder / "scenario.yaml"))
             calls = load_calls(folder, scenario)[0]
             inputs = _inputs_object(command.get("inputs", {}))
@@ -599,25 +599,6 @@ class _Session:
         if handler is None:
             return {"ok": False, "error": f"unknown command {name!r}"}
         return {"ok": True, **handler()}
-
-
-def _read_calls(path: Path) -> dict[object, object]:
-    """``--calls`` 的 JSON 檔：``calls/…`` 的相對路徑 → 內容。"""
-    data: object = json.loads(path.read_text(encoding="utf-8"))
-    return cast("dict[object, object]", data) if isinstance(data, dict) else {}
-
-
-def _write_calls(folder: Path, files: Mapping[object, object]) -> None:
-    """把子場景檔寫到場景檔旁邊（M7.2）；只收 ``calls/`` 底下、不往上層走的路徑。"""
-    for name, text in files.items():
-        if not isinstance(name, str) or not isinstance(text, str):
-            continue
-        parts = name.split("/")
-        if not is_call_path(name) or any(part in ("", ".", "..") for part in parts):
-            continue
-        target = folder.joinpath(*parts)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text, encoding="utf-8")
 
 
 def _step_path(value: object) -> StepPath:

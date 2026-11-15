@@ -1142,24 +1142,65 @@
     bindTargetChoice(form);
     const key = newKey();
     const button = qs('[data-action="create-batch"]', form);
+    const fileInput = qs('[name="file"]', form);
+    const sheetField = qs('#sheet-field', form);
+    const sheetSelect = qs('[name="sheet"]', form);
+    // Excel 有好幾個工作表時讓使用者選（M7 收尾）；只有一個或不是 Excel 時不顯示
+    fileInput.addEventListener('change', async () => {
+      sheetSelect.replaceChildren();
+      sheetField.hidden = true;
+      const file = fileInput.files[0];
+      if (!file || !/\.xls[xm]$/i.test(file.name)) return;
+      const result = await api('POST', '/api/batch-sheets', {fileName: file.name, fileContent: await fileBase64(file)});
+      if (!result.ok) {
+        listItems(qs('#problem-list'), [errorMessage(result)]);
+        return;
+      }
+      const sheets = result.data.sheets || [];
+      for (const name of sheets) sheetSelect.append(new Option(name, name));
+      sheetField.hidden = sheets.length < 2;
+    });
     form.addEventListener('submit', async event => {
       event.preventDefault();
       const body = {...batchOptions(form), idempotencyKey: key};
-      const file = qs('[name="file"]', form).files[0];
+      const file = fileInput.files[0];
       button.disabled = true;
       if (file) {
         body.fileName = file.name;
         body.fileContent = await fileBase64(file);
+        if (!sheetField.hidden && sheetSelect.value) body.sheet = sheetSelect.value;
       } else {
         body.text = qs('[name="text"]', form).value;
       }
-      const result = await api('POST', '/api/scenes/' + path(form.dataset.scene) + '/batches', body);
+      // 組合場景的批次（M7 收尾）建在組合場景底下
+      const url = form.dataset.workflow
+        ? '/api/workflows/' + path(form.dataset.workflow) + '/batches'
+        : '/api/scenes/' + path(form.dataset.scene) + '/batches';
+      const result = await api('POST', url, body);
       if (result.ok) {
         location.href = '/batches/' + path(result.data.id);
         return;
       }
       button.disabled = false;
       listItems(qs('#problem-list'), [errorMessage(result)]);
+    });
+  }
+
+  // 所有批次共用的上限（M7 收尾，批次清單上面）
+  function bindBatchShared() {
+    const form = qs('#batch-shared');
+    if (!form) return;
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const error = qs('.form-error', form);
+      error.textContent = '';
+      const result = await api('PUT', '/api/settings/batches', {sharedLimit: Number(form.elements.sharedLimit.value)});
+      if (!result.ok) {
+        error.textContent = errorMessage(result);
+        return;
+      }
+      flash(messages.saved);
+      location.reload();
     });
   }
 
@@ -4211,6 +4252,7 @@
   bindSceneAnchors(bindScripts());
   bindRunForm();
   bindBatchForm();
+  bindBatchShared();
   bindBatch();
   bindAttachments();
   bindRun();

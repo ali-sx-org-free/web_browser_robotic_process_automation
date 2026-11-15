@@ -71,5 +71,14 @@ _PREVIOUS: dict[str, tuple[str, ...]] = {
         "Real cases that run against the local test site (started with rpa serve at http:"
         "//127.0.0.1:8765): create a record, look it up, look up a record that does not e"
         "xist, and the Python script version of creating a record.",
+        "對本機測試網站（rpa serve 一起啟動，http://127.0.0.1:8765）執行的真實案例：建立紀錄、查詢"
+        "紀錄、查詢不存在的紀錄、Python 腳本版的建立紀錄，以及兩個登入角色的範例。",
+        "对本机测试网站（rpa serve 一起启动，http://127.0.0.1:8765）运行的真实案例：创建记录、查询"
+        "记录、查询不存在的记录、Python 脚本版的创建记录，以及两个登录角色的示例。",
+        "Real cases that run against the local test site (started by "
+        "rpa serve at http://127.0.0.1:8765): create a record, look i"
+        "t up, look up a record that does not exist, the Python scrip"
+        "t version of creating a record, and examples for two login r"
+        "oles.",
     ),
 }

@@ -3,7 +3,8 @@
 由管理 Portal 啟動::
 
     python -m rpa_runner.record --scenario 場景.yaml --input input.json --output 錄製稿.py \
-        --out 目錄 [--engine 瀏覽器] [--base-url 網址] [--storage-state 登入狀態檔]
+        --out 目錄 [--engine 瀏覽器] [--base-url 網址] [--storage-state 登入狀態檔] \
+        [--calls 子場景.json]
 
 - 瀏覽器視窗與 Playwright Inspector 開在這台電腦上（有頭模式）。
 - 先依序執行既有的步驟（``{{ }}`` 以入參的預設值與 Secrets 代入）；任何一步失敗就結束，不錄製。
@@ -13,6 +14,8 @@
   相同。既有的步驟不會出現在錄製稿（也不會出現在 Inspector）裡；轉換後由管理 Portal 接在既有
   場景的最後。
 - 使用者關掉瀏覽器視窗就結束。
+- 用到子場景（M7.2）的場景：``--calls`` 是伺服器把版本的 ``calls/`` 包成的 JSON，放回場景檔旁邊
+  再校驗，既有的 ``call`` 照樣在同一個分頁執行整個子場景。
 
 Playwright 沒有公開「在已經開好的瀏覽器上開始錄製」的 API，這裡用 codegen 自己用的通訊命令
 ``enableRecorder``（1.56～1.63 相同）；Playwright 改版時由測試發現。
@@ -33,6 +36,7 @@ from typing import Final, cast
 from playwright.sync_api import BrowserContext, sync_playwright
 
 from rpa_core.dsl import Scenario, validate_file
+from rpa_core.dsl.calls import CallKey, load_calls, read_call_bundle, write_call_files
 from rpa_core.i18n import DEFAULT_LOCALE, ENV_VAR, parse_locale, set_locale
 from rpa_runner.browser import Deadline, Tabs, plan_records, run_steps
 from rpa_runner.contexts import Engine, open_context
@@ -41,7 +45,7 @@ from rpa_runner.i18n import t
 from rpa_runner.inputfiles import given_files, remove_staging, session_files
 from rpa_runner.secrets import mask, read_secrets
 
-__all__ = ["EXIT_REPLAY_FAILED", "REPLAY_SECONDS", "enable_recorder", "main"]
+__all__ = ["EXIT_REPLAY_FAILED", "REPLAY_SECONDS", "enable_recorder", "load_replay", "main"]
 
 EXIT_REPLAY_FAILED: Final = 3
 REPLAY_SECONDS: Final = 300.0
@@ -82,15 +86,24 @@ def _wait_closed(context: BrowserContext) -> None:
             return
 
 
-def _load(args: argparse.Namespace) -> tuple[Scenario, dict[str, object]]:
-    validated = validate_file(Path(args.scenario))
+def load_replay(
+    args: argparse.Namespace,
+) -> tuple[Scenario, dict[str, object], dict[CallKey, Scenario]]:
+    """要先執行的場景、入參與子場景（子場景檔先從 ``--calls`` 放回場景檔旁邊）。"""
+    path = Path(args.scenario)
+    bundle = getattr(args, "calls", None)
+    if bundle:
+        write_call_files(path.parent, read_call_bundle(Path(bundle)))
+    validated = validate_file(path)
     if validated.scenario is None:
         raise ValueError(t("child.invalid_scenario"))
     inputs = cast("dict[str, object]", json.loads(Path(args.input).read_text(encoding="utf-8")))
     resolved, problems = check_inputs(validated.scenario, inputs)
     if problems:
         raise ValueError("; ".join(problem.message for problem in problems))
-    return validated.scenario, resolved
+    # 子場景的問題校驗時已經擋下（同 rpa_runner.child）
+    calls = load_calls(path.parent, validated.scenario)[0]
+    return validated.scenario, resolved, calls
 
 
 def _files(
@@ -121,7 +134,7 @@ def record(args: argparse.Namespace) -> int:
 
 
 def _record(args: argparse.Namespace, out: Path, staging: Path) -> int:
-    scenario, inputs = _load(args)
+    scenario, inputs, calls = load_replay(args)
     files = _files(args, scenario, inputs, staging)
     (out / "input.json").write_text(json.dumps(inputs, ensure_ascii=False), encoding="utf-8")
     secrets = read_secrets(scenario)
@@ -154,6 +167,7 @@ def _record(args: argparse.Namespace, out: Path, staging: Path) -> int:
                 deadline=Deadline.after(seconds),
                 tabs=tabs,
                 files=files,
+                calls=calls,
             )
         except Exception as error:
             failed = next((item for item in records if item.status == "failed"), None)
@@ -184,6 +198,7 @@ def main(argv: list[str] | None = None) -> int:
         metavar=("INPUT", "PATH"),
         help="準備好的檔案入參（M7c）",
     )
+    parser.add_argument("--calls", help="子場景檔的 JSON（M7.2）：calls/… 的相對路徑 → 內容")
     args = parser.parse_args(argv)
     try:
         return record(args)

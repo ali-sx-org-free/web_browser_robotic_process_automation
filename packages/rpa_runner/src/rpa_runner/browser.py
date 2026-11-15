@@ -73,6 +73,7 @@ from rpa_core.dsl.steps import (
     TryStep,
     upload_input_names,
 )
+from rpa_runner.callfiles import callee_file_outputs, callee_files, caller_index
 from rpa_runner.contract import build_outputs, check_inputs, run_verify
 from rpa_runner.files import DOWNLOADS_DIR
 from rpa_runner.i18n import t
@@ -1081,7 +1082,16 @@ class _Flow:
             ):
                 value = str(value)  # {{ loop.index }} 這類數字給文字入參時不用再轉
             given[name] = value
-        inputs, problems = check_inputs(callee, given)
+        # 檔案入參另外處理：值是呼叫場景這邊的檔案，不是檔案入參的寫法（M7.2 收尾）
+        file_names = {name for name, spec in callee.inputs.items() if spec.type == "file"}
+        index = caller_index(
+            cast("Mapping[str, object]", outer_context.get("inputs") or {}), outer.files
+        )
+        prepared = callee_files(callee, given, index, outer.workspace)
+        plain = {name: value for name, value in given.items() if name not in file_names}
+        inputs, problems = check_inputs(callee, plain, skip=file_names)
+        inputs.update(prepared.meta)
+        problems += prepared.problems
         if problems:
             raise ValueError(
                 t("browser.call_inputs", problems="；".join(item.message for item in problems))
@@ -1106,7 +1116,7 @@ class _Flow:
             base_url,
             outer.artifacts,
             facts,
-            {},
+            prepared.paths,
             outer.workspace,
             outer.calls,
             f"{outer.prefix}{step.id}.",
@@ -1132,6 +1142,8 @@ class _Flow:
         if failed:
             raise AssertionError(t("browser.call_verify_failed", names="、".join(failed)))
         outputs, output_problems = build_outputs(callee, full)
+        if not output_problems:
+            output_problems = callee_file_outputs(callee, outputs, outer.workspace)
         if output_problems:
             raise ValueError(
                 t(

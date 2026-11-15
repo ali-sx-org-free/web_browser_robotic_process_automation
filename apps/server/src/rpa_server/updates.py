@@ -175,7 +175,14 @@ class Installed:
 
 
 def _clean_env(extra: Mapping[str, str] | None = None) -> dict[str, str]:
-    drop = ("PYTHON", "VIRTUAL_ENV", RELEASE_ENV, SUPERVISED_ENV, "RPA_EXAMPLES_DIR")
+    drop = (
+        "PYTHON",
+        "VIRTUAL_ENV",
+        RELEASE_ENV,
+        SUPERVISED_ENV,
+        "RPA_EXAMPLES_DIR",
+        "RPA_EXTRA_EXAMPLES",
+    )
     env = {k: v for k, v in os.environ.items() if not k.startswith(drop)}
     env.update(extra or {})
     return env

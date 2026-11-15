@@ -22,6 +22,7 @@ from rpa_server.batch_table import (
     parse_text,
     read_table,
     row_values,
+    sheet_names,
 )
 
 SCENARIO = """\
@@ -286,6 +287,56 @@ def test_xlsx_shared_strings_rich_text_formulas_and_1904_dates() -> None:
 def test_broken_xlsx() -> None:
     with pytest.raises(TableError, match="Excel 檔讀不出來"):
         read_table("a.xlsx", b"PK\x03\x04 not really a zip")
+    with pytest.raises(TableError, match="Excel 檔讀不出來"):
+        sheet_names("a.xlsx", b"PK\x03\x04 not really a zip")
+
+
+def two_sheets() -> bytes:
+    """兩個工作表的活頁簿（行內字串）：「說明」在前、「訂單」在後，第二個的檔名不照編號。"""
+
+    def sheet(rows: list[list[str]]) -> str:
+        lines = "".join(
+            f'<row r="{number}">'
+            + "".join(
+                f'<c r="{chr(ord("A") + index)}{number}" t="inlineStr"><is><t>{escape(text)}</t>'
+                "</is></c>"
+                for index, text in enumerate(row)
+            )
+            + "</row>"
+            for number, row in enumerate(rows, start=1)
+        )
+        return f'<worksheet xmlns="{MAIN}"><sheetData>{lines}</sheetData></worksheet>'
+
+    return zipped(
+        {
+            "xl/workbook.xml": (
+                f'<workbook xmlns="{MAIN}" xmlns:r="{RELATIONSHIPS}"><sheets>'
+                '<sheet name="說明" sheetId="1" r:id="rId1"/>'
+                '<sheet name="訂單" sheetId="2" r:id="rId2"/></sheets></workbook>'
+            ),
+            "xl/_rels/workbook.xml.rels": (
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/'
+                'relationships"><Relationship Id="rId1" Type="worksheet" '
+                'Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="worksheet" '
+                'Target="/xl/worksheets/orders.xml"/></Relationships>'
+            ),
+            "xl/worksheets/sheet1.xml": sheet([["說明"], ["第二個工作表才是資料"]]),
+            "xl/worksheets/orders.xml": sheet([["title", "quantity"], ["A", "1"], ["B", "2"]]),
+        }
+    )
+
+
+def test_xlsx_worksheet_choice() -> None:
+    """選工作表（M7 收尾）：列出名稱；沒選讀第一個；選了讀那一個；沒有那個工作表時說有哪些。"""
+    data = two_sheets()
+    assert sheet_names("orders.xlsx", data) == ["說明", "訂單"]
+    assert sheet_names("orders.csv", b"a,b\n1,2\n") == []
+    assert read_table("orders.xlsx", data).columns == ("說明",)
+    table = read_table("orders.xlsx", data, "訂單")
+    assert table.columns == ("title", "quantity")
+    assert table.rows == (("A", "1"), ("B", "2"))
+    with pytest.raises(TableError, match="沒有工作表「彙總」；有的是：說明、訂單"):
+        read_table("orders.xlsx", data, "彙總")
 
 
 # ---------------------------------------------------------------- 欄位對應與入參
@@ -418,3 +469,31 @@ def test_export_xlsx_round_trip() -> None:
     assert again.columns[:3] == ("列", "title", "quantity")
     assert again.rows[0] == ("1", "文具", "3", "通過", "1", "run-1", "DEMO-1", '["a"]', "")
     assert again.rows[1][1] == '=HYPERLINK("x")'
+
+
+def test_composite_inputs_map_by_node_and_bare_name() -> None:
+    """組合場景的批次（M7 收尾）：入參是「節點代號.入參」；點後面的名稱只有一個節點有時也對應。"""
+    specs = validate_text(SCENARIO)
+    assert specs.scenario is not None
+    inputs = specs.scenario.inputs
+    composite = Scenario.model_construct(
+        inputs={
+            "n1.title": inputs["title"],
+            "n1.quantity": inputs["quantity"],
+            "n2.title": inputs["title"],
+            "n2.price": inputs["price"],
+        },
+        outputs={},
+    )
+    mapping = default_mapping(composite, ["title", "n1.quantity", "PRICE"])
+    assert mapping == {
+        "n1.title": None,  # 兩個節點都有 title：不猜
+        "n1.quantity": "n1.quantity",
+        "n2.title": None,
+        "n2.price": "PRICE",
+    }
+    values, problems = row_values(
+        composite, {**mapping, "n1.title": "title"}, {"title": "甲", "n1.quantity": "3"}
+    )
+    assert values == {"n1.title": "甲", "n1.quantity": 3}
+    assert [problem.input for problem in problems] == ["n2.title"]  # 沒有預設值、也沒有對應的欄位

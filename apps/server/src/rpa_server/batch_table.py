@@ -4,8 +4,9 @@
 
 - CSV（逗號分隔）與 TSV（定位字元分隔，從 Excel 複製貼上就是這種）。編碼依序試 UTF-8
   （可以有 BOM）、Big5（cp950，繁中 Windows 的 Excel 另存 CSV 的預設）、GB18030。
-- Excel 的 .xlsx：只讀第一個工作表，日期與時間依儲存格格式轉成文字。不用 openpyxl
-  （伺服器沒有這個依賴；加了會改變分發包的運行環境），用標準庫讀 zip 裡的 XML。舊的 .xls 不支援。
+- Excel 的 .xlsx：讀選的工作表（沒選是第一個；選工作表是 M7 收尾加的），日期與時間依儲存格
+  格式轉成文字。不用 openpyxl（伺服器沒有這個依賴；加了會改變分發包的運行環境），用標準庫讀
+  zip 裡的 XML。舊的 .xls 不支援。
 
 儲存格一律存成文字；排入執行前才依入參的型別轉換（:func:`row_values`），所以改了欄位對應
 之後重新檢查不用重新上傳。匯出（:func:`export_csv`、:func:`export_xlsx`）是同一張表加上
@@ -114,16 +115,31 @@ class ExportRow:
 # ---------------------------------------------------------------- 讀入
 
 
-def read_table(name: str, data: bytes) -> Table:
-    """依副檔名讀入表格：.xlsx 讀第一個工作表，其他當成 CSV／TSV 文字。"""
+def read_table(name: str, data: bytes, sheet: str | None = None) -> Table:
+    """依副檔名讀入表格：.xlsx 讀 ``sheet`` 那個工作表（沒給是第一個），其他當成 CSV／TSV 文字。"""
     if len(data) > MAX_BYTES:
         raise TableError(t("batch.table_too_large", max=MAX_BYTES // (1024 * 1024)))
+    if _is_xlsx(name, data):
+        return _shape(_xlsx_rows(data, sheet))
+    return parse_text(_decode(data))
+
+
+def _is_xlsx(name: str, data: bytes) -> bool:
     lower = name.lower()
     if lower.endswith(".xls"):
         raise TableError(t("batch.table_xls"))
-    if lower.endswith((".xlsx", ".xlsm")) or data[:4] == b"PK\x03\x04":
-        return _shape(_xlsx_rows(data))
-    return parse_text(_decode(data))
+    return lower.endswith((".xlsx", ".xlsm")) or data[:4] == b"PK\x03\x04"
+
+
+def sheet_names(name: str, data: bytes) -> list[str]:
+    """Excel 檔裡的工作表名稱（依活頁簿裡的順序）；不是 Excel 檔時是空的。"""
+    if len(data) > MAX_BYTES:
+        raise TableError(t("batch.table_too_large", max=MAX_BYTES // (1024 * 1024)))
+    if not _is_xlsx(name, data):
+        return []
+    with _open_book(data) as book:
+        workbook = _workbook(book)
+        return [name for name, _ in _sheets(book, workbook)]
 
 
 def parse_text(text: str) -> Table:
@@ -189,17 +205,36 @@ def _shape(raw: Sequence[Sequence[str]]) -> Table:
 # ---------------------------------------------------------------- xlsx
 
 
-def _xlsx_rows(data: bytes) -> list[list[str]]:
+def _open_book(data: bytes) -> zipfile.ZipFile:
     try:
-        book = zipfile.ZipFile(io.BytesIO(data))
+        return zipfile.ZipFile(io.BytesIO(data))
     except zipfile.BadZipFile as error:
         raise TableError(t("batch.table_xlsx", detail=str(error))) from error
-    with book:
+
+
+def _workbook(book: zipfile.ZipFile) -> ElementTree.Element:
+    try:
+        workbook = _xml(book, "xl/workbook.xml")
+    except ElementTree.ParseError as error:
+        raise TableError(t("batch.table_xlsx", detail=str(error))) from error
+    if workbook is None:
+        raise TableError(t("batch.table_xlsx", detail="xl/workbook.xml"))
+    return workbook
+
+
+def _xlsx_rows(data: bytes, chosen: str | None = None) -> list[list[str]]:
+    with _open_book(data) as book:
+        workbook = _workbook(book)
         try:
-            workbook = _xml(book, "xl/workbook.xml")
-            if workbook is None:
-                raise TableError(t("batch.table_xlsx", detail="xl/workbook.xml"))
-            sheet = _first_sheet(book, workbook)
+            sheets = _sheets(book, workbook)
+            if chosen is None:
+                sheet = sheets[0][1] if sheets else "xl/worksheets/sheet1.xml"
+            else:
+                found = [path for name, path in sheets if name == chosen]
+                if not found:
+                    names = "、".join(name for name, _ in sheets)
+                    raise TableError(t("batch.table_sheet_unknown", sheet=chosen, names=names))
+                sheet = found[0]
             root = _xml(book, sheet)
             if root is None:
                 raise TableError(t("batch.table_xlsx", detail=sheet))
@@ -248,18 +283,27 @@ def _xml(book: zipfile.ZipFile, name: str) -> ElementTree.Element | None:
     return ElementTree.fromstring(book.read(info))
 
 
-def _first_sheet(book: zipfile.ZipFile, workbook: ElementTree.Element) -> str:
-    sheet = workbook.find(f"{_MAIN}sheets/{_MAIN}sheet")
-    rel_id = sheet.get(f"{_REL}id") if sheet is not None else None
-    rels = _xml(book, "xl/_rels/workbook.xml.rels")
-    if rel_id is not None and rels is not None:
+def _sheets(book: zipfile.ZipFile, workbook: ElementTree.Element) -> list[tuple[str, str]]:
+    """活頁簿裡的工作表：(名稱, zip 裡的路徑)，依順序；找不到關聯的用 sheet<n>.xml。"""
+    try:
+        rels = _xml(book, "xl/_rels/workbook.xml.rels")
+    except ElementTree.ParseError as error:
+        raise TableError(t("batch.table_xlsx", detail=str(error))) from error
+    targets: dict[str, str] = {}
+    if rels is not None:
         for rel in rels.iter(f"{_PKG_REL}Relationship"):
-            if rel.get("Id") == rel_id:
-                target = rel.get("Target") or ""
-                if target.startswith("/"):
-                    return target.lstrip("/")
-                return "xl/" + target if not target.startswith("xl/") else target
-    return "xl/worksheets/sheet1.xml"
+            target = rel.get("Target") or ""
+            if target.startswith("/"):
+                target = target.lstrip("/")
+            elif not target.startswith("xl/"):
+                target = "xl/" + target
+            targets[rel.get("Id") or ""] = target
+    found: list[tuple[str, str]] = []
+    for index, sheet in enumerate(workbook.iter(f"{_MAIN}sheet"), start=1):
+        rel_id = sheet.get(f"{_REL}id") or ""
+        name = sheet.get("name") or str(index)
+        found.append((name, targets.get(rel_id, f"xl/worksheets/sheet{index}.xml")))
+    return found
 
 
 def _shared_strings(book: zipfile.ZipFile) -> list[str]:
@@ -387,14 +431,26 @@ def _column_index(reference: str) -> int:
 
 
 def default_mapping(scenario: Scenario, columns: Sequence[str]) -> dict[str, str | None]:
-    """入參 → 欄位：先找標題完全相同的，再找不分大小寫、忽略空白的；找不到是 None。"""
+    """入參 → 欄位：先找標題完全相同的，再找不分大小寫、忽略空白的；找不到是 None。
+
+    組合場景的批次（入參是「節點代號.入參」，M7 收尾）：都找不到時，再用點後面的入參名稱找，
+    只有一個節點有這個入參名稱時才對應（例如 title 對到 n1.title）。
+    """
     loose = {_loose(column): column for column in reversed(columns)}
+    tails: dict[str, int] = {}
+    for name in scenario.inputs:
+        tail = name.rpartition(".")[2]
+        tails[tail] = tails.get(tail, 0) + 1
     mapping: dict[str, str | None] = {}
     for name in scenario.inputs:
         if name in columns:
             mapping[name] = name
-        else:
-            mapping[name] = loose.get(_loose(name))
+            continue
+        found = loose.get(_loose(name))
+        tail = name.rpartition(".")[2]
+        if found is None and tail != name and tails[tail] == 1:
+            found = tail if tail in columns else loose.get(_loose(tail))
+        mapping[name] = found
     return mapping
 
 

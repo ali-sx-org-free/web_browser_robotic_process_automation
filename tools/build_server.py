@@ -23,7 +23,8 @@
 5. 程式碼層：工作區的套件建成 wheel，裝進 ``app/``（:func:`build_app_layer`，更新檔也用它），
    .pyc 用 unchecked-hash（解開更新檔時修改時間會變，不能用時間判斷）。
 6. ``bin/rpa``（apps/server/packaging/rpa）、``install.sh``（apps/server/packaging/install.sh）、
-   第一次啟動時匯入的範例場景（scenarios/demo）、``BUILD_INFO``（版本、提交、架構、環境代號）。
+   第一次啟動時匯入的範例場景（scenarios/demo 與流程範例 scenarios/examples/flow）、
+   ``BUILD_INFO``（版本、提交、架構、環境代號）。
 7. 用包內的 Python 執行 ``rpa --version``、載入伺服器的程式、確認找得到運行環境，之後打包成
    ``RPA-Server-<版本>-linux-<x64|arm64>.tar.gz``。
 
@@ -56,6 +57,7 @@ DIST: Final = ROOT / "dist" / "server"
 WORK: Final = ROOT / "build" / "server"
 PACKAGING: Final = ROOT / "apps" / "server" / "packaging"
 EXAMPLES: Final = ROOT / "scenarios" / "demo"
+FLOW_EXAMPLES: Final = ROOT / "scenarios" / "examples" / "flow"
 
 PACKAGES: Final = (
     "rpa-core",
@@ -475,6 +477,8 @@ def build(target: Target | None = None) -> tuple[Path, str]:
     for script in (bundle / "bin" / "rpa", bundle / "install.sh"):
         _executable(script)
     shutil.copytree(EXAMPLES, bundle / "scenarios" / "demo")
+    # 流程控制的範例（M7.1）：第一次啟動時和 BA 範例一起匯入
+    shutil.copytree(FLOW_EXAMPLES, bundle / "scenarios" / "examples" / "flow")
     (bundle / "BUILD_INFO").write_text(
         build_info_text(
             version=version,

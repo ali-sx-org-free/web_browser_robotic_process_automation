@@ -167,6 +167,8 @@
   "steplog.caught": "Caught the failure of {step}: {error}",
   "browser.call_missing": "Cannot find sub-scenario {scenario} revision {revision} (not in calls/ of the scenario folder)",
   "browser.call_inputs": "The inputs given to the sub-scenario have problems: {problems}",
+  "browser.call_file_single": "File input {name} of the sub-scenario takes one file; {count} given",
+  "browser.call_file_unknown": "File input {name} of the sub-scenario: \"{file}\" is neither a file input of the calling scenario nor a file in the shared workspace (from a download step or an earlier sub-scenario)",
   "browser.call_verify_failed": "The sub-scenario's independent checks did not pass: {names}",
   "browser.call_outputs": "The sub-scenario's outputs have problems: {problems}",
   "steplog.call": "Sub-scenario {scenario} revision {revision}",

@@ -64,7 +64,18 @@
             <li>「同时几列」只决定排入多少；同一台 Worker 一次一列，要真的平行需要多台 Worker。</li>
             <li>服务器多两张表（<code>batches</code>、<code>batch_rows</code>）与 <code>runs</code> 的两个字段，要一个数据库迁移（0018）。</li>
             <li>自己读写 xlsx 只处理常见的情况（第一个工作表、共用字符串、内嵌字符串、数字与日期格式）；公式取 Excel 存下的计算结果，没有存结果的公式读成空白。</li>
-            <li>第一版只有发布过的场景；组合场景（项目里的组合）的批量运行、调度触发与「批量之间共用的上限」之后再看需求。</li>
+            <li>第一版只有发布过的场景；组合场景（项目里的组合）的批量运行、选工作表与「批量之间共用的上限」2026-11-14 补上（见下面「后来的变更」），调度触发属于 M9 的定时运行。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="changes">
+        <div class="panel-header"><h2>后来的变更</h2></div>
+        <div class="panel-body prose">
+          <p>2026-11-14，M7 收尾（用户 2026-11-14 06:12 America/Los_Angeles（PST，UTC−08:00）要求「M7还有未做完的部分做完」，见<a href="../../../handoff/tasks/20261114-m7-wrapup.html">任务记录</a>）：</p>
+          <ul>
+            <li><strong>组合场景的批量。</strong>每一列是一次组合运行（目的 execution），版本固定在创建时发布的那一版（之后发布新版本也照跑这一版）。表格可以给的是每个节点没有接上游出参的入参，名称写成「节点代号.入参」；节点写了固定值的，固定值当成默认值。给了的值存在组合运行（<code>workflow_runs.inputs</code>），取代那个节点的固定值或默认值；从失败的节点继续时照用。文件入参不能从表格给（同场景的批量），也不能指定网址（组合场景的运行本来就没有）。<code>batches.workflow_id</code> 有值时 <code>scene_id</code> 是 NULL，<code>batch_rows.run_id</code> 是组合运行的编号；迁移 0019。组合运行结束（最后一个节点结束、取消）时排下一列。为了不和「取消组合运行」互等，取消时在组合场景的锁外面取消节点的运行。</li>
+            <li><strong>选工作表。</strong><code>POST /api/batch-sheets</code> 列出 Excel 档的工作表，创建批量时写 <code>sheet</code>；表单只在有好几个工作表时出现。来源写成「文件名 › 工作表」。</li>
+            <li><strong>批量之间共用的上限。</strong>设置 <code>batches.sharedLimit</code>（1～100，默认 10）：所有批量合计同时排入的列数（排队中、运行中的运行与运行中的组合运行）。每个批量自己的「同时几列」照算；一列结束时先排同一个批量，再依开始的先后补其他运行中的批量，调高时马上补。默认 10 等于一个批量「同时几列」的上限，所以只有一个批量时和以前相同。</li>
           </ul>
         </div>
       </section>

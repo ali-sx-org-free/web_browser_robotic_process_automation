@@ -105,6 +105,8 @@ export PYTHONPATH="$root/app" PYTHONNOUSERSITE=1 PYTHONUTF8=1 PYTHONDONTWRITEBYT
 export RPA_RELEASE_DIR="$root"
 # 第一次啟動時匯入的範例場景：跟著版本資料夾，不依賴目前的工作目錄
 export RPA_EXAMPLES_DIR="${RPA_EXAMPLES_DIR:-$root/scenarios/demo}"
+# 流程控制的範例（M7.1）：第一次啟動時一起匯入「測試網站自動化」
+export RPA_EXTRA_EXAMPLES="${RPA_EXTRA_EXAMPLES-$root/scenarios/examples/flow}"
 # 包內的 Python 自帶 OpenSSL，憑證預設找 Debian 的位置；RHEL 系統的憑證在 /etc/pki。
 if [ -z "${SSL_CERT_FILE:-}" ] && [ -z "${SSL_CERT_DIR:-}" ]; then
   for bundle in /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt /etc/ssl/cert.pem; do

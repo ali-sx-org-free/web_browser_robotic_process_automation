@@ -184,14 +184,67 @@ def test_secrets_must_be_declared_by_caller(tmp_path: Path) -> None:
     assert validate_file(write(tmp_path, caller, cust_new__4=callee)).ok
 
 
-def test_file_inputs_are_not_supported(tmp_path: Path) -> None:
-    callee = CALLEE.replace(
+FILE_CALLEE = (
+    CALLEE.replace(
         "  level: { type: string, default: normal, enum: [normal, vip] }\n",
         "  level: { type: string, default: normal, enum: [normal, vip] }\n"
-        "  sheet: { type: file, default: files/a.xlsx }\n",
+        "  sheet: { type: file, default: files/a.xlsx }\n"
+        "  photos: { type: file, multiple: true, accept: [image/*] }\n",
     )
-    issue = only_issue(write(tmp_path, cust_new__4=callee))
-    assert issue.code == "call.files"
+    .replace(
+        "verify:\n",
+        "  - { id: export, action: download, target: { text: 匯出 }, as: exported }\nverify:\n",
+    )
+    .replace("outputs:\n", "outputs:\n  report: { type: file, from: '{{ facts.exported }}' }\n")
+)
+
+
+def test_file_inputs_take_files_from_the_caller(tmp_path: Path) -> None:
+    """子場景的檔案入參與出參（M7 收尾）：入參用 {{ }} 接呼叫場景的檔案，出參照常接回來。"""
+    caller = (
+        CALLER.replace(
+            "  customer: { type: string }\n",
+            "  customer: { type: string }\n"
+            "  orders: { type: file }\n"
+            "  pictures: { type: file, multiple: true }\n",
+        )
+        .replace(
+            "inputs: { name: '{{ inputs.customer }}' }",
+            "inputs: { name: '{{ inputs.customer }}', sheet: '{{ inputs.orders }}',"
+            " photos: ['{{ inputs.pictures[0] }}', '{{ facts.picture }}'] }",
+        )
+        .replace(
+            "  - id: create-customer\n",
+            "  - { id: get-picture, action: download, target: { text: 圖片 }, as: picture }\n"
+            "  - id: create-customer\n",
+        )
+    )
+    assert validate_file(write(tmp_path, caller, cust_new__4=FILE_CALLEE)).ok
+    whole = caller.replace(
+        "['{{ inputs.pictures[0] }}', '{{ facts.picture }}']", "'{{ inputs.pictures }}'"
+    )
+    assert validate_file(write(tmp_path, whole, cust_new__4=FILE_CALLEE)).ok
+
+
+def test_file_inputs_need_an_expression(tmp_path: Path) -> None:
+    literal = CALLER.replace(
+        "inputs: { name: '{{ inputs.customer }}' }",
+        "inputs: { name: '{{ inputs.customer }}', sheet: files/a.xlsx, photos: [] }",
+    )
+    issues = validate_file(write(tmp_path, literal, cust_new__4=FILE_CALLEE)).issues
+    assert [(issue.code, issue.path) for issue in issues] == [
+        ("call.file_value", ("steps", 1, "inputs", "sheet")),
+        ("call.file_value", ("steps", 1, "inputs", "photos")),
+    ]
+    assert "{{ inputs." in issues[0].message
+
+    # 子場景的預設檔案不帶過來：沒有給就是問題
+    missing = CALLER.replace(
+        "inputs: { name: '{{ inputs.customer }}' }",
+        "inputs: { name: '{{ inputs.customer }}', photos: '{{ inputs.customer }}' }",
+    )
+    issue = only_issue(write(tmp_path, missing, cust_new__4=FILE_CALLEE))
+    assert (issue.code, issue.path) == ("call.file_missing", ("steps", 1, "inputs"))
     assert "sheet" in issue.message
 
 

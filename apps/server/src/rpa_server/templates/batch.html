@@ -3,7 +3,7 @@
 {#- 一個批次（M7.3，ADR 0024）：還沒開始時可以改欄位對應與選項；開始後看每一列的進度與結果，
     結束後匯出、或只重跑沒有通過的列（重跑前可以改那幾列的儲存格）。執行中每幾秒檢查一次，有變化就重新整理。 -#}
 {% block crumb %}<a href="/batches">{{ t("nav.batches") }}</a> › {{ batch.id }}{% endblock %}
-{% block description %}<a href="/scenes/{{ batch.scene_id }}">{{ batch.scene_id }}</a> {{ batch.scene_name }} · v{{ batch.revision }} · {{ m.badge(batch.status, t("batch_status." + batch.status)) }}{% endblock %}
+{% block description %}{% if batch.composite %}<a href="/playground/{{ batch.workflow_id }}">{{ t("batch.composite") }}</a>{% else %}<a href="/scenes/{{ batch.scene_id }}">{{ batch.scene_id }}</a>{% endif %} {{ batch.scene_name }} · v{{ batch.revision }} · {{ m.badge(batch.status, t("batch_status." + batch.status)) }}{% endblock %}
 {% block actions %}
 {% if batch.status == "draft" %}
 <button class="button" type="button" data-action="delete-batch">{{ t("batch.delete") }}</button>
@@ -77,7 +77,7 @@
         </label>
         <label class="field">{{ t("run_form.engine") }}
           <select name="engine">
-            <option value="">{{ t("run_form.engine_default", engine=scenario.browser.engine) }}</option>
+            <option value="">{% if batch.composite %}{{ t("batch_form.engine_composite") }}{% else %}{{ t("run_form.engine_default", engine=scenario.browser.engine) }}{% endif %}</option>
             {% for engine in engines %}<option value="{{ engine }}"{% if batch.engine == engine %} selected{% endif %}>{{ engine }}</option>{% endfor %}
           </select>
         </label>
@@ -87,7 +87,7 @@
           <label><input type="radio" name="headless" value="0"{% if batch.headless == false %} checked{% elif not display %} disabled{% endif %}> {{ t("run_form.window_headed") }}</label>
           <label><input type="radio" name="headless" value="1"{% if batch.headless != false %} checked{% endif %}> {{ t("run_form.window_headless") }}</label>
         </fieldset>
-        <label class="field">{{ t("run_form.base_url") }}
+        <label class="field"{% if batch.composite %} hidden{% endif %}>{{ t("run_form.base_url") }}
           <input type="url" name="baseUrl" value="{{ batch.base_url or '' }}" placeholder="https://">
         </label>
         <div><button class="button" type="button" data-action="save-batch">{{ t("batch.save") }}</button></div>
@@ -116,8 +116,8 @@
             <td>{% if editable and row.rerunnable %}<input class="compact" data-cell data-row="{{ row.number }}" data-column="{{ column }}" value="{{ row.cells.get(column, '') }}">{% else %}{{ row.cells.get(column, "") }}{% endif %}</td>
             {% endfor %}
             <td>{{ m.badge(row.status, t("status." + row.status)) }}{% if row.attempts > 1 %}<span class="cell-sub">{{ t("batch.attempts", count=row.attempts) }}</span>{% endif %}</td>
-            <td>{% if row.run %}<a class="mono" href="/runs/{{ row.run.id }}">{{ row.run.id }}</a>{% if row.run.duration_seconds is not none %}<span class="cell-sub">{{ "%.1f"|format(row.run.duration_seconds) }} s · {{ m.replay_link(row.run) }}</span>{% endif %}{% else %}—{% endif %}</td>
-            <td>{% if row.run and row.run.output %}<code class="cell-sub">{{ row.run.output | compact_json | truncate(160) }}</code>{% else %}—{% endif %}</td>
+            <td>{% if row.run %}<a class="mono" href="/runs/{{ row.run.id }}">{{ row.run.id }}</a>{% if row.run.duration_seconds is not none %}<span class="cell-sub">{{ "%.1f"|format(row.run.duration_seconds) }} s · {{ m.replay_link(row.run) }}</span>{% endif %}{% elif row.composite %}<a class="mono" href="/playground/runs/{{ row.composite.id }}">{{ row.composite.id }}</a>{% if row.composite.duration_seconds is not none %}<span class="cell-sub">{{ "%.1f"|format(row.composite.duration_seconds) }} s · <a class="text-btn" href="/playground/runs/{{ row.composite.id }}/replay">{{ t("runs.replay_link") }}</a></span>{% endif %}{% else %}—{% endif %}</td>
+            <td>{% if row.output %}<code class="cell-sub">{{ row.output | compact_json | truncate(160) }}</code>{% else %}—{% endif %}</td>
             <td>{% if row.problems %}<ul class="checklist">{% for problem in row.problems %}<li>{{ problem.message }}</li>{% endfor %}</ul>{% elif row.error %}<span class="cell-sub">{{ row.error | truncate(200) }}</span>{% else %}—{% endif %}</td>
           </tr>
         {% endfor %}

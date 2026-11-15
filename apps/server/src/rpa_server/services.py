@@ -365,6 +365,7 @@ class Services:
         storage: Storage,
         *,
         examples_dir: Path | None = None,
+        extra_examples: Sequence[Path] = (),
         display: bool = False,
         locale: Locale = DEFAULT_LOCALE,
         local_worker: bool = True,
@@ -379,6 +380,8 @@ class Services:
         self.uploads = UploadService(sessions, storage.root, upload_limits)
         """上傳的檔案（M7c）：檔案入參參照的檔案、執行前檢查與保留規則。"""
         self.examples_dir = examples_dir
+        self.extra_examples = tuple(extra_examples)
+        """和範例資料夾一起匯入的資料夾（M7.1 的流程範例）。"""
         self.display = display
         """這台電腦能不能顯示瀏覽器視窗；能的話執行預設用有頭模式。"""
         self.local_worker = local_worker
@@ -763,15 +766,26 @@ class Services:
 
     def _examples(self) -> list[tuple[str, Path]]:
         """範例資料夾裡能通過校驗的場景：(場景 id, 場景檔)。"""
-        folder = self.examples_dir
-        if folder is None or not folder.is_dir():
-            return []
         found: list[tuple[str, Path]] = []
-        for path in sorted(folder.glob("*.yaml")) + sorted(folder.glob("*/scenario.yaml")):
+        for path in self._example_paths():
             scenario = validate_file(path).scenario
             if scenario is not None:
                 found.append((scenario.id, path))
         return found
+
+    def _example_paths(self) -> list[Path]:
+        """範例資料夾與一起匯入的資料夾（流程範例）裡的場景檔。
+
+        每個資料夾的 ``*.yaml`` 與 ``*/scenario.yaml``；範例資料夾沒有時都不匯入。
+        """
+        folder = self.examples_dir
+        if folder is None or not folder.is_dir():
+            return []
+        paths: list[Path] = []
+        for each in (folder, *self.extra_examples):
+            if each.is_dir():
+                paths += sorted(each.glob("*.yaml")) + sorted(each.glob("*/scenario.yaml"))
+        return paths
 
     def scene_cards(self, domain_id: str) -> list[SceneCard]:
         """領域頁的卡片：場景、最近一次執行、最近一張執行截圖。"""
@@ -1409,7 +1423,7 @@ class Services:
         else:
             self.get_domain(domain_id)
         report = ImportReport()
-        paths = sorted(folder.glob("*.yaml")) + sorted(folder.glob("*/scenario.yaml"))
+        paths = self._example_paths()
         for path in paths:
             validated = validate_file(path)
             scenario = validated.scenario

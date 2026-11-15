@@ -167,6 +167,8 @@
   "steplog.caught": "接住 {step} 的失败：{error}",
   "browser.call_missing": "找不到子场景 {scenario} 第 {revision} 版（场景文件夹的 calls/ 里没有）",
   "browser.call_inputs": "给子场景的入参有问题：{problems}",
+  "browser.call_file_single": "子场景的文件入参 {name} 只收一个文件，给了 {count} 个",
+  "browser.call_file_unknown": "子场景的文件入参 {name}：「{file}」不是调用场景的文件入参，也不是共用工作文件夹里的文件（download 步骤或前一个子场景产出的）",
   "browser.call_verify_failed": "子场景的独立断言没有通过：{names}",
   "browser.call_outputs": "子场景的出参有问题：{problems}",
   "steplog.call": "子场景 {scenario} 第 {revision} 版",

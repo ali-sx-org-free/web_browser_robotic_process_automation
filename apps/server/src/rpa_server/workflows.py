@@ -34,6 +34,11 @@ M11 PR 2：組合場景放在領域資料夾的 composites/<代號>/（:mod:`rpa
 Agent 存的版本說明由呼叫端帶（note）。路由在 :mod:`rpa_server.agent_projects`。
 
 所有改變組合場景執行狀態的操作都在同一把鎖裡（worker 的回報與頁面的取消可能同時發生）。
+
+組合場景的批次（M7 收尾，:mod:`rpa_server.batches`）：表格的每一列是一次組合運行（目的 execution，
+版本在建立批次時固定）。表格可以給的是每個節點沒有接上游出參的入參，名稱寫成「節點代號.入參」
+（:func:`batch_inputs`）；給了的值存在組合運行（workflow_runs.inputs），取代那個節點的固定值或
+預設值。組合運行結束時（:meth:`WorkflowService.node_finished`、取消）由服務通知批次排下一列。
 """
 
 import logging
@@ -50,6 +55,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.dsl import Scenario
+from rpa_core.dsl.contract import InputSpec
 from rpa_core.pack import (
     COMPOSITES_DIR,
     CompositeManifest,
@@ -102,7 +108,7 @@ from rpa_server.models import WorkflowRun as WorkflowRunRow
 if TYPE_CHECKING:
     from rpa_server.services import Services
 
-__all__ = ["RUN_LIST_LIMIT", "WorkflowService"]
+__all__ = ["BATCH_SEPARATOR", "RUN_LIST_LIMIT", "WorkflowService", "batch_inputs"]
 
 logger = logging.getLogger("rpa_server")
 
@@ -113,6 +119,31 @@ _NAME_LIMIT: Final = 200
 _CODE: Final = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 """組合場景代號的規則（和場景 id 相同）。"""
 Purpose = Literal["validation", "execution"]
+BATCH_SEPARATOR: Final = "."
+"""組合場景的批次：表格給的入參寫成「節點代號.入參名稱」。"""
+
+
+def batch_inputs(
+    workflow: Workflow, scenarios: Mapping[str, Scenario | None]
+) -> dict[str, InputSpec]:
+    """組合場景的批次可以從表格給值的入參（M7 收尾）：每個節點沒有接上游出參的入參，依執行順序。
+
+    名稱是「節點代號.入參」；節點寫了固定值時，固定值當成預設值（表格那一格空白就照用）。
+    ``type: file`` 的入參不能從表格給，不列出。``workflow`` 是解析過同名匹配的定義。
+    """
+    found: dict[str, InputSpec] = {}
+    for node in workflow.execution_nodes():
+        scenario = scenarios.get(node.id)
+        if scenario is None:
+            continue
+        for name, source in input_sources(node, scenario).items():
+            spec = scenario.inputs[name]
+            if spec.type == "file" or source.kind in ("output", "auto"):
+                continue
+            if source.kind == "value":
+                spec = spec.model_copy(update={"default": source.value})
+            found[f"{node.id}{BATCH_SEPARATOR}{name}"] = spec
+    return found
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,6 +179,8 @@ class WorkflowService:
         self._lock = threading.RLock()
         self._scenarios: dict[tuple[str, int], Scenario | None] = {}
         """(場景, 版本) → 場景；版本內容不可變，可以一直快取。"""
+        self._batch_specs: dict[tuple[str, int], Scenario] = {}
+        """(組合場景代號, 版本) → 批次用的「場景」；版本內容不可變。"""
 
     # ------------------------------------------------------------ 場景版本
 
@@ -681,6 +714,8 @@ class WorkflowService:
         revision: int | None = None,
         worker_id: str | None = None,
         client_id: str | None = None,
+        inputs: Mapping[str, Mapping[str, object]] | None = None,
+        batch: tuple[str, int] | None = None,
     ) -> WorkflowRunRecord:
         """執行組合場景：先檢查，沒有問題才建立組合場景的執行並排入第一個節點。
 
@@ -688,6 +723,9 @@ class WorkflowService:
         （執行發布的版本）。target 是執行位置（M9a）：每個節點都一樣，而且第一個節點由哪台
         worker 領取，後面就都給它；worker_id 指定從第一個節點起就給哪台遠端 worker。
         client_id 是觸發的對外 API 用戶端（M14）。
+
+        批次的一列（M7 收尾）：``batch`` 是批次與第幾列，``revision`` 是建立批次時發布的版本
+        （之後發布了新版本也照跑這一版），``inputs`` 是表格給節點的入參（節點代號 → 入參 → 值）。
         """
         key = (idempotency_key or "").strip() or None
         existing = self.by_key(key)
@@ -697,7 +735,13 @@ class WorkflowService:
             row = self._row(session, workflow_id)
             if row.archived:
                 raise conflict("workflow_archived", t("error.workflow_archived", id=row.code))
-            if purpose == "execution":
+            if purpose == "execution" and batch is not None and revision is not None:
+                number = revision
+                if self._usable_revision(session, row, number).published_at is None:
+                    raise conflict(
+                        "workflow_unpublished", t("error.workflow_unpublished", id=row.code)
+                    )
+            elif purpose == "execution":
                 if row.published_number is None:
                     raise conflict(
                         "workflow_unpublished", t("error.workflow_unpublished", id=row.code)
@@ -731,6 +775,8 @@ class WorkflowService:
             code=code,
             source_hash=source_hash,
             client_id=client_id,
+            inputs=inputs,
+            batch=batch,
         )
 
     @staticmethod
@@ -756,6 +802,41 @@ class WorkflowService:
                 ),
             )
         return item
+
+    # ------------------------------------------------------------ 批次（M7 收尾）
+
+    def batch_target(self, workflow_id: int) -> tuple[str, int]:
+        """建立批次：組合場景的名稱與發布的版本；封存或沒有發布時不能建立。"""
+        with self.sessions() as session:
+            row = self._row(session, workflow_id)
+            if row.archived:
+                raise conflict("workflow_archived", t("error.workflow_archived", id=row.code))
+            if row.published_number is None:
+                raise conflict("workflow_unpublished", t("error.workflow_unpublished", id=row.code))
+            return row.name, row.published_number
+
+    def batch_scenario(self, workflow_id: int, number: int) -> Scenario:
+        """批次用的「場景」：只有 inputs（:func:`batch_inputs`）與 outputs（每個節點的出參，
+        「節點代號.出參」，匯出用）；表格的換算與檢查照場景的批次。"""
+        with self.sessions() as session:
+            code = self._row(session, workflow_id).code
+        key = (code, number)
+        if key not in self._batch_specs:
+            workflow = self.revision_workflow(code, number)
+            scenarios = {
+                node.id: self._scenario(node.scene_id, node.revision) for node in workflow.nodes
+            }
+            planned, _ = plan_workflow(workflow, scenarios)
+            outputs = {
+                f"{node.id}{BATCH_SEPARATOR}{name}": spec
+                for node in planned.execution_nodes()
+                if (scenario := scenarios.get(node.id)) is not None
+                for name, spec in scenario.outputs.items()
+            }
+            self._batch_specs[key] = Scenario.model_construct(
+                inputs=batch_inputs(planned, scenarios), outputs=outputs
+            )
+        return self._batch_specs[key]
 
     def revision_workflow(self, code: str, number: int) -> Workflow:
         """某個版本的定義（讀領域資料夾裡的 workflow.json）。"""
@@ -799,6 +880,8 @@ class WorkflowService:
             code, source_hash = row.workflow_code, row.workflow_hash
             engine, headless = row.engine, row.headless
             target = cast("Target", row.target)
+            # 批次那一列的入參照用（重跑是單獨的組合運行，不算進批次；批次自己的重跑在批次頁）
+            given = cast("dict[str, dict[str, object]]", row.inputs or {})
             reused: dict[str, str] = {}
             pinned: str | None = None
             if resume:
@@ -824,6 +907,7 @@ class WorkflowService:
             code=code,
             source_hash=source_hash,
             client_id=client_id,
+            inputs=given,
         )
 
     def _resume_point(
@@ -883,6 +967,8 @@ class WorkflowService:
         code: str | None = None,
         source_hash: str | None = None,
         client_id: str | None = None,
+        inputs: Mapping[str, Mapping[str, object]] | None = None,
+        batch: tuple[str, int] | None = None,
     ) -> WorkflowRunRecord:
         workflow, problems = plan_workflow(
             workflow,
@@ -913,6 +999,11 @@ class WorkflowService:
                         workflow_code=code,
                         workflow_hash=source_hash,
                         client_id=client_id,
+                        batch_id=batch[0] if batch is not None else None,
+                        batch_row=batch[1] if batch is not None else None,
+                        inputs={node: dict(values) for node, values in inputs.items()}
+                        if inputs
+                        else None,
                     )
                 )
                 try:
@@ -1108,6 +1199,7 @@ class WorkflowService:
             engine, headless = row.engine, row.headless
             target = cast("Target", row.target)
             client_id = row.client_id
+            given = (row.inputs or {}).get(node_id)
             node = workflow.node(node_id)
             pinned = self._pin(session, row, workflow, node) if node is not None else None
         if node is None:
@@ -1117,6 +1209,8 @@ class WorkflowService:
         if problems:
             self._finish(run_id, "failed", node.id, problems[0].message)
             return False
+        if isinstance(given, dict):
+            values.update(cast("dict[str, object]", given))  # 批次的表格給的入參（M7 收尾）
         try:
             self.services.request_run(
                 node.scene_id,
@@ -1208,8 +1302,10 @@ class WorkflowService:
                 session.commit()
                 current = active[0].node_id if active else None
             self._finish(run_id, "cancelled", current, t("workflow_run.cancelled"))
-            for run in active:
-                self.services.cancel_run(run.id)
+        # 鎖外面取消節點的執行：取消會通知批次（批次排下一列時要拿這把鎖，M7 收尾），不能反過來等
+        for run in active:
+            self.services.cancel_run(run.id)
+        self.services.batches.workflow_finished(run_id)  # 批次的一列：排下一列（M7 收尾）
         return self.get_run(run_id)
 
     def recover(self) -> int:

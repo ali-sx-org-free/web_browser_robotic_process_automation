@@ -62,7 +62,7 @@ def test_inputs_use_the_recorders_clock_and_evaluate_once(
     if module == "debug":
         resolved = debug_start(scenario, inputs)
     else:
-        _, resolved = record._load(  # pyright: ignore[reportPrivateUsage]
+        _, resolved, _ = record.load_replay(
             argparse.Namespace(scenario=str(scenario), input=str(inputs))
         )
         assert json.loads(inputs.read_text(encoding="utf-8")) == {}
@@ -114,6 +114,4 @@ def test_interactive_start_rejects_invalid_inputs(files: tuple[Path, Path], modu
             debug_start(scenario, inputs)
     else:
         with pytest.raises(ValueError, match="quantity"):
-            record._load(  # pyright: ignore[reportPrivateUsage]
-                argparse.Namespace(scenario=str(scenario), input=str(inputs))
-            )
+            record.load_replay(argparse.Namespace(scenario=str(scenario), input=str(inputs)))

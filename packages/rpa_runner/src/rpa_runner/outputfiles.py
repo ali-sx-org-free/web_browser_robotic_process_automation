@@ -37,6 +37,7 @@ __all__ = [
     "publish_file_outputs",
     "scan",
     "unique_path",
+    "workspace_file",
 ]
 
 FILE_CHANGES: Final = "files.json"
@@ -107,6 +108,13 @@ def _source(value: object, workspace: Path, outputs: Path) -> _Source:
     if not resolved.is_file():
         return _Source(None, "contract.file_output_missing")
     return _Source(resolved)
+
+
+def workspace_file(value: object, workspace: Path) -> tuple[Path | None, str | None]:
+    """共用工作資料夾裡的檔案（子場景的 file 出參，M7.2 收尾）：值的寫法同 file 出參，
+    但只能在共用工作資料夾裡；回傳 (解開後的路徑, None) 或 (None, 問題的訊息鍵)。"""
+    found = _source(value, workspace, workspace)
+    return found.path, found.problem
 
 
 def _copy(source: Path, target: Path) -> None:
