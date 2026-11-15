@@ -9,11 +9,14 @@
 - 用到的地方（存檔、發布、驗證、執行、批次、組合運行、逐步調試、錄製、人工登入）呼叫
   :meth:`Grants.check`；背景工作傳記下的人，沒有人時不檢查。
 
+只管存在 Portal 的 Secrets：場景宣告了、但 Portal 沒有存的名稱，值由執行那台電腦的環境變數
+提供（M2 起的做法），那是那台電腦的管理者給的，不在綁定範圍；沒有值時照舊停在入參階段。
+
 升級時（第一次啟動）把既有的 API 用戶端綁到它可用領域裡的登入角色與所有 Secrets
 （:meth:`Grants.seed_clients`），只做一次。
 """
 
-from collections.abc import Collection, Iterable
+from collections.abc import Callable, Collection, Iterable
 from dataclasses import dataclass
 from typing import Final, Literal
 
@@ -55,8 +58,21 @@ class GrantHolders:
 class Grants:
     """綁定的資料與檢查。"""
 
-    def __init__(self, sessions: sessionmaker[Session]) -> None:
+    def __init__(
+        self,
+        sessions: sessionmaker[Session],
+        stored: Callable[[], Iterable[str]] | None = None,
+    ) -> None:
         self.sessions = sessions
+        self._stored = stored
+        """存在 Portal 的 Secret 名稱；None 時宣告的名稱都要綁定。"""
+
+    def governed(self, names: Iterable[str]) -> list[str]:
+        """這些 Secret 名稱裡要綁定才能用的（存在 Portal 的），排序、去重。"""
+        wanted = set(names)
+        if self._stored is not None:
+            wanted &= set(self._stored())
+        return sorted(wanted)
 
     # ------------------------------------------------------------ 誰
 
@@ -117,7 +133,7 @@ class Grants:
                 "login_role_forbidden",
                 t("error.login_role_forbidden", who=principal.label, id=role),
             )
-        names = sorted(set(secrets))
+        names = self.governed(secrets)
         if names:
             allowed = self.allowed(principal, "secret") or frozenset()
             missing = [name for name in names if name not in allowed]
@@ -141,14 +157,8 @@ class Grants:
                 int(key[5:]) for key in keys if key.startswith("user:") and key[5:].isdigit()
             ]
             client_ids = [key[7:] for key in keys if key.startswith("client:")]
-            users = (
-                session.scalars(select(User).where(User.id.in_(user_ids))).all() if user_ids else []
-            )
-            clients = (
-                session.scalars(select(ApiClient).where(ApiClient.id.in_(client_ids))).all()
-                if client_ids
-                else []
-            )
+            users = session.scalars(select(User).where(User.id.in_(user_ids))).all()
+            clients = session.scalars(select(ApiClient).where(ApiClient.id.in_(client_ids))).all()
             return GrantHolders(
                 users=tuple(
                     sorted(

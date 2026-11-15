@@ -392,7 +392,9 @@ class Services:
         """帳號、登入工作階段與領域成員（M8，ADR 0025）。"""
         self.audit = AuditLog(sessions)
         """稽核紀錄（M8）：登入、登出與每一個改變東西的請求。"""
-        self.grants = Grants(sessions)
+        self.grants = Grants(
+            sessions, stored=lambda: [info.name for info in self.roles.secrets.names()]
+        )
         """登入角色與 Secrets 綁定到帳號與 API 用戶端（M8.1，ADR 0026）。"""
         self._cookie: str | None = None
         self.examples_dir = examples_dir
@@ -2216,7 +2218,7 @@ class Services:
         if allowed is not None:
             forbidden += [
                 t("needs.forbidden_secret", name=name)
-                for name in scenario.secrets
+                for name in self.grants.governed(scenario.secrets)
                 if name not in allowed
             ]
         if role is None:

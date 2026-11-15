@@ -116,7 +116,8 @@ def test_new_role_is_granted_to_its_creator(admin: TestClient, app: FastAPI) -> 
     auto = {
         **role,
         "autoLogin": (
-            "- action: fill\n  target: {label: 密碼}\n  value: '{{ secrets.ERP_PASSWORD }}'\n"
+            "- id: password\n  action: fill\n  target: {label: 密碼}\n"
+            "  value: '{{ secrets.ERP_PASSWORD }}'\n"
         ),
     }
     assert code(eddie.post("/api/roles", json=auto), 403) == "secret_forbidden"
@@ -133,9 +134,13 @@ def test_secrets_follow_grants(admin: TestClient, app: FastAPI) -> None:
     assert body(eddie.get("/api/secrets")) == {"secrets": []}
 
     files = cast("JsonObject", body(admin.get("/api/scenes/ba-001/revisions/1"))["files"])
-    text = str(files["scenario.yaml"]).replace("\nsteps:", "\nsecrets: [ERP_PASSWORD]\nsteps:", 1)
+    # MACHINE_TOKEN 沒有存在 Portal（由執行的電腦的環境變數提供），不必綁定
+    declared = "\nsecrets: [ERP_PASSWORD, MACHINE_TOKEN]\nsteps:"
+    text = str(files["scenario.yaml"]).replace("\nsteps:", declared, 1)
     save = {"baseRevision": 1, "files": {"scenario.yaml": text}}
-    assert code(eddie.post("/api/scenes/ba-001/revisions", json=save), 403) == "secret_forbidden"
+    refused = eddie.post("/api/scenes/ba-001/revisions", json=save)
+    assert code(refused, 403) == "secret_forbidden"
+    assert "MACHINE_TOKEN" not in refused.text
 
     # Secrets 的綁定只有系統管理員能指定
     grant = {"user": "eddie"}
