@@ -126,7 +126,7 @@
           <li><strong>检查。</strong>角色的「检查」用无头浏览器确认登录状态是否仍然有效（有自动登录步骤时，没登录就自动登录）。服务器有下载角色用的浏览器时在服务器检查；没有时（例如 Linux 安装脚本装的服务器），通过录制端打开管理 Portal 就在录制端检查，直接打开时按钮是灰的。检查用登录状态的复本，通过后才取代原本的；检查期间人工登录或运行更新了登录状态时，保留较新的那份。不先检查也可以：每次运行都会先在运行的那台检查。</li>
           <li><strong>需要登录（needs_login）。</strong>每次运行先在「登录检查」阶段打开确认网址：看得到元素就继续；没有（例如被转到登录页）而且不能自动登录时，停在「需要登录」，不运行任何步骤，并留下登录检查的截图。运行页有「登录角色」与「重新运行」：登录后用同样的入参再跑一次。</li>
           <li><strong>角色互不干扰。</strong>登录状态（Playwright storageState）每个角色一份，存在数据目录的 <code>roles/&lt;角色&gt;/state.json</code>，只有本人能读写；每次运行开新的浏览器 context，只加载场景指定的那个角色。登录状态不会拷贝进运行目录，也不经由网页或 API 提供。运行的结果也会更新角色的状态（已登录、需要登录）。</li>
-          <li><strong>Secrets。</strong>同一页可以设置 Secrets 的值：存在数据目录的 <code>secrets.json</code>（只有本人能读写，M8 改为加密），页面与 API 只显示名称与更新时间，永远不回传值。运行时把场景与角色用到的值交给运行引擎；没有设置的再从同名的环境变量找。页面也列出场景用到、但还没设置的 Secrets。</li>
+          <li><strong>Secrets。</strong>同一页可以设置 Secrets 的值：存在数据目录的 <code>secrets.json</code>（只有本人能读写；M8 起用 AES-256-GCM 加密，只有系统管理员能设置与删除），页面与 API 只显示名称与更新时间，永远不回传值。运行时把场景与角色用到的值交给运行引擎；没有设置的再从同名的环境变量找。页面也列出场景用到、但还没设置的 Secrets。</li>
           <li><strong>测试网站的两个角色。</strong>导入示例时，BA-004（一般用户）与 BA-005（主管）用到的角色依 <code>scenarios/demo/roles.json</code> 一起创建；示范账号写在测试网站的登录页。两个账号看到的待办不同，用来确认角色之间没有混用。</li>
         </ul>
       </div>
@@ -259,7 +259,7 @@
         <ul>
           <li><strong>三段。</strong>服务器（直接打开 8080，例如服务器那台或 SSH 通道）看得到全部菜单；录制端（RPA 录制端 App 经由对外端口打开的 Portal）默认只有场景管理、场景生产、场景运行、项目空间；Worker 端的 RPA Worker App 不加载 Portal 的页面，维持原样。</li>
           <li><strong>替个别录制端打开。</strong>「集群管理 › 设备」的录制端清单每台有「另外显示的菜单」：勾「集群管理」「管理后台」，通过那台就看得到（立刻保存，那台刷新页面就生效）。例如服务器是没有桌面的 Linux、管理者用自己的 Mac 录制端管理时。</li>
-          <li><strong>只是菜单，不是权限。</strong>录制端的权杖照旧能打开所有页面与 API（2026-10-18 的决定，用户权限在 M8）。看不到的菜单，页面上通往它的按钮也不显示（领域页的「管理领域」、项目页的「管理项目」、等待 worker 时的「查看设备」）；组合场景依赖提示的「从 git 添加」之类的动作链接照旧。</li>
+          <li><strong>只是菜单，不是权限。</strong>录制端的权杖只代表那台设备；M8 起通过录制端打开管理 Portal 也要登录，能做什么看登录的账号（见<a href="#accounts">账号、登录与权限</a>）。看不到的菜单，页面上通往它的按钮也不显示（领域页的「管理领域」、项目页的「管理项目」、等待 worker 时的「查看设备」）；组合场景依赖提示的「从 git 添加」之类的动作链接照旧。</li>
           <li><strong>网址不变。</strong>只换分组；<code>/runs</code>、<code>/devices</code>、<code>/domains</code> 等网址与 API 都和之前一样（2026-10-23 起 <code>/composites</code> 转到项目空间；2026-10-25 起 <code>/replay</code> 转到 <code>/runs?video=1</code>）。还没分到领域的场景页停在场景管理、左侧不标示任何一项。</li>
         </ul>
       </div>
@@ -300,6 +300,10 @@
             <tr><td><code>/playground/runs/{串行运行}/videos.zip</code></td><td>下载整次的录像：各节点的原始录像依回看的顺序编号，附 <code>playlist.json</code>；没有任何录像时 404</td></tr>
             <tr><td><code>/playground/runs/{串行运行}/report.html</code></td><td>下载汇总报告：单一 HTML，脱机可开，只嵌入没通过的节点的截图</td></tr>
             <tr><td><code>/devices</code></td><td>设备（集群管理；M10.1；<code>/workers</code> 转到这里）：添加并产生邀请、状态、禁用、重新邀请、删除；录制端另外显示的菜单；默认运行位置</td></tr>
+            <tr><td><code>/login</code>、<code>/setup</code></td><td>登录；还没有任何账号时创建第一个系统管理员（只有服务器那台电脑，M8，见<a href="#accounts">账号、登录与权限</a>）</td></tr>
+            <tr><td><code>/account</code></td><td>我的账号：在各领域的角色、改密码（M8）</td></tr>
+            <tr><td><code>/users</code></td><td>账号（管理后台，系统管理员）：添加、系统管理员、禁用、重设密码（M8）</td></tr>
+            <tr><td><code>/audit</code></td><td>审核记录（管理后台，系统管理员）：最新的在前、依账号筛选、哈希链的验证结果（M8）</td></tr>
           </tbody>
         </table>
       </div>
@@ -384,6 +388,11 @@
             <tr><td><code>PUT /api/settings/default-target</code></td><td>默认运行位置（<code>target</code>：<code>local</code>、<code>remote</code>、<code>any</code>）</td></tr>
             <tr><td><code>GET</code>、<code>PUT /api/settings/server</code></td><td>这台服务器的代号与名称（<code>name</code>）；写进版本、验证、发布的记录</td></tr>
             <tr><td><code>GET</code>、<code>PUT /api/settings/video</code></td><td>录像设置（M12）：<code>enabled</code>、<code>keepPassedDays</code>、<code>keepOtherDays</code>（0～3650）、<code>maxTotalGb</code>；回应另有 <code>usage</code>（几段、多大、钉选几段）。改了之后新的任务照新设置，保留规则立刻应用</td></tr>
+            <tr><td><code>POST /login</code>、<code>POST /logout</code>、<code>POST /setup</code></td><td>登录（<code>username</code>、<code>password</code>、<code>next</code>；成功时设 Cookie）、注销、创建第一个系统管理员（只有 127.0.0.1、还没有账号时）；M8。不对时 401 <code>login_failed</code>，同一个账号 15 分钟内输错 5 次是 429</td></tr>
+            <tr><td><code>GET /api/me</code>、<code>POST /api/me/password</code></td><td>目前的账号与各领域的角色；改自己的密码（<code>current</code>、<code>password</code>）</td></tr>
+            <tr><td><code>GET</code>、<code>POST /api/users</code>；<code>PATCH /api/users/{编号}</code>；<code>POST …/password</code></td><td>账号（系统管理员）：添加（<code>username</code>、<code>displayName</code>、<code>password</code>、<code>systemAdmin</code>）、改显示名称、系统管理员、禁用（最后一个系统管理员不能拿掉，409 <code>last_admin</code>）、重设密码</td></tr>
+            <tr><td><code>GET /api/domains/{领域}/members</code>；<code>PUT …/members/{账号}</code>；<code>DELETE …/members/{编号}</code></td><td>领域成员（管理员）：列出、加入或改角色（<code>role</code>：admin、editor、runner、viewer）、移除</td></tr>
+            <tr><td><code>GET /api/audit</code>、<code>GET /api/audit/verify</code></td><td>审核记录（系统管理员）：<code>user</code>、<code>before</code>、<code>limit</code>；验证哈希链（<code>ok</code>、<code>checked</code>、<code>brokenAt</code>）</td></tr>
             <tr><td><code>POST /client-api/v1/pair</code></td><td>只在对外端口、不需要权杖（M10.1）：<code>code</code>、<code>app</code> 换权杖，回应设备代号、名称、<code>token</code> 与服务器的协定、指纹、版本；代码不对或已用过 401 <code>invite_invalid</code>、过期 401 <code>invite_expired</code>、App 种类不对 409 <code>invite_wrong_app</code>（代码保留）、设备禁用 409；格式在 <code>rpa_worker.pairing</code></td></tr>
             <tr><td><code>/worker-api/v1/…</code></td><td>只在对外端口、要权杖：<code>hello</code>、<code>claim</code>、<code>runs/{运行编号}/heartbeat</code>、<code>…/artifacts</code>（zip）、<code>…/role-state</code>、<code>…/finish</code>、<code>…/fail</code>、<code>…/files/{代号}</code>（下载任务用到的上传档，M7c）；格式在 <code>rpa_worker.protocol</code></td></tr>
           </tbody>
@@ -407,7 +416,8 @@
             <dt><code>roles/<wbr>&lt;角色&gt;/<wbr>state.json</code></dt><dd>角色的登录状态（只有本人能读写）</dd>
             <dt><code>recordings/<wbr>&lt;录制编号&gt;/</code></dt><dd>遮罩过的原始录制稿与转换结果</dd>
             <dt><code>debug/<wbr>&lt;工作阶段&gt;/</code></dt><dd>调试的截图（工作阶段结束就删除）</dd>
-            <dt><code>secrets.json</code></dt><dd>Secrets 的值（只有本人能读写）</dd>
+            <dt><code>secrets.json</code></dt><dd>Secrets 的值（只有本人能读写；M8 起加密）</dd>
+            <dt><code>secrets.key</code></dt><dd>Secrets 的加密密钥（M8；只有本人能读写，备份时一起备份；设了 <code>RPA_SECRETS_KEY</code> 时没有这个档）</dd>
             <dt><code>backups/</code></dt><dd>升级到领域文件夹之前的数据库与 <code>scenes/</code>；组合场景搬进文件夹之前的数据库；冲突时「以远程为准」之前的领域文件夹</dd>
             <dt><code>git/</code></dt><dd>git 同步（M11 PR 3，只有本人能读写）：<code>repos/&lt;领域&gt;.git</code> 裸仓库（只用来取得与创建提交）、<code>credentials.json</code>（HTTPS 权杖）、<code>keys/&lt;领域&gt;</code>（SSH 部署密钥）、<code>known_hosts</code>。git 子进程不读系统与用户的设置、不用凭证缓存，权杖只经由 GIT_ASKPASS 交给那一次子进程</dd>
           </dl>
@@ -440,7 +450,8 @@
           <dl class="spec-list">
             <dt><code>--host</code>、<code>--port</code></dt><dd>默认 <code>127.0.0.1:8080</code>；没有指定端口号而 8080 被其他程序占用时，自动改用下一个空的端口号（到 8089）。占用的如果就是管理 Portal，只显示它的网址，不再开第二个</dd>
             <dt><code>RPA_DATA_DIR</code></dt><dd>文件夹，默认 <code>data</code>；也可以用 <code>--data</code>（见<a href="#data-folder">文件夹</a>）</dd>
-            <dt><code>RPA_DATABASE_URL</code></dt><dd>默认 SQLite；PostgreSQL 在 M8</dd>
+            <dt><code>RPA_DATABASE_URL</code></dt><dd>默认 SQLite；正式环境改用 PostgreSQL 之后再做（M8 不含，用户 2026-11-14 决定）</dd>
+            <dt><code>RPA_SECRETS_KEY</code></dt><dd>Secrets 的加密密钥（base64 的 32 字节，M8）；没设时用数据目录的 <code>secrets.key</code>（第一次启动时产生）。备份数据目录时密钥要一起备份</dd>
             <dt><code>RPA_LANG</code></dt><dd>默认语言，也是运行报告的语言；页面右上角可以切换</dd>
             <dt><code>--no-testsite</code></dt><dd>不要一起启动测试网站（默认会在 <code>127.0.0.1:8765</code> 启动；已经在运行就沿用）</dd>
             <dt><code>RPA_EXAMPLES_DIR</code></dt><dd>「测试网站自动化」的示例文件夹，默认 <code>scenarios/demo</code></dd>
@@ -455,15 +466,30 @@
       </section>
     </div>
 
+    <section class="panel" id="accounts">
+      <div class="panel-header"><h2>账号、登录与权限</h2><span class="muted">M8，<a href="../adr/0025-multi-user.html">ADR 0025</a></span></div>
+      <div class="panel-body prose">
+        <ul>
+          <li><strong>第一个系统管理员。</strong>升级或新装之后还没有任何账号：在服务器那台电脑打开管理 Portal（<code>http://127.0.0.1:8080</code>）会到「创建第一个系统管理员」；从别台电脑或录制端打开只看到说明。没有浏览器的服务器用 <code>rpa user create 账号 --admin</code>。</li>
+          <li><strong>登录。</strong>页面与 <code>/api</code> 一律要登录；没登录时页面转到登录页、登录后回到原本的页面，<code>/api</code> 回 401。工作阶段 7 天没用就失效、最长 30 天；改密码、重设密码或禁用时那个账号的登录失效。同一个账号 15 分钟内输错 5 次先暂停登录。右上角是自己的名称（「我的账号」：各领域的角色、改密码）与「注销」。忘记密码：系统管理员在「账号」页重设，或在服务器那台用 <code>rpa user password 账号</code>。</li>
+          <li><strong>账号（系统管理员）。</strong>「管理后台 › 账号」添加本地账号（小写英文、数字与 . _ -；密码至少 8 个字）、设为或取消系统管理员、禁用或激活、重设密码。账号不删除；最后一个能用的系统管理员不能取消或禁用，也不能禁用自己。</li>
+          <li><strong>领域的成员。</strong>每个领域页下面有「成员」：管理员、编辑者、运行者、查看者（能做什么见<a href="multi-user.html">多用户与内部系统</a>）。领域管理员与系统管理员可以加入账号、改角色、移除；改了下一个请求就生效。系统管理员不必加入也能做所有事。没有领域的东西（未分配的场景）只有系统管理员看得到。</li>
+          <li><strong>看得到什么。</strong>场景、组合场景、运行、组合运行、批量与回看照所在的领域：清单只列看得到的领域，直接打开别的领域的网址是 404，看得到但不能做的操作是 403。组合场景的场景库只列看得到的领域里的场景。菜单里只有系统管理员能用的（设备、API 用户端、账号、审核记录）不显示；录制只给至少在一个领域是编辑者的人。</li>
+          <li><strong>审核记录（系统管理员）。</strong>「管理后台 › 审核记录」：登录、登录失败、注销，以及每一个改变东西的请求（账号、方法与路径、结果、来源地址、通过哪台录制端）；不记请求内容。只增不改，每一笔串成哈希链，页面上方显示验证结果；改了或删了中间的记录就从那一笔起对不上。</li>
+          <li><strong>不受影响的。</strong>Worker 与录制端的权杖、设备配对、对外 Agent API 的密钥照旧；API 的说明（<code>/api/openapi.json</code>、<code>/api/docs</code>）不必登录。</li>
+        </ul>
+      </div>
+    </section>
+
     <section class="panel" id="security">
       <div class="panel-header"><h2>安全与限制</h2></div>
       <div class="panel-body prose">
         <ul>
-          <li><strong>没有登录。</strong>默认只听 <code>127.0.0.1</code>；改成其他地址时 <code>rpa serve</code> 会提醒。认证与权限在 M8。</li>
+          <li><strong>一律要登录（M8）。</strong>页面与 <code>/api</code> 都要登录；默认只听 <code>127.0.0.1</code>。登录的 Cookie 是 HttpOnly、SameSite=Lax，用 HTTPS 打开时加上 Secure；HTTP 在区网上是明文，HTTPS 在 M9。</li>
           <li><strong>挡掉跨站请求。</strong>写入请求带了 <code>Origin</code> 标头时必须同源，避免其他网站在背景调用本机的 API。</li>
           <li><strong>运行目录的文件。</strong>只提供运行目录内的文件；只有 <code>report.html</code> 当成网页显示，并加上只允许内嵌样式与截图的内容安全政策。</li>
           <li><strong>脚本场景等同运行任意程序。</strong>与 M2 相同，Python 脚本场景只给信任的人编辑。</li>
-          <li><strong>登录状态与 Secrets 存在这台电脑。</strong>两者都在数据目录、只有本人能读写，不经由网页或 <code>/api</code> 提供，也不写进运行目录、报告与日志；录制稿里的密码遮罩后才保存。M8 加密存放。</li>
+          <li><strong>登录状态与 Secrets 存在这台电脑。</strong>两者都在数据目录、只有本人能读写，不经由网页或 <code>/api</code> 提供，也不写进运行目录、报告与日志；录制稿里的密码遮罩后才保存。Secrets 的值从 M8 起加密存放（密钥见<a href="#settings">设置</a>）；登录状态仍是只有本人能读写的文件。</li>
           <li><strong>远程 worker 拿得到运行要用的 Secrets 与登录状态。</strong>只在领取任务的回应里，worker 放在内存与运行期间只有本人能读写的暂保存，运行完删除。Worker API 用 HTTP 时在区网上是明文：只在信任的网络使用；权杖只存哈希，可以随时禁用或重新产生。</li>
         </ul>
       </div>
@@ -474,7 +500,7 @@
       <div class="panel-body">
         <dl class="spec-list">
           <dt>M5</dt><dd>AI 助手只改草稿，发布仍走同一个门槛</dd>
-          <dt>M8</dt><dd>认证与权限、Secrets 加密、PostgreSQL</dd>
+          <dt>M8</dt><dd>账号、登录与以领域为单位的权限、Secrets 加密、审核记录（见<a href="#accounts">账号、登录与权限</a>）；正式环境改用 PostgreSQL 不在这次范围</dd>
           <dt>M9</dt><dd>调度、worker 标签与并发、HTTPS、服务器推送事件取代轮询（远程 worker 已在 M9a 提前完成）</dd>
         </dl>
       </div>
