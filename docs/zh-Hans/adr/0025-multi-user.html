@@ -25,7 +25,7 @@
       <dl class="spec-list">
         <dt>日期</dt><dd class="mono">2026-11-14</dd>
         <dt>状态</dt><dd>用户 2026-11-14 06:12 America/Los_Angeles（PST，UTC−08:00）要求做 M8「多用户与治理，但不包含正式环境改用PostgreSQL部分」；06:19 回答四个问题（见<a href="../../../handoff/decisions.html#decisions">决定记录</a>）：D1 先只做本地账号（预留 OIDC、LDAP）；D2 以领域为单位；D3 Secrets 的密钥自动产生保存（环境变量可以覆写），Secrets 维持全域、只有系统管理员能改，接受这次升级要换完整分发包；D4 一律要登录，第一个系统管理员只能在服务器那台创建，设备配对与 Agent API 的密钥照旧。工作阶段的期限、密码规则、审核的范围与哈希链、路由权限的写法、<code>rpa user</code> 是 Claude 的实现选择（<a href="../../../handoff/tasks/20261114-m8-multi-user.html">任务记录</a>），审阅 PR 时可以调整。</dd>
-        <dt>影响范围</dt><dd>rpa-server（账号、工作阶段、成员、审核的模型与迁移 0020；登录关卡 <code>gate.py</code>；清单依领域筛选；Secrets 加密；登录、账号、审核页；Portal 的脚本）、rpa CLI（<code>rpa user</code>）、服务器分发包（多了 <code>cryptography</code>：运行环境改变，这次升级要用完整分发包）、Linux 的冒烟测试（先创建第一个系统管理员）。rpa-core、rpa-runner、Worker、录制端 App 不改。</dd>
+        <dt>影响范围</dt><dd>rpa-server（账号、工作阶段、成员、审核的模型与迁移 0020；登录关卡 <code>gate.py</code>；清单依领域筛选；Secrets 加密；登录、账号、审核页；Portal 的脚本）、rpa CLI（<code>rpa user</code>）、服务器分发包（多了 <code>cryptography</code>：运行环境改变，这次升级要用完整分发包）、Linux 的冒烟测试与桌面端的端到端测试（先创建第一个系统管理员、带着登录的 Cookie）、录制端的本机闸道（<code>rpa_worker.gateway</code>：分辨「要登录」与「权杖失效」）。rpa-core、rpa-runner 与 Worker 的运行不改。</dd>
         <dt>相关</dt><dd><a href="0008-sqlite-and-postgresql.html">ADR 0008</a>（SQLite 与 PostgreSQL）、<a href="0015-domain-folders-and-git.html">ADR 0015</a>（领域文件夹与 git）、<a href="0014-desktop-apps.html">ADR 0014</a>（桌面 App 与录制端）、<a href="0017-agent-api.html">ADR 0017</a>（对外 Agent API）、<a href="0018-layered-updates.html">ADR 0018</a>（分层更新）；<a href="../design/multi-user.html">多用户与内部系统</a>、<a href="../design/portal.html#accounts">管理 Portal › 账号、登录与权限</a></dd>
       </dl>
     </section>
@@ -42,7 +42,7 @@
         <div class="panel-header"><h2>决策</h2></div>
         <div class="panel-body prose">
           <ul>
-            <li><strong>一律要登录。</strong>页面与 <code>/api</code> 都经过登录关卡（<code>rpa_server.gate</code>）：没登录的页面转到 <code>/login?next=…</code>，<code>/api</code> 回 401。不经过关卡的只有静态档、登录／注销／创建第一个管理员、语言切换、API 的说明（<code>rpa serve</code> 用 openapi.json 认出已经在运行的 Portal），以及本来就有权杖或密钥的 Worker API、Client API、Agent API。通过录制端打开时也要登录（录制端的权杖只代表设备）。</li>
+            <li><strong>一律要登录。</strong>页面与 <code>/api</code> 都经过登录关卡（<code>rpa_server.gate</code>）：没登录的页面转到 <code>/login?next=…</code>，<code>/api</code> 回 401。不经过关卡的只有静态档、登录／注销／创建第一个管理员、语言切换、API 的说明（<code>rpa serve</code> 用 openapi.json 认出已经在运行的 Portal），以及本来就有权杖或密钥的 Worker API、Client API、Agent API。通过录制端打开时也要登录（录制端的权杖只代表设备）：没登录的 401 带着 <code>X-RPA-Login: required</code>，录制端的闸道照样转送，不当成设备权杖失效。</li>
             <li><strong>本地账号。</strong>账号是小写英文、数字与 <code>. _ -</code>；密码至少 8 个字，用标准库的 scrypt（N=2^15、r=8、p=1）哈希。<code>users.provider</code>、<code>subject</code> 预留给 OIDC、LDAP。账号不删除只禁用（审核与成员关系还指得到它）。最后一个能用的系统管理员不能取消或禁用，也不能禁用自己。</li>
             <li><strong>第一个系统管理员只能在服务器那台创建。</strong>还没有任何账号时，从 127.0.0.1 直接打开的 <code>/setup</code> 创建（通过录制端或别台电脑不行）；没有浏览器的服务器用 <code>rpa user create 账号 --admin</code>。忘记密码时用 <code>rpa user password 账号</code>。</li>
             <li><strong>工作阶段。</strong>登录后的 Cookie 是随机权杖（HttpOnly、SameSite=Lax、HTTPS 时 Secure），名称加上服务器代号；数据库只存它的 SHA-256。7 天没用就失效、最长 30 天；改密码（其他地方的失效）、重设密码与禁用时那个账号的失效。同一个账号 15 分钟内输错 5 次先暂停登录；账号不存在时也算一次哈希，不从回应时间看出账号是否存在。写入请求另有既有的同源检查（<code>Origin</code>）。</li>
