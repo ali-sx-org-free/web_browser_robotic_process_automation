@@ -22,13 +22,13 @@
   <div class="stack">
     <div class="two-col">
       <section class="panel">
-        <div class="panel-header"><h2>多用户</h2><span class="muted">主要在 M8 实现；MVP 是单用户</span></div>
+        <div class="panel-header"><h2>多用户</h2><span class="muted">M8 实现（<a href="../adr/0025-multi-user.html">ADR 0025</a>）；之前是单用户</span></div>
         <div class="panel-body">
           <dl class="spec-list">
-            <dt>认证</dt><dd>先做本地账号；预留 OIDC 与 LDAP 接口，方便接公司的 AD 或 SSO。</dd>
-            <dt>权限</dt><dd>以「项目」为单位隔离场景、Secrets 与运行记录。</dd>
-            <dt>Secrets</dt><dd>加密存放。用户可以在场景中引用，但无法读出明文。M8 之前是服务器上只限本人读写的明文档，只送到需要它的 worker 或录制端。</dd>
-            <dt>审核</dt><dd>谁在什么时间修改、运行了哪个场景，全部留记录，不可删改。</dd>
+            <dt>认证</dt><dd>本地账号（密码用 scrypt 哈希）；账号表预留 <code>provider</code>、<code>subject</code> 给之后的 OIDC 与 LDAP（公司的 AD 或 SSO）。管理 Portal 的页面与 API 一律要登录；第一个系统管理员只能在服务器那台电脑上（127.0.0.1 的 <code>/setup</code>，或 <code>rpa user create --admin</code>）创建。设备配对、Worker 与录制端的权杖、Agent API 的密钥照旧。</dd>
+            <dt>权限</dt><dd>以「领域」为单位：每个领域的成员是管理员、编辑者、运行者或查看者，管的是那个领域的场景、组合场景、运行、批量与回看。看不到的领域不出现在清单里，直接打开网址是 404。项目只是组合场景的分组，不管权限。</dd>
+            <dt>Secrets</dt><dd>AES-256-GCM 加密存放（密钥在数据目录的 <code>secrets.key</code> 或环境变量 <code>RPA_SECRETS_KEY</code>，要和数据一起备份）。Secrets 是全域的，只有系统管理员能设置与删除；场景与登录角色照名称引用，任何人都读不出明文。只送到需要它的 worker 或录制端。</dd>
+            <dt>审核</dt><dd>登录、注销、登录失败，以及每一个改变东西的请求（谁、何时、哪个路径、结果），只增不改，每一笔串成哈希链：改了或删了中间任何一笔，验证时就看得出来。系统管理员在「管理后台 › 审核记录」查看。</dd>
             <dt>版本</dt><dd>场景每次保存产生不可变的新版本；运行记录指向确切版本。版本、验证与发布记录都在领域文件夹，可以经由 git 审阅（M11）。</dd>
             <dt>数据库</dt><dd>正式环境用 PostgreSQL，支持多个 worker 与并发写入；SQLite 只用于开发与原型（单机、单一进程），见 <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>。</dd>
             <dt>Runner 无状态</dt><dd>从 M2 起只接收场景、入参与 Secrets，输出结果与产物；放进 M3 的背景 worker、M9a 的远程 worker 与 M10 的 Worker App 时都不用改。</dd>
@@ -37,21 +37,20 @@
       </section>
 
       <section class="panel">
-        <div class="panel-header"><h2>角色</h2><span class="muted">项目内的权限</span></div>
+        <div class="panel-header"><h2>角色</h2><span class="muted">领域内的权限（M8）</span></div>
         <div class="table-scroll">
           <table>
             <thead><tr><th>能力</th><th>管理员</th><th>编辑者</th><th>运行者</th><th>查看者</th></tr></thead>
             <tbody>
-              <tr><td>查看场景与运行记录</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-              <tr><td>运行场景</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
-              <tr><td>创建、编辑场景</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
-              <tr><td>引用 Secrets</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
-              <tr><td>管理 Secrets 与调度</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
-              <tr><td>管理成员</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+              <tr><td>查看场景、组合场景、运行记录、批量与回看</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+              <tr><td>运行、批量运行、取消、重跑</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+              <tr><td>创建、编辑、验证、发布场景与组合场景；录制、逐步调试；领域的登录角色</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+              <tr><td>引用 Secrets（在场景与登录角色写名称）</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+              <tr><td>管理成员、领域名称与说明、git 同步</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
             </tbody>
           </table>
         </div>
-        <div class="diagram-caption">另有平台级的系统管理员，负责创建项目与全域设置。细节在 M8 定稿。</div>
+        <div class="diagram-caption">另有系统管理员：不必加入就能做所有领域的事，并且负责账号、创建与删除领域、项目、Secrets 的值、设备与 API 用户端、服务器设置（含批量共用的上限）与审核记录。调度（定时运行）属于 M9，到时候再定谁能设置。</div>
       </section>
     </div>
 
@@ -71,7 +70,7 @@
             <tr><td>文件下载</td><td>download 动作；下载文件作为产物保存</td><td>M7</td></tr>
             <tr><td>表格数据抽取</td><td>extract 支持表格转成结构化数据</td><td>M1</td></tr>
             <tr><td>自签凭证</td><td>场景层级可设置忽略 HTTPS 错误，默认关闭并在审核时标示</td><td>M2</td></tr>
-            <tr><td>页面内容可能敏感</td><td>AI 生成可切换到自建模型；截图与 Trace 依项目权限访问</td><td>M5、M8</td></tr>
+            <tr><td>页面内容可能敏感</td><td>AI 生成可切换到自建模型；截图、录像与回看依领域的权限访问</td><td>M5、M8</td></tr>
           </tbody>
         </table>
       </div>
