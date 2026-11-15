@@ -27,11 +27,12 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Final, Literal, cast
 from urllib.parse import urlsplit
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.dsl import Scenario
+from rpa_server.auth import visible_domains
 from rpa_server.batch_table import (
     MAX_CELL,
     ExportRow,
@@ -47,6 +48,7 @@ from rpa_server.domain import FINISHED, Engine, RunRecord, Target, now
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import t
 from rpa_server.models import Batch, BatchRow, Run, Scene, Setting
+from rpa_server.models import Workflow as WorkflowRow
 from rpa_server.models import WorkflowRun as WorkflowRunRow
 from rpa_server.workflows import BATCH_SEPARATOR
 
@@ -829,6 +831,17 @@ class BatchService:
                 statement = statement.where(Batch.scene_id == scene_id)
             if workflow_id is not None:
                 statement = statement.where(Batch.workflow_id == workflow_id)
+            allowed = visible_domains()  # M8：只列看得到的領域裡的場景（組合場景）的批次
+            if allowed is not None:
+                domains = sorted(allowed)
+                statement = statement.where(
+                    or_(
+                        Batch.scene_id.in_(select(Scene.id).where(Scene.domain_id.in_(domains))),
+                        Batch.workflow_id.in_(
+                            select(WorkflowRow.id).where(WorkflowRow.domain_id.in_(domains))
+                        ),
+                    )
+                )
             if client_id is not None:
                 statement = statement.where(Batch.client_id == client_id)
             batches = list(session.scalars(statement.limit(limit)))

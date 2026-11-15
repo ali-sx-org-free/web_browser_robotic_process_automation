@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:f3bb59380975e41f">
+<meta name="translation-source" content="sha256:dd33b5fc405cc32d">
 <title>Architecture · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -236,7 +236,7 @@
     </section>
 
     <section class="panel" id="mvp">
-      <div class="panel-header"><h2>How the parts work</h2><span class="muted">Single user (login and permissions come in M8); one server, any number of devices</span></div>
+      <div class="panel-header"><h2>How the parts work</h2><span class="muted">Multi-user: signing in is always required and permissions are per domain (M8); one server, any number of devices</span></div>
       <div class="panel-body">
         <div class="four-col">
           <div class="notice"><strong>Management portal</strong><p>Pages rendered by the server with Jinja, following the layout of the <a href="../../prototypes/mvp/index.html">MVP prototype</a> (<a href="../adr/0011-fastapi-jinja.html">ADR 0011</a>). Open 8080 in a browser on the server, or use the Recorder app window, which goes through the external port (<a href="../adr/0014-desktop-apps.html">ADR 0014</a>).</p></div>

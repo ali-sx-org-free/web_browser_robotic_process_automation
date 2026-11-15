@@ -6,6 +6,7 @@
 {% block description %}{{ t("batches.description") }}{% endblock %}
 {% block content %}
 <div class="stack">
+  {% set me = current_access() %}{% if not me or me.system_admin %}
   <form class="panel" id="batch-shared">
     <div class="panel-body field-row">
       <label class="field">{{ t("batches.shared_limit") }}
@@ -16,6 +17,7 @@
       <span class="form-error" role="alert"></span>
     </div>
   </form>
+  {% endif %}
   {% if batches %}
   <div class="table-scroll">
     <table>

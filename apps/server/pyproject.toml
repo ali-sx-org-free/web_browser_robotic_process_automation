@@ -15,6 +15,8 @@ dependencies = [
   # 資料庫：SQLite 與 PostgreSQL 共用模型與遷移（ADR 0008）
   "sqlalchemy>=2.1.4",
   "alembic>=1.20.0",
+  # Secrets 加密存放（M8，ADR 0025）：AES-GCM
+  "cryptography>=50.0.2",
 ]
 
 [tool.uv.sources]

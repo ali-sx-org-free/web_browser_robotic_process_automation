@@ -208,7 +208,12 @@ def test_ports_are_kept_apart(client: Client, remote: Client) -> None:
 def test_worker_api_is_closed_without_a_worker_port(tmp_path: Path) -> None:
     data = tmp_path / "plain"
     app = create_app(
-        Settings(data_dir=data, database_url=sqlite_url(data / "rpa.db"), start_worker=False)
+        Settings(
+            data_dir=data,
+            database_url=sqlite_url(data / "rpa.db"),
+            start_worker=False,
+            skip_login=True,
+        )
     )
     with TestClient(app, base_url=f"http://testserver:{WORKER_PORT}") as other:
         assert other.post(f"{API}/hello", json=INFO).status_code == 404

@@ -54,6 +54,8 @@ from rpa_runner.pyruntime import platform_tag
 from rpa_runner.run import new_run_id
 from rpa_server.addresses import PortalAddress
 from rpa_server.agents import AgentService
+from rpa_server.audit import AuditLog
+from rpa_server.auth import AccountService, visible_domains
 from rpa_server.batches import BatchService
 from rpa_server.composite_replay import build_composite_replay
 from rpa_server.composite_report import build_composite_report
@@ -83,11 +85,13 @@ from rpa_server.domain import (
     scene_display_kind,
 )
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
+from rpa_server.gate import SESSION_COOKIE
 from rpa_server.gitsync import GitSource, GitSync
 from rpa_server.i18n import follow_locale, t
 from rpa_server.jobs import RunQueue
-from rpa_server.models import Domain, Revision, Role, Run, Scene
+from rpa_server.models import Batch, Domain, Revision, Role, Run, Scene
 from rpa_server.models import Workflow as WorkflowRow
+from rpa_server.models import WorkflowRun as WorkflowRunRow
 from rpa_server.packs import COMPOSITES_DOMAIN, UNASSIGNED_DOMAIN, LoadReport, PackStore
 from rpa_server.projects import ProjectService
 from rpa_server.recordings import RecordingService
@@ -379,6 +383,11 @@ class Services:
         self.storage = storage
         self.uploads = UploadService(sessions, storage.root, upload_limits)
         """上傳的檔案（M7c）：檔案入參參照的檔案、執行前檢查與保留規則。"""
+        self.accounts = AccountService(sessions)
+        """帳號、登入工作階段與領域成員（M8，ADR 0025）。"""
+        self.audit = AuditLog(sessions)
+        """稽核紀錄（M8）：登入、登出與每一個改變東西的請求。"""
+        self._cookie: str | None = None
         self.examples_dir = examples_dir
         self.extra_examples = tuple(extra_examples)
         """和範例資料夾一起匯入的資料夾（M7.1 的流程範例）。"""
@@ -465,7 +474,9 @@ class Services:
     # ------------------------------------------------------------ 領域資料夾（M11）
 
     def startup(self) -> list[LoadReport]:
-        """伺服器啟動時：產生伺服器代號、遷移 M11 之前的資料（先備份）、載入全部領域資料夾。"""
+        """伺服器啟動時：產生伺服器代號、遷移 M11 之前的資料（先備份）、載入全部領域資料夾。
+        M8：舊的明文 Secrets 換成密文（金鑰的環境變數寫錯時在這裡就停下）。"""
+        self.roles.secrets.migrate()
         self.packs.server()
         self.packs.migrate_legacy(
             unassigned_name=t("domain.unassigned_name"),
@@ -483,6 +494,62 @@ class Services:
         report = self.packs.load_domain(domain_id)
         self._scene_cache.clear()
         return report
+
+    def session_cookie(self) -> str:
+        """登入的 Cookie 名稱：加上伺服器代號，同一台電腦連兩個伺服器時不互相蓋掉（M8）。"""
+        if self._cookie is None:
+            server = re.sub(r"[^A-Za-z0-9_-]", "", self.packs.server().id)
+            self._cookie = f"{SESSION_COOKIE}_{server}" if server else SESSION_COOKIE
+        return self._cookie
+
+    def resource_domain(self, kind: str, key: str) -> tuple[bool, str | None]:
+        """權限檢查用（rpa_server.gate）：東西存不存在、在哪個領域。
+
+        執行與批次看場景（組合場景的批次看組合場景）的領域，組合運行看組合場景的領域，逐步調試
+        看場景的領域；沒有領域（未分配、組合場景已刪除）是 None。
+        """
+        if kind == "debug":
+            try:
+                found = self.debug.get(key)
+            except ServiceError:
+                return False, None
+            return self.resource_domain("scene", found.scene_id)
+        with self.sessions() as session:
+            if kind == "scene":
+                scene = session.get(Scene, key)
+                return scene is not None, scene.domain_id if scene is not None else None
+            if kind == "run":
+                run = session.get(Run, key)
+                if run is None:
+                    return False, None
+                scene = session.get(Scene, run.scene_id)
+                return True, scene.domain_id if scene is not None else None
+            if kind == "batch":
+                batch = session.get(Batch, key)
+                if batch is None:
+                    return False, None
+                if batch.workflow_id is not None:
+                    row = session.get(WorkflowRow, batch.workflow_id)
+                    return True, row.domain_id if row is not None else None
+                scene = session.get(Scene, batch.scene_id) if batch.scene_id else None
+                return True, scene.domain_id if scene is not None else None
+            if kind == "workflow":
+                if not key.isdigit():
+                    return False, None
+                row = session.get(WorkflowRow, int(key))
+                return row is not None, row.domain_id if row is not None else None
+            if kind == "workflow_run":
+                item = session.get(WorkflowRunRow, key)
+                if item is None:
+                    return False, None
+                row = session.get(WorkflowRow, item.workflow_id) if item.workflow_id else None
+                return True, row.domain_id if row is not None else None
+            if kind == "domain":
+                return session.get(Domain, key) is not None, key
+            if kind == "role":
+                role = session.get(Role, key)
+                return role is not None, role.domain_id if role is not None else None
+        return False, None
 
     def server_info(self) -> dict[str, str]:
         server = self.packs.server()
@@ -589,10 +656,13 @@ class Services:
         )
 
     def list_domains(self) -> list[DomainRecord]:
-        """全部領域，依排列順序；就是場景管理的二級選單。"""
+        """全部領域，依排列順序；就是場景管理的二級選單。M8：請求裡只列目前的使用者看得到的。"""
+        statement = select(Domain).order_by(Domain.position, Domain.created_at)
+        allowed = visible_domains()
+        if allowed is not None:
+            statement = statement.where(Domain.id.in_(sorted(allowed)))
         with self.sessions() as session:
-            domains = session.scalars(select(Domain).order_by(Domain.position, Domain.created_at))
-            return [self._domain_record(session, domain) for domain in domains]
+            return [self._domain_record(session, domain) for domain in session.scalars(statement)]
 
     def get_domain(self, domain_id: str) -> DomainRecord:
         with self.sessions() as session:
@@ -721,6 +791,7 @@ class Services:
                     "domain_has_composites",
                     t("error.domain_has_composites", id=domain_id, count=composites),
                 )
+            self.accounts.drop_domain(session, domain_id)  # 成員（M8）一起刪
             # 來源缺失的場景、角色、組合場景只剩執行紀錄引用，不再屬於任何領域
             for scene in session.scalars(select(Scene).where(Scene.domain_id == domain_id)):
                 scene.domain_id = None
@@ -866,6 +937,9 @@ class Services:
         statement = select(Scene).where(Scene.missing.is_(False)).order_by(Scene.id)
         if domain is not None:
             statement = statement.where(Scene.domain_id == domain)
+        allowed = visible_domains()  # M8：只列看得到的領域裡的場景
+        if allowed is not None:
+            statement = statement.where(Scene.domain_id.in_(sorted(allowed)))
         if not include_archived:
             statement = statement.where(Scene.archived.is_(False))
         if category:
@@ -1791,6 +1865,10 @@ class Services:
             statement = statement.where(Run.revision_number == revision)
         if client_id is not None:
             statement = statement.where(Run.client_id == client_id)
+        allowed = visible_domains()  # M8：只列看得到的領域裡的場景的執行
+        if allowed is not None:
+            visible = select(Scene.id).where(Scene.domain_id.in_(sorted(allowed)))
+            statement = statement.where(Run.scene_id.in_(visible))
         with self.sessions() as session:
             return [run_record(run) for run in session.scalars(statement)]
 

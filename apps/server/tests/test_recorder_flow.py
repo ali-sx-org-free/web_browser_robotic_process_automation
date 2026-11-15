@@ -73,6 +73,7 @@ def portal(tmp_path: Path) -> Iterator[Portal]:
         seed_examples=False,
         worker_port=port,
         worker_host="127.0.0.1",
+        skip_login=True,
     )
     server = uvicorn.Server(uvicorn.Config(create_app(settings), log_level="warning"))
     thread = threading.Thread(target=server.run, kwargs={"sockets": [pages, external]}, daemon=True)

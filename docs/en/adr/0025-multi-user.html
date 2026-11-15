@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:0c81b18b346cdb7f">
+<title>ADR 0025 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0025" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0025: Multi-user means local accounts, per-domain roles, encrypted secrets and a hash-chained audit log</h1>
+      <p>The management portal always requires signing in. The first version has local accounts only, and the first system administrator can only be created on the server machine; permissions are per domain (administrator, editor, runner, viewer), plus system administrators; secrets are encrypted with AES-GCM and stay global, changed only by system administrators; every request that changes something goes into an append-only audit log. Switching production to PostgreSQL is not part of this.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-11-14</dd>
+        <dt>Status</dt><dd>At 06:12 America/Los_Angeles (PST, UTC−08:00) on 2026-11-14 the user asked for M8 “multi-user and governance, without switching production to PostgreSQL”, and at 06:19 answered four questions (see the <a href="../../../handoff/decisions.html#decisions">decision log</a>): D1 local accounts only for now (OIDC and LDAP hooks reserved); D2 per domain; D3 the secrets key is generated and stored automatically (an environment variable can override it), secrets stay global and only system administrators change them, and this upgrade needing the full server bundle is accepted; D4 signing in is always required, the first system administrator can only be created on the server machine, and device pairing and Agent API keys are unchanged. Session lifetimes, password rules, the audit scope and hash chain, how route permissions are written and <code>rpa user</code> are Claude's implementation choices (<a href="../../../handoff/tasks/20261114-m8-multi-user.html">task record</a>) and can be adjusted in review.</dd>
+        <dt>Scope</dt><dd>rpa-server (models and migration 0020 for accounts, sessions, members and audit; the sign-in gate <code>gate.py</code>; lists filtered by domain; encrypted secrets; sign-in, account and audit pages; portal scripts), the rpa CLI (<code>rpa user</code>), the server bundle (adds <code>cryptography</code>: the runtime changes, so this upgrade needs the full bundle), the Linux smoke test (creates the first system administrator first). rpa-core, rpa-runner, workers and the Recorder app are unchanged.</dd>
+        <dt>Related</dt><dd><a href="0008-sqlite-and-postgresql.html">ADR 0008</a> (SQLite and PostgreSQL), <a href="0015-domain-folders-and-git.html">ADR 0015</a> (domain folders and git), <a href="0014-desktop-apps.html">ADR 0014</a> (desktop apps and the Recorder), <a href="0017-agent-api.html">ADR 0017</a> (external Agent API), <a href="0018-layered-updates.html">ADR 0018</a> (layered updates); <a href="../design/multi-user.html">Multi-user and internal systems</a>, <a href="../design/portal.html#accounts">Management portal › Accounts, sign-in and permissions</a></dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>Up to M7 the management portal had no sign-in: by default it only listened on 127.0.0.1, and Recorders opened it through their own gateway with a device token. Once a team shares it, it has to know who is who, limit who can change or run which scenarios, keep secrets out of a plain-text file, and leave a record of who did what that cannot be altered.</p>
+          <p>Scenarios, roles and composite scenes already live in domains (M11's domain folders, which are also the unit of git sync), while projects only group composite scenes; so following domains is the natural boundary for permissions.</p>
+        </div>
+      </section>
+      <section class="panel" id="decision">
+        <div class="panel-header"><h2>Decision</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li><strong>Signing in is always required.</strong> Pages and <code>/api</code> go through the sign-in gate (<code>rpa_server.gate</code>): pages without a session go to <code>/login?next=…</code>, and <code>/api</code> returns 401. Only static files, sign-in/sign-out/first-administrator setup, the language switch, the API description (<code>rpa serve</code> recognizes a running portal by openapi.json), and the Worker, Client and Agent APIs, which have their own tokens or keys, bypass it. Opening the portal through a Recorder also requires signing in (a Recorder's token only stands for the device).</li>
+            <li><strong>Local accounts.</strong> Usernames use lowercase letters, digits and <code>. _ -</code>; passwords have at least 8 characters and are hashed with the standard library's scrypt (N=2^15, r=8, p=1). <code>users.provider</code> and <code>subject</code> are reserved for OIDC and LDAP. Accounts are disabled, never deleted (audit entries and memberships still point to them). The last active system administrator cannot be removed or disabled, and nobody can disable themselves.</li>
+            <li><strong>The first system administrator can only be created on the server machine.</strong> While there are no accounts, <code>/setup</code> opened directly from 127.0.0.1 creates it (not through a Recorder or from another computer); servers without a browser use <code>rpa user create USERNAME --admin</code>. A forgotten password is reset with <code>rpa user password USERNAME</code>.</li>
+            <li><strong>Sessions.</strong> After signing in the cookie holds a random token (HttpOnly, SameSite=Lax, Secure over HTTPS), named with the server ID; the database only stores its SHA-256. A session ends after 7 days without use and lasts at most 30 days; changing the password (other sessions end), resetting it and disabling the account end that account's sessions. After 5 failures for an account within 15 minutes signing in pauses; unknown accounts still cost one hash, so response times do not reveal whether an account exists. Write requests also keep the existing same-origin check (<code>Origin</code>).</li>
+            <li><strong>Per-domain roles.</strong> <code>domain_members</code>: administrator (members, the domain's name and description, git sync), editor (create, change, validate and publish scenarios and composite scenes, record, step-by-step debugging, the domain's login roles), runner (run, batches, cancel, rerun), viewer (see scenarios, composite scenes, runs, batches and replays). System administrators can do everything without joining, and also handle accounts, creating and deleting domains, projects, secret values, devices, API clients, server settings and the audit log. Things without a domain (unassigned) are for system administrators only. Projects carry no permissions.</li>
+            <li><strong>The gate checks path rules.</strong> A rule table (<code>gate.RULES</code>, first match wins) says which capability is needed and which kind of thing's domain to look at; runs, batches, composite runs and debugging sessions are each traced to their domain (a run follows its scenario, a composite batch its composite scene). Domains you cannot see give 404 (existence is not revealed); things you can see but not do give 403. Where the domain is only known from the request body (new scenario, new composite scene, new login role, moving to another domain), the route checks again. Unlisted GETs only need a signed-in user (lists are filtered separately); unlisted writes are for system administrators only (deny by default).</li>
+            <li><strong>Lists are filtered by domain.</strong> The current user lives in a ContextVar (<code>rpa_server.access</code>); domains, scenarios, runs, composite scenes, composite runs, batches, login roles and the composite editor's scenario library only list domains you can see; background work has no user and is not restricted. Menus hide pages only system administrators can use; recording is shown to people who are an editor in at least one domain.</li>
+            <li><strong>Encrypted secrets.</strong> Every value is encrypted with AES-256-GCM (<code>cryptography</code>) with a random nonce and the name as associated data (renaming breaks decryption). The key comes from the <code>RPA_SECRETS_KEY</code> environment variable, or else <code>secrets.key</code> in the data folder (created on first start, 0600). Old plain values become ciphertext at startup; with the wrong key the names are still listed but marked unreadable, and runs treat them as unset. Secrets stay global; only system administrators set or delete them, and nobody can read the plain values.</li>
+            <li><strong>An append-only, hash-chained audit log.</strong> <code>audit_events</code> records sign-ins, failed sign-ins, sign-outs, creating the first system administrator, and every <code>/api</code> write request (account, method and path, result, source address, which Recorder it came through); request content is not recorded. Each entry's hash is the SHA-256 of the previous hash plus this entry; there is no way to change or delete entries, verification recomputes from the start, and changing or deleting any entry in the middle breaks the chain from there. The Agent API keeps its own audit.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>The first visit after the upgrade creates a system administrator; the person who did it is then a system administrator, and others need an account and domain membership before they see anything.</li>
+            <li>The server adds <code>cryptography</code>: the runtime (<code>python/</code>) changes, so this upgrade needs the full server bundle rather than an update file (ADR 0018); the user accepted this.</li>
+            <li>The key file must be backed up with the data folder; if it is lost, the secret names remain and the values must be set again.</li>
+            <li>When a composite scene uses scenarios from other domains, people editing it do not see those scenarios in the library (only domains they can see); running a composite scene only depends on its own domain.</li>
+            <li>Deleting only the last few audit entries does not show; preventing that needs the latest hash stored elsewhere, left for when it is needed.</li>
+            <li>Older tests use <code>Settings.skip_login</code> (set only in code; <code>from_env</code> never reads it) to act as a system administrator; sign-in and permissions have their own tests.</li>
+            <li>HTTP on the LAN is still plain text (including the cookie); HTTPS comes in M9.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>Alternatives not chosen</h2></div>
+        <div class="panel-body">
+          <table class="table">
+            <thead><tr><th>Option</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Per-project permissions (the earlier design draft)</td><td>Projects only group composite scenes; scenarios, roles and git sync are all per domain (D2).</td></tr>
+              <tr><td>OIDC/LDAP in the first version</td><td>The user chose local accounts first (D1); the fields and the sign-in flow leave room for them.</td></tr>
+              <tr><td>A default administrator password set by the command line or an environment variable at upgrade</td><td>Default passwords tend to stay unchanged; instead it can only be created on the server machine (D4), with <code>rpa user</code> when there is no browser.</td></tr>
+              <tr><td>A permission check in every route</td><td>Over a hundred routes are easy to miss; one rule table denies unlisted writes by default and is tested rule by rule, with routes only adding the domain known from the request body.</td></tr>
+              <tr><td>Recording whole requests in the audit log</td><td>That would record passwords and secret values; only the method, path and result are kept.</td></tr>
+              <tr><td>The operating system's keychain for secrets</td><td>Servers are often Linux without a desktop and the bundle must be portable; a key file in the data folder or an environment variable instead (D3).</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

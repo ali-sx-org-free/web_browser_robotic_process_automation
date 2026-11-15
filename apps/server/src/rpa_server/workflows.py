@@ -80,6 +80,7 @@ from rpa_core.workflow import (
     resolve_inputs,
 )
 from rpa_runner.run import new_run_id
+from rpa_server.auth import visible_domains
 from rpa_server.domain import (
     FINISHED,
     LOCAL_WORKER,
@@ -256,10 +257,13 @@ class WorkflowService:
                 )
             }
         names = {domain.id: domain.name for domain in self.services.list_domains()}
+        allowed = visible_domains()  # M8：只列目前的使用者看得到的領域裡的場景
         entries: dict[str, dict[str, object]] = {}
         for revision in published:
             scene = scenes[revision.scene_id]
             if scene.missing:  # 領域資料夾裡已經沒有這個場景（M11）
+                continue
+            if allowed is not None and scene.domain_id not in allowed:
                 continue
             entry = entries.setdefault(
                 scene.id,
@@ -333,6 +337,9 @@ class WorkflowService:
         statement = select(WorkflowRow).where(WorkflowRow.missing.is_(False))
         if project_id is not None:
             statement = statement.where(WorkflowRow.project_id == project_id)
+        allowed = visible_domains()  # M8：只列看得到的領域裡的組合場景
+        if allowed is not None:
+            statement = statement.where(WorkflowRow.domain_id.in_(sorted(allowed)))
         with self.sessions() as session:
             rows = list(session.scalars(statement.order_by(WorkflowRow.id)))
         return [self._record(row) for row in rows]
@@ -347,6 +354,9 @@ class WorkflowService:
                     .order_by(WorkflowRow.id)
                 )
             )
+        allowed = visible_domains()
+        if allowed is not None:
+            rows = [row for row in rows if row.domain_id in allowed]
         return [self._record(row, with_last_run=False) for row in rows]
 
     def get_workflow(self, workflow_id: int) -> WorkflowRecord:
@@ -1750,6 +1760,10 @@ class WorkflowService:
             statement = statement.where(WorkflowRunRow.purpose.in_(list(purposes)))
         if client_id is not None:
             statement = statement.where(WorkflowRunRow.client_id == client_id)
+        allowed = visible_domains()  # M8：只列看得到的領域裡的組合場景的執行
+        if allowed is not None:
+            visible = select(WorkflowRow.id).where(WorkflowRow.domain_id.in_(sorted(allowed)))
+            statement = statement.where(WorkflowRunRow.workflow_id.in_(visible))
         if workflow_ids:
             statement = statement.where(WorkflowRunRow.workflow_id.in_(list(workflow_ids)))
         if workers:

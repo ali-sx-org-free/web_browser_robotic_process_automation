@@ -36,6 +36,7 @@ def portal(tmp_path: Path) -> Iterator[str]:
         data_dir=data,
         database_url=sqlite_url(data / "rpa.db"),
         examples_dir=ROOT / "scenarios/demo",
+        skip_login=True,
     )
     server = uvicorn.Server(uvicorn.Config(create_app(settings), log_level="warning"))
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

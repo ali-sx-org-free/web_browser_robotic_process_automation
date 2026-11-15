@@ -291,7 +291,7 @@ def test_project_pages_and_navigation(client: Client, published: None) -> None:
 
     # 專案管理（管理後台）：順序、組合場景數、還沒分到專案的組合場景
     manage = client.get("/projects").text
-    assert side(manage) == ["/domains", "/projects", "/agents"]
+    assert side(manage) == ["/domains", "/projects", "/agents", "/users", "/audit"]
     assert 'id="project-order"' in manage
     assert manage.index('data-project="orders"') < manage.index('data-project="billing"')
     assert f'href="/playground/{loose["id"]}#composite-settings"' in manage

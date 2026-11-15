@@ -21,13 +21,13 @@
   <div class="stack">
     <div class="two-col">
       <section class="panel">
-        <div class="panel-header"><h2>多用戶</h2><span class="muted">主要在 M8 實作；MVP 是單使用者</span></div>
+        <div class="panel-header"><h2>多用戶</h2><span class="muted">M8 實作（<a href="../adr/0025-multi-user.html">ADR 0025</a>）；之前是單使用者</span></div>
         <div class="panel-body">
           <dl class="spec-list">
-            <dt>認證</dt><dd>先做本地帳號；預留 OIDC 與 LDAP 接口，方便接公司的 AD 或 SSO。</dd>
-            <dt>權限</dt><dd>以「專案」為單位隔離場景、Secrets 與執行紀錄。</dd>
-            <dt>Secrets</dt><dd>加密存放。使用者可以在場景中引用，但無法讀出明文。M8 之前是伺服器上只限本人讀寫的明文檔，只送到需要它的 worker 或錄製端。</dd>
-            <dt>稽核</dt><dd>誰在什麼時間修改、執行了哪個場景，全部留紀錄，不可刪改。</dd>
+            <dt>認證</dt><dd>本地帳號（密碼用 scrypt 雜湊）；帳號表預留 <code>provider</code>、<code>subject</code> 給之後的 OIDC 與 LDAP（公司的 AD 或 SSO）。管理 Portal 的頁面與 API 一律要登入；第一個系統管理員只能在伺服器那台電腦上（127.0.0.1 的 <code>/setup</code>，或 <code>rpa user create --admin</code>）建立。裝置配對、Worker 與錄製端的權杖、Agent API 的金鑰照舊。</dd>
+            <dt>權限</dt><dd>以「領域」為單位：每個領域的成員是管理員、編輯者、執行者或檢視者，管的是那個領域的場景、組合場景、執行、批次與回看。看不到的領域不出現在清單裡，直接打開網址是 404。專案只是組合場景的分組，不管權限。</dd>
+            <dt>Secrets</dt><dd>AES-256-GCM 加密存放（金鑰在資料目錄的 <code>secrets.key</code> 或環境變數 <code>RPA_SECRETS_KEY</code>，要和資料一起備份）。Secrets 是全域的，只有系統管理員能設定與刪除；場景與登入角色照名稱引用，任何人都讀不出明文。只送到需要它的 worker 或錄製端。</dd>
+            <dt>稽核</dt><dd>登入、登出、登入失敗，以及每一個改變東西的請求（誰、何時、哪個路徑、結果），只增不改，每一筆串成雜湊鏈：改了或刪了中間任何一筆，驗證時就看得出來。系統管理員在「管理後台 › 稽核紀錄」查看。</dd>
             <dt>版本</dt><dd>場景每次儲存產生不可變的新版本；執行紀錄指向確切版本。版本、驗證與發布紀錄都在領域資料夾，可以經由 git 審閱（M11）。</dd>
             <dt>資料庫</dt><dd>正式環境用 PostgreSQL，支援多個 worker 與併發寫入；SQLite 只用於開發與原型（單機、單一程序），見 <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>。</dd>
             <dt>Runner 無狀態</dt><dd>從 M2 起只接收場景、入參與 Secrets，輸出結果與產物；放進 M3 的背景 worker、M9a 的遠端 worker 與 M10 的 Worker App 時都不用改。</dd>
@@ -36,21 +36,20 @@
       </section>
 
       <section class="panel">
-        <div class="panel-header"><h2>角色</h2><span class="muted">專案內的權限</span></div>
+        <div class="panel-header"><h2>角色</h2><span class="muted">領域內的權限（M8）</span></div>
         <div class="table-scroll">
           <table>
             <thead><tr><th>能力</th><th>管理員</th><th>編輯者</th><th>執行者</th><th>檢視者</th></tr></thead>
             <tbody>
-              <tr><td>檢視場景與執行紀錄</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
-              <tr><td>執行場景</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
-              <tr><td>建立、編輯場景</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
-              <tr><td>引用 Secrets</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
-              <tr><td>管理 Secrets 與排程</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
-              <tr><td>管理成員</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+              <tr><td>檢視場景、組合場景、執行紀錄、批次與回看</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+              <tr><td>執行、批次執行、取消、重跑</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+              <tr><td>建立、編輯、驗證、發布場景與組合場景；錄製、逐步調試；領域的登入角色</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+              <tr><td>引用 Secrets（在場景與登入角色寫名稱）</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+              <tr><td>管理成員、領域名稱與說明、git 同步</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
             </tbody>
           </table>
         </div>
-        <div class="diagram-caption">另有平台級的系統管理員，負責建立專案與全域設定。細節在 M8 定稿。</div>
+        <div class="diagram-caption">另有系統管理員：不必加入就能做所有領域的事，並且負責帳號、建立與刪除領域、專案、Secrets 的值、裝置與 API 用戶端、伺服器設定（含批次共用的上限）與稽核紀錄。排程（定時執行）屬於 M9，到時候再定誰能設定。</div>
       </section>
     </div>
 
@@ -70,7 +69,7 @@
             <tr><td>檔案下載</td><td>download 動作；下載檔作為產物保存</td><td>M7</td></tr>
             <tr><td>表格資料抽取</td><td>extract 支援表格轉成結構化資料</td><td>M1</td></tr>
             <tr><td>自簽憑證</td><td>場景層級可設定忽略 HTTPS 錯誤，預設關閉並在審核時標示</td><td>M2</td></tr>
-            <tr><td>頁面內容可能敏感</td><td>AI 生成可切換到自架模型；截圖與 Trace 依專案權限存取</td><td>M5、M8</td></tr>
+            <tr><td>頁面內容可能敏感</td><td>AI 生成可切換到自架模型；截圖、錄影與回看依領域的權限存取</td><td>M5、M8</td></tr>
           </tbody>
         </table>
       </div>

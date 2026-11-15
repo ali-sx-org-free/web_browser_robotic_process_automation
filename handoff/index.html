@@ -68,7 +68,7 @@
         <p><strong>2026-11-14 更新（main <span class="mono">9819532</span>）：</strong></p>
         <ol class="steps">
           <li><strong>M7 收尾</strong>（你 2026-11-14 06:12 America/Los_Angeles（PST，UTC−08:00）要求）：M7.1 的兩個缺口、M7.2 的兩個限制、M7.3 之後再看的三項；實作與文件完成，草稿 PR #27，見 <a href="tasks/20261114-m7-wrapup.html">M7 收尾的任務紀錄</a>；等待 CI 與你審閱。</li>
-          <li><strong>M8 多用戶與治理</strong>（不含正式環境改用 PostgreSQL）：你已決定只做本地帳號（OIDC、LDAP 留接口）、以領域為權限單位、Secrets 用自動產生的金鑰加密、升級後一律要登入；設計與實作由 Claude 進行中。</li>
+          <li><strong>M8 多用戶與治理</strong>（不含正式環境改用 PostgreSQL）：你已決定只做本地帳號（OIDC、LDAP 留接口）、以領域為權限單位、Secrets 用自動產生的金鑰加密、升級後一律要登入；實作與文件完成（<a href="../docs/adr/0025-multi-user.html">ADR 0025</a>），PR #28，見 <a href="tasks/20261114-m8-multi-user.html">M8 的任務紀錄</a>；等待 CI 與你審閱，合併順序 #26 → #27 → #28。</li>
           <li><strong>下一個版本</strong>：M7.1～M7.3、組合場景的條件連線、同時執行與重複次數已在 main，還沒發布；版本號與時間等你決定。</li>
           <li><strong>M5 AI 助手</strong>仍等你決定模型與資料去向（<a href="decisions.html#pending">待你決定</a>）。</li>
         </ol>

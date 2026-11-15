@@ -1202,8 +1202,20 @@ def test_top_menu_has_six_groups_on_the_server() -> None:
     assert _menu(pages["runs"], "sidenav") == ["/runs", "/batches"]
     assert _menu(pages["project"], "sidenav") == ["/projects/composites", "/projects/billing"]
     assert _menu(pages["workers"], "sidenav") == ["/devices"]
-    assert _menu(pages["domains"], "sidenav") == ["/domains", "/projects", "/agents"]
-    assert _menu(pages["projects"], "sidenav") == ["/domains", "/projects", "/agents"]
+    assert _menu(pages["domains"], "sidenav") == [
+        "/domains",
+        "/projects",
+        "/agents",
+        "/users",
+        "/audit",
+    ]
+    assert _menu(pages["projects"], "sidenav") == [
+        "/domains",
+        "/projects",
+        "/agents",
+        "/users",
+        "/audit",
+    ]
     assert 'class="active" aria-current="true">場景運行' in pages["runs"]
     assert 'class="active" aria-current="true">專案空間' in pages["project"]
     assert 'href="/projects/composites" title="組合場景自動化" class="active"' in pages["project"]

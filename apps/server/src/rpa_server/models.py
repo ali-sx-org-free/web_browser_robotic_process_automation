@@ -10,6 +10,8 @@ M7c：上傳的檔案 uploaded_files（內容以 sha256 存在資料目錄的 in
 M7.3：批次執行 batches 與它的每一列 batch_rows；執行記下屬於哪個批次的第幾列 runs.batch_id、
 runs.batch_row（ADR 0024）。M7 收尾：組合場景的批次 batches.workflow_id（這時 scene_id 是 NULL），
 組合運行記下批次、第幾列與表格給節點的入參 workflow_runs.batch_id、batch_row、inputs。
+M8（ADR 0025）：帳號 users、登入工作階段 login_sessions、領域成員 domain_members、
+稽核紀錄 audit_events（只增不改，前後串成雜湊鏈）。
 
 M11：場景、版本、角色的定義與驗證、發布紀錄都在領域資料夾（rpa_server.packs）；這幾張表是
 資料夾的**索引**，載入時依資料夾重建。只在資料庫的欄位（網址覆寫、排序、登入檢查的結果）
@@ -581,3 +583,80 @@ class UploadedFile(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
     deleted_reason: Mapped[str | None] = mapped_column(String(20))
     """unused（上傳後沒用到）、expired（超過保留天數）、quota（超過總量上限）。"""
+
+
+class User(Base):
+    """帳號（M8，ADR 0025）：第一版只有本地帳號（密碼用 scrypt 雜湊）。
+
+    ``provider``／``subject`` 預留給之後的 OIDC、LDAP（外部帳號沒有密碼）。帳號不刪除，只停用：
+    稽核紀錄與成員關係都還指得到它。
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True)
+    """登入名稱（小寫英文、數字與 . _ -）。"""
+    display_name: Mapped[str] = mapped_column(String(100))
+    password_hash: Mapped[str | None] = mapped_column(String(255))
+    provider: Mapped[str] = mapped_column(String(20), default="local", server_default="local")
+    subject: Mapped[str | None] = mapped_column(String(255))
+    system_admin: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    """系統管理員：所有領域與全域設定（帳號、Secrets、裝置、伺服器設定、稽核）。"""
+    disabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    password_changed_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+    last_login_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
+
+
+class LoginSession(Base):
+    """登入的工作階段：Cookie 帶的是隨機權杖，這裡只存它的 SHA-256。"""
+
+    __tablename__ = "login_sessions"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    last_seen_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    expires_at: Mapped[datetime] = mapped_column(UtcDateTime(), index=True)
+    ip: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(255))
+
+
+class DomainMember(Base):
+    """領域成員（M8）：管理員 admin、編輯者 editor、執行者 runner、檢視者 viewer。"""
+
+    __tablename__ = "domain_members"
+    __table_args__ = (UniqueConstraint("domain_id", "user_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    domain_id: Mapped[str] = mapped_column(ForeignKey("domains.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    role: Mapped[str] = mapped_column(String(10))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+
+
+class AuditEvent(Base):
+    """稽核紀錄（M8）：登入、登出與每一個改變東西的請求；只增不改。
+
+    每一筆的 ``hash`` 是前一筆的 ``hash`` 加上這一筆內容的 SHA-256，改了或刪了中間任何一筆，
+    驗證時就對不上（rpa_server.audit）。不記請求內容（可能有密碼、Secrets 的值）。
+    """
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(UtcDateTime(), index=True)
+    user_id: Mapped[int | None] = mapped_column(index=True)
+    username: Mapped[str | None] = mapped_column(String(64))
+    action: Mapped[str] = mapped_column(String(40))
+    """login、login_failed、logout、setup、request（改變東西的請求）。"""
+    target: Mapped[str | None] = mapped_column(String(500))
+    """請求的方法與路徑，例如 ``POST /api/scenes/ba-001/runs``。"""
+    status: Mapped[int | None] = mapped_column()
+    ip: Mapped[str | None] = mapped_column(String(64))
+    via: Mapped[str | None] = mapped_column(String(64))
+    """透過哪台錄製端（對外埠上的 Portal）。"""
+    detail: Mapped[str | None] = mapped_column(Text)
+    prev_hash: Mapped[str] = mapped_column(String(64))
+    hash: Mapped[str] = mapped_column(String(64))

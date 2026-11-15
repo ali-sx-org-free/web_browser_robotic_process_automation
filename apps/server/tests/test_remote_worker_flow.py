@@ -73,6 +73,7 @@ def portal(tmp_path: Path) -> Iterator[Portal]:
         worker_port=worker_port,
         worker_host="127.0.0.1",  # 邀請裡的伺服器網址就是這個埠
         local_worker=False,
+        skip_login=True,
     )
     server = uvicorn.Server(uvicorn.Config(create_app(settings), log_level="warning"))
     thread = threading.Thread(target=server.run, kwargs={"sockets": [pages, workers]}, daemon=True)

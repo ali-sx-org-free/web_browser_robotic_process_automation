@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final, cast
 from urllib.parse import urlsplit
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from rpa_core.dsl import Issue, format_field, format_issue, validate_data
@@ -45,6 +45,7 @@ from rpa_runner.commands import module_command
 from rpa_runner.files import LOGIN, read_json_or
 from rpa_runner.installed import DISPLAY_NAMES, missing_browsers
 from rpa_runner.login import ENV_LOGIN, EXIT_NEEDS_LOGIN, LoginSettings
+from rpa_server.auth import visible_domains
 from rpa_server.domain import DOMAIN_ID, RoleRecord, RoleStatus, now
 from rpa_server.errors import ServiceError
 from rpa_server.i18n import t
@@ -408,9 +409,14 @@ class RoleService:
     def list_roles(self) -> list[RoleRecord]:
         used = self.scene_roles()
         activities = self._activities()
+        statement = select(Role).where(Role.missing.is_(False)).order_by(Role.id)
+        allowed = visible_domains()  # M8：全域角色加上看得到的領域裡的角色
+        if allowed is not None:
+            statement = statement.where(
+                or_(Role.domain_id.is_(None), Role.domain_id.in_(sorted(allowed)))
+            )
         with self.sessions() as session:
-            roles = session.scalars(select(Role).where(Role.missing.is_(False)).order_by(Role.id))
-            return [self._record(role, used, activities) for role in roles]
+            return [self._record(role, used, activities) for role in session.scalars(statement)]
 
     def get_role(self, role_id: str) -> RoleRecord:
         used = self.scene_roles()

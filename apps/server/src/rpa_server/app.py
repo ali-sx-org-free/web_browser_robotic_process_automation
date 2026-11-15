@@ -10,6 +10,7 @@ M10.1：對外埠也提供桌面 App 的 Client API（/client-api/v1，目前只
 M10.2：對外埠上的 Portal 頁面與 API 給帶著錄製端權杖的請求（錄製端的本機閘道）；
 錄製端的指令通道與互動子程序也在 Client API。
 M14：對外埠也提供第三方 Agent 系統用的 Agent API（/agent-api/v1，agent_api.py），用 API 金鑰認證。
+M8：管理 Portal 的頁面與 /api 一律要登入（rpa_server.gate），登入與帳號的路由在 account_routes.py。
 """
 
 import logging
@@ -27,12 +28,14 @@ from starlette.types import Scope
 
 from rpa_core.i18n import use_locale
 from rpa_server import __version__
+from rpa_server.account_routes import account_router
 from rpa_server.agent_api import AGENT_PREFIX, agent_api
 from rpa_server.api import api_router
 from rpa_server.client_api import client_api_router
 from rpa_server.config import Settings
 from rpa_server.db import create_db_engine, migration_status, upgrade
 from rpa_server.errors import ServiceError
+from rpa_server.gate import AuthGateMiddleware
 from rpa_server.i18n import t
 from rpa_server.middleware import (
     CLIENT_API,
@@ -177,7 +180,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(ServiceError)
     async def service_error(request: Request, error: ServiceError) -> Response:  # pyright: ignore[reportUnusedFunction]
-        if request.url.path.startswith(("/api/", WORKER_API, CLIENT_API)):
+        if request.url.path.startswith(("/api/", WORKER_API, CLIENT_API)) or (
+            request.method != "GET" and request.url.path in ("/login", "/setup")
+        ):
             return JSONResponse(error.to_json(), status_code=error.status)
         page = render(
             "error.html",
@@ -189,12 +194,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         return HTMLResponse(page, status_code=error.status)
 
+    app.include_router(account_router(services))
     app.include_router(api_router(services), prefix="/api")
     app.include_router(worker_api_router(hub, services.device_updates))
     app.include_router(client_api_router(hub, services.recorders, storage, services.device_updates))
     app.include_router(page_router(services))
     app.mount(AGENT_PREFIX, agent_api(services))
     app.mount("/static", StaticAssets(directory=STATIC), name="static")
+
+    def denied(status: int, message: str) -> bytes:
+        page = render(
+            "error.html",
+            page="scenes",
+            title=t("error_page.title"),
+            domains=services.list_domains(),
+            status=status,
+            message=message,
+        )
+        return page.encode("utf-8")
+
+    app.add_middleware(
+        AuthGateMiddleware,
+        accounts=services.accounts,
+        audit=services.audit,
+        resolve=services.resource_domain,
+        cookie_name=services.session_cookie,
+        skip_login=settings.skip_login,
+        render_denied=denied,
+    )
     app.add_middleware(SameOriginMiddleware)
     app.add_middleware(
         PortGateMiddleware,

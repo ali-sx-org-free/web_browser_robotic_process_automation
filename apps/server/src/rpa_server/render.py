@@ -26,6 +26,7 @@ from rpa_core.i18n import LOCALES, NATIVE_NAMES, get_locale
 from rpa_core.workflow import Workflow, condition_text
 from rpa_runner.files import STEP_SHOTS, STEPS
 from rpa_server import __version__
+from rpa_server.access import current_access
 from rpa_server.config import COMPOSITES_DOMAIN, RECORDER_MENUS
 from rpa_server.context import via_recorder
 from rpa_server.domain import (
@@ -160,9 +161,15 @@ NAV: Final = (
             NavPage("domains", "/domains"),
             NavPage("projects", "/projects"),
             NavPage("agents", "/agents"),
+            NavPage("users", "/users"),
+            NavPage("audit", "/audit"),
         ),
     ),
 )
+SYSTEM_PAGES: Final = frozenset({"workers", "agents", "users", "audit"})
+"""只有系統管理員看得到的頁面（M8，ADR 0025）。"""
+EDITOR_PAGES: Final = frozenset({"recording"})
+"""至少在一個領域是編輯者才看得到的頁面。"""
 """第一級選單（2026-10-22 使用者調整；2026-10-23 在叢集管理前面加上專案空間）：場景管理、場景生產、
 場景運行、專案空間、叢集管理、管理後台。"""
 
@@ -346,9 +353,33 @@ def visible_nav() -> tuple[NavGroup, ...]:
     打開的。只是不顯示：錄製端的權杖照樣能打開這些網址（M8 才有使用者權限）。
     """
     via = via_recorder()
-    if via is None:
-        return NAV
-    return tuple(group for group in NAV if group.id not in RECORDER_MENUS or group.id in via.menus)
+    groups = (
+        NAV
+        if via is None
+        else tuple(
+            group for group in NAV if group.id not in RECORDER_MENUS or group.id in via.menus
+        )
+    )
+    found: list[NavGroup] = []
+    for group in groups:
+        pages = tuple(page for page in group.pages if page_allowed(page.id))
+        if group.pages and not pages:
+            continue  # 這一組的頁面都看不到（例如叢集管理只有系統管理員）
+        href = group.href if pages[:1] == group.pages[:1] else pages[0].href
+        found.append(NavGroup(group.id, group.en, href, pages))
+    return tuple(found)
+
+
+def page_allowed(page_id: str) -> bool:
+    """目前的使用者能不能打開這一頁（M8）：只決定選單顯示，權限由 rpa_server.gate 檢查。"""
+    access = current_access()
+    if access is None or access.system_admin:
+        return True
+    if page_id in SYSTEM_PAGES:
+        return False
+    if page_id in EDITOR_PAGES:
+        return access.can_any("edit")
+    return True
 
 
 def menu_shown(group_id: str) -> bool:
@@ -378,7 +409,11 @@ def _side_items(
         return [*items, SideItem("roles", t("nav.roles"), "/roles")]
     if group.id == "workspace":
         return [SideItem(project_page(p.id), p.name, f"/projects/{p.id}") for p in projects]
-    return [SideItem(p.id, t("nav." + p.id), p.href, p.milestone) for p in group.pages]
+    return [
+        SideItem(p.id, t("nav." + p.id), p.href, p.milestone)
+        for p in group.pages
+        if page_allowed(p.id)
+    ]
 
 
 def _iso(value: datetime | None) -> str:
@@ -764,6 +799,7 @@ _env = Environment(
 cast("dict[str, object]", _env.globals).update(
     t=page_t,
     via_recorder=via_recorder,
+    current_access=current_access,
     menu_shown=menu_shown,
     composites_domain=COMPOSITES_DOMAIN,
     recorder_menus=RECORDER_MENUS,

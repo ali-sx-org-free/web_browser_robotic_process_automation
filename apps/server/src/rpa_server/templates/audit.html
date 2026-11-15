@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{#- 稽核紀錄（M8，系統管理員）：最新的在前；上面是雜湊鏈的驗證結果。 -#}
+{% block description %}{{ t("audit.description") }}{% endblock %}
+{% block content %}
+<div class="stack">
+  {% if verification.ok %}
+  <div class="notice" id="audit-verify" data-ok="true">{{ t("audit.verified", count=verification.checked) }}</div>
+  {% else %}
+  <div class="notice danger" id="audit-verify" data-ok="false">{{ t("audit.broken", id=verification.broken_at, count=verification.checked) }}</div>
+  {% endif %}
+  <form class="field-row" method="get" action="/audit">
+    <label class="field">{{ t("auth.username") }}<input name="user" value="{{ user }}" maxlength="64"></label>
+    <button class="button" type="submit">{{ t("audit.filter") }}</button>
+  </form>
+  <section class="panel">
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr><th>{{ t("audit.at") }}</th><th>{{ t("auth.username") }}</th><th>{{ t("audit.action") }}</th><th>{{ t("audit.target") }}</th><th>{{ t("audit.status") }}</th><th>{{ t("audit.source") }}</th></tr></thead>
+      <tbody>
+      {% for event in events %}
+        <tr data-event="{{ event.id }}">
+          <td>{{ display_time(event.at) }}</td>
+          <td class="mono">{{ event.username or "—" }}</td>
+          <td>{{ t("audit.action_" + event.action) }}</td>
+          <td class="mono">{{ event.target or "" }}</td>
+          <td>{% if event.status %}<span class="{{ 'muted' if event.status < 400 else 'form-error' }}">{{ event.status }}</span>{% endif %}</td>
+          <td class="cell-sub">{{ event.ip or "" }}{% if event.via %} · {{ event.via }}{% endif %}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="muted">{{ t("audit.empty") }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+  {% if older %}<p><a href="/audit?before={{ older }}{% if user %}&amp;user={{ user | urlencode }}{% endif %}">{{ t("audit.older") }}</a></p>{% endif %}
+</div>
+{% endblock %}

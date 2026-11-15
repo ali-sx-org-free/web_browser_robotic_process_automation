@@ -1,0 +1,51 @@
+<!doctype html>
+{#- 登入、建立第一個系統管理員（M8，ADR 0025）：不帶選單；送出由 static/login.js 處理（JSON）。
+    mode：login、setup（伺服器這台、還沒有帳號）、setup_remote（不是伺服器這台：說明怎麼建立）。 -#}
+<html lang="{{ locale }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ title }} · {{ t("app.title") }}</title>
+<link rel="stylesheet" href="{{ static_url("portal.css") }}">
+<link rel="stylesheet" href="{{ static_url("portal-app.css") }}">
+<script defer src="{{ static_url("login.js") }}"></script>
+</head>
+<body class="auth-page" data-page="login">
+<main id="main" class="auth-main">
+  <div class="panel auth-card">
+    <div class="panel-header"><h2>{{ t("app.title") }}</h2><span class="muted">{{ server.name }}</span></div>
+    <div class="panel-body stack">
+      <h1 class="auth-title">{{ title }}</h1>
+      {% if mode == "setup_remote" %}
+      <div class="notice">{{ t("auth.setup_remote_notice") }}</div>
+      {% else %}
+      {% if mode == "setup" %}<div class="notice">{{ t("auth.setup_notice") }}</div>{% endif %}
+      <form class="stack" id="auth-form" data-mode="{{ mode }}" data-next="{{ next_path }}">
+        <label class="field">{{ t("auth.username") }}
+          <input name="username" autocomplete="username" required maxlength="64" autofocus{% if mode == "setup" %} pattern="[a-z0-9][a-z0-9._\-]{0,63}"{% endif %}>
+        </label>
+        {% if mode == "setup" %}
+        <label class="field">{{ t("auth.display_name") }}
+          <input name="displayName" maxlength="100" autocomplete="name">
+        </label>
+        {% endif %}
+        <label class="field">{{ t("auth.password") }}
+          <input type="password" name="password" required autocomplete="{% if mode == 'setup' %}new-password{% else %}current-password{% endif %}"{% if mode == "setup" %} minlength="{{ min_password }}"{% endif %}>
+        </label>
+        {% if mode == "setup" %}
+        <label class="field">{{ t("auth.password_again") }}
+          <input type="password" name="again" required autocomplete="new-password" minlength="{{ min_password }}">
+        </label>
+        {% endif %}
+        <p class="form-error" role="alert" data-mismatch="{{ t('auth.password_mismatch') }}" data-offline="{{ t('auth.offline') }}"></p>
+        <button class="button primary" type="submit">{{ t("auth." + mode + "_submit") }}</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  <nav class="auth-language" aria-label="{{ t('app.language') }}">
+    {% for code in locales %}<a href="/lang/{{ code }}?next={{ ('/login' if mode == 'login' else '/setup') | urlencode }}"{% if code == locale %} aria-current="true"{% endif %}>{{ native_names[code] }}</a>{% endfor %}
+  </nav>
+</main>
+</body>
+</html>

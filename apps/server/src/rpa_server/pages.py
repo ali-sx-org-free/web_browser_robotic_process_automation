@@ -30,6 +30,7 @@ from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import parse_locale
 from rpa_runner.files import OUTPUTS_DIR, PREVIEWS_DIR, REPORT, STEP_SHOTS
 from rpa_runner.installed import DISPLAY_NAMES
+from rpa_server.access import ROLES, Capability, current_access
 from rpa_server.agents import SCOPES
 from rpa_server.batch_table import MAX_BYTES, MAX_ROWS
 from rpa_server.composite_report import build_composite_report, embedded_screenshots
@@ -460,6 +461,11 @@ def page_router(services: Services) -> APIRouter:
             )
         )
 
+    def _can(capability: Capability, domain_id: str | None) -> bool:
+        """頁面上要不要顯示某個操作（M8）；權限本身由 rpa_server.gate 與路由檢查。"""
+        access = current_access()
+        return access is None or access.can(capability, domain_id)
+
     def domain_of(domain_id: str | None) -> DomainRecord | None:
         return services.get_domain(domain_id) if domain_id else None
 
@@ -527,6 +533,49 @@ def page_router(services: Services) -> APIRouter:
             ),
             sync=services.git.status(domain_id),
             can_import=domain_id == EXAMPLES_DOMAIN and examples is not None and examples.is_dir(),
+            members=services.accounts.members(domain_id),
+            member_roles=ROLES,
+            can_manage=_can("manage", domain_id),
+        )
+
+    # ------------------------------------------------------------ 帳號（M8，ADR 0025）
+
+    @router.get("/account", include_in_schema=False)
+    def account() -> HTMLResponse:
+        access = current_access()
+        names = {domain.id: domain.name for domain in services.list_domains()}
+        return page(
+            "account.html",
+            page="account",
+            title=t("account.title"),
+            me=access,
+            memberships=sorted((access.roles if access else {}).items()),
+            domain_names=names,
+        )
+
+    @router.get("/users", include_in_schema=False)
+    def users() -> HTMLResponse:
+        names = {domain.id: domain.name for domain in services.list_domains()}
+        return page(
+            "users.html",
+            page="users",
+            title=t("nav.users"),
+            users=services.accounts.list_users(),
+            domain_names=names,
+            me=current_access(),
+        )
+
+    @router.get("/audit", include_in_schema=False)
+    def audit(user: str | None = None, before: int | None = None) -> HTMLResponse:
+        events = services.audit.recent(username=user, before=before, limit=200)
+        return page(
+            "audit.html",
+            page="audit",
+            title=t("nav.audit"),
+            events=events,
+            user=user or "",
+            verification=services.audit.verify(),
+            older=events[-1].id if len(events) == 200 else None,
         )
 
     @router.get("/scenes/{scene_id}", include_in_schema=False)
