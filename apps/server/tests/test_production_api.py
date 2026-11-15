@@ -438,7 +438,10 @@ def test_secret_values_are_never_returned(app: FastAPI, client: Client) -> None:
     assert "s3cret-value" not in client.get("/api/roles").text
     assert "s3cret-value" not in client.get("/roles").text
     store = services(app).storage.secrets
-    assert json.loads(store.read_text(encoding="utf-8"))["ERP_PASSWORD"]["value"] == "s3cret-value"
+    # M8：檔案裡是密文（ADR 0025），執行時解得回來
+    assert "s3cret-value" not in store.read_text(encoding="utf-8")
+    assert "cipher" in json.loads(store.read_text(encoding="utf-8"))["ERP_PASSWORD"]
+    assert services(app).roles.secrets.values()["ERP_PASSWORD"] == "s3cret-value"
     if os.name != "nt":
         assert store.stat().st_mode & 0o777 == 0o600
 
