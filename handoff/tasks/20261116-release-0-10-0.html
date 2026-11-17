@@ -15,13 +15,13 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261116-release-0-10-0；2026-11-16 20:45 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261116-release-0-10-0；2026-11-16 20:48 America/Los_Angeles（PST，UTC−08:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-16 20:36 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話（原文）：「幫我基於最新的main分支代碼打一個新的版本出來。」使用者沒有指定版本號；Claude 依內容選次版本 <strong>0.10.0</strong>（v0.9.1 之後有 M7、M8 兩個里程碑、資料庫遷移 0018～0021 與新的伺服器依賴），已在對話說明，使用者可以在合併前改。驗收條件：版本一致、版本 PR 的 CI 通過、標籤 <code>v0.10.0</code> 位於 <code>main</code>、發布流程通過、分發檔與 <code>SHA256SUMS.txt</code> 齊全；草稿 Release 經使用者驗收後才發布。</dd>
         <dt>範圍／不包含</dt><dd>範圍：版本號（<code>tools/release_version.py bump 0.10.0</code>）、本紀錄與任務索引；回填 PR #18、#20、#22、#29 的任務紀錄的合併狀態。不包含：功能修改；開著的 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/30">PR #30</a>（<code>deps/uv-upgrade</code>，Python 依賴更新，沒有合併，不在這個版本）；文檔站對齊 v0.10.0（另開，和 v0.9.1 之後的 PR #23 相同做法）；推標籤、發布 Release（使用者）。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude 準備版本差異與本紀錄、開版本 PR；使用者合併 PR、在自己的電腦推標籤（Claude 的雲端環境推不了標籤）、驗收草稿、按 Publish。本任務不代表線上環境已升級。</dd>
         <dt>修改檔案／整合者</dt><dd>九個套件的 <code>pyproject.toml</code>、<code>uv.lock</code>；本紀錄、任務索引，以及 <a href="20261111-scene-dag-visual-order.html">20261111-scene-dag-visual-order</a>、<a href="20261111-composite-flow.html">20261111-composite-flow</a>、<a href="20261111-nightly-firefox-video.html">20261111-nightly-firefox-video</a>、<a href="20261114-m8-1-credential-grants.html">20261114-m8-1-credential-grants</a> 的狀態與追加紀錄。Claude 整合。</dd>
-        <dt>狀態</dt><dd>實作中：版本已改、本紀錄已寫，待推送與開 PR。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>chore/release-0.10.0</code>，從 <code>origin/main@85d0db0</code>（PR #29 合併後）建立；PR 待開。</dd>
+        <dt>狀態</dt><dd>待審閱：版本 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/31">PR #31</a> 在 525d5db 的 CI 全部通過，等使用者合併；標籤、草稿 Release、驗收與發布仍待完成。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>chore/release-0.10.0</code>，從 <code>origin/main@85d0db0</code>（PR #29 合併後）建立；<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/31">PR #31</a>。</dd>
         <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64、系統 Python 3.13.18）做版本差異與文件檢查；不能下載套件，沒有 OpenCC。跨平台安裝包由 GitHub Actions 建置。</dd>
       </dl></div>
@@ -71,7 +71,7 @@
           <tr><td>同上</td><td>搜尋產品程式裡比較版本號的地方（<code>0.10.0</code> 用字串比較會排在 <code>0.9.1</code> 前面）</td><td>沒有：更新與安裝看環境代號和 GitHub 的 <code>releases/latest</code>，Python 運行環境以整數元組排序</td><td>發布流程實際產生的「從 v0.9.1 升級」</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI、發布流程、人工驗收：未執行。審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI（PR #31，head 525d5db，2026-11-16 20:46 America/Los_Angeles（PST，UTC−08:00）結束）：<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44018922439">CI</a> 的靜態檢查、測試（Python 3.12、3.13）通過，Worker 測試（Windows）依執行範圍跳過；桌面端建置、伺服器分發包、一鍵安裝腳本、RPA Python 運行環境依共用流程的輸入指紋<strong>沿用</strong>之前通過的運行（版本號不算改動；推標籤時發布流程一律完整建置）。之後只改本紀錄的推送照共用流程沿用這次的重工作。發布流程、人工驗收：未執行。審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -80,7 +80,8 @@
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
-        <li>2026-11-16 20:45 America/Los_Angeles（PST，UTC−08:00），Claude：<code>main</code> 在 20:33 合併 PR #29（85d0db0）。v0.9.1 已在 2026-11-10 23:45 發布（GitHub 上最新的已發布 Release），之後 <code>main</code> 以第一父提交合併了 PR #16、#18、#19、#15、#20、#22、#23、#24、#25、#26、#27、#28、#29。從 <code>origin/main@85d0db0</code> 開 <code>chore/release-0.10.0</code>，bump 0.10.0，寫本紀錄。回填：#18（2026-11-11 16:50，554fe2f）、#20（2026-11-13 18:10，d74ebaa）、#22（2026-11-13 18:10，3ba4e39）、#29（2026-11-16 20:33，85d0db0）的任務紀錄改為已合併。</li>
+        <li>2026-11-16 20:41 America/Los_Angeles（PST，UTC−08:00），Claude：<code>main</code> 在 20:33 合併 PR #29（85d0db0）。v0.9.1 已在 2026-11-10 23:45 發布（GitHub 上最新的已發布 Release），之後 <code>main</code> 以第一父提交合併了 PR #16、#18、#19、#15、#20、#22、#23、#24、#25、#26、#27、#28、#29。從 <code>origin/main@85d0db0</code> 開 <code>chore/release-0.10.0</code>，bump 0.10.0，寫本紀錄。回填：#18（2026-11-11 16:50，554fe2f）、#20（2026-11-13 18:10，d74ebaa）、#22（2026-11-13 18:10，3ba4e39）、#29（2026-11-16 20:33，85d0db0）的任務紀錄改為已合併。</li>
+        <li>2026-11-16 20:48 America/Los_Angeles（PST，UTC−08:00），Claude：推送 525d5db，20:41 開 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/31">PR #31</a>；CI 在 20:46 全部通過（見驗證）。等使用者合併 PR #31，之後在自己的電腦推 <code>v0.10.0</code> 標籤。</li>
       </ul></div>
     </section>
   </div>
