@@ -80,6 +80,7 @@ from rpa_core.workflow import (
     resolve_inputs,
 )
 from rpa_runner.run import new_run_id
+from rpa_server.access import CURRENT, Actor, Principal, resolve_actor
 from rpa_server.auth import visible_domains
 from rpa_server.domain import (
     FINISHED,
@@ -726,6 +727,7 @@ class WorkflowService:
         client_id: str | None = None,
         inputs: Mapping[str, Mapping[str, object]] | None = None,
         batch: tuple[str, int] | None = None,
+        actor: Actor = CURRENT,
     ) -> WorkflowRunRecord:
         """執行組合場景：先檢查，沒有問題才建立組合場景的執行並排入第一個節點。
 
@@ -787,6 +789,7 @@ class WorkflowService:
             client_id=client_id,
             inputs=inputs,
             batch=batch,
+            actor=actor,
         )
 
     @staticmethod
@@ -847,6 +850,13 @@ class WorkflowService:
                 inputs=batch_inputs(planned, scenarios), outputs=outputs
             )
         return self._batch_specs[key]
+
+    def check_use(self, workflow_id: int, number: int, actor: Principal | None) -> None:
+        """M8.1：要能用每個節點的場景的登入角色與 Secrets（組合場景的批次建立與開始時）。"""
+        with self.sessions() as session:
+            code = self._row(session, workflow_id).code
+        for node in self.revision_workflow(code, number).nodes:
+            self.services.check_use(self._scenario(node.scene_id, node.revision), actor)
 
     def revision_workflow(self, code: str, number: int) -> Workflow:
         """某個版本的定義（讀領域資料夾裡的 workflow.json）。"""
@@ -979,12 +989,17 @@ class WorkflowService:
         client_id: str | None = None,
         inputs: Mapping[str, Mapping[str, object]] | None = None,
         batch: tuple[str, int] | None = None,
+        actor: Actor = CURRENT,
     ) -> WorkflowRunRecord:
-        workflow, problems = plan_workflow(
-            workflow,
-            {node.id: self._scenario(node.scene_id, node.revision) for node in workflow.nodes},
-        )
+        scenarios = {
+            node.id: self._scenario(node.scene_id, node.revision) for node in workflow.nodes
+        }
+        workflow, problems = plan_workflow(workflow, scenarios)
         self._ensure_runnable(workflow, problems)
+        # M8.1：開始的人要能用每個節點的登入角色與 Secrets；之後的節點也用他檢查
+        principal = resolve_actor(actor, client_id)
+        for scenario in scenarios.values():
+            self.services.check_use(scenario, principal)
         with self._lock:
             run_id = new_run_id(code or (f"wf{workflow_id}" if workflow_id is not None else "wf"))
             with self.sessions() as session:
@@ -1009,6 +1024,7 @@ class WorkflowService:
                         workflow_code=code,
                         workflow_hash=source_hash,
                         client_id=client_id,
+                        user_id=principal.user_id if principal is not None else None,
                         batch_id=batch[0] if batch is not None else None,
                         batch_row=batch[1] if batch is not None else None,
                         inputs={node: dict(values) for node, values in inputs.items()}
@@ -1209,6 +1225,7 @@ class WorkflowService:
             engine, headless = row.engine, row.headless
             target = cast("Target", row.target)
             client_id = row.client_id
+            actor = self.services.actor_of(user_id=row.user_id, client_id=row.client_id)
             given = (row.inputs or {}).get(node_id)
             node = workflow.node(node_id)
             pinned = self._pin(session, row, workflow, node) if node is not None else None
@@ -1234,6 +1251,7 @@ class WorkflowService:
                 target=target,
                 required_worker=pinned,
                 client_id=client_id,
+                actor=actor,
             )
         except ServiceError as error:
             details = error.details.get("problems")
@@ -1577,7 +1595,8 @@ class WorkflowService:
                     add("error", "role_missing", "reload_domain", params)
                 elif role.status != "logged_in" and not role.auto_login:
                     add("warning", "role_login", "login", params)
-            stored = {info.name for info in self.services.roles.list_secrets() if info.readable}
+            # 不依目前的人篩選（M8.1 的綁定另外在開始時檢查）
+            stored = {info.name for info in self.services.roles.secrets.names() if info.readable}
             missing = [
                 name for name in scenario.secrets if name not in stored and name not in os.environ
             ]

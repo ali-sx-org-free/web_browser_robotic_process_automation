@@ -35,6 +35,7 @@ from rpa_core.recording import Conversion, ConversionError, convert_recording, m
 from rpa_runner.commands import module_command, playwright_command
 from rpa_runner.contract import prepare_inputs
 from rpa_runner.record import EXIT_REPLAY_FAILED
+from rpa_server.access import current_principal
 from rpa_server.addresses import PortalAddress, points_to_portal
 from rpa_server.domain import DOMAIN_ID, RecordingRecord, now
 from rpa_server.errors import ServiceError, conflict, invalid, not_found
@@ -230,6 +231,8 @@ class RecordingService:
         role_id = (role_id or "").strip() or None
         if role_id is not None and not self.roles.exists(role_id):
             raise not_found("role_not_found", t("error.role_not_found", id=role_id))
+        if role_id is not None:  # M8.1：錄製時用這個登入角色的登入狀態，要已綁定
+            self.services.grants.check(current_principal(), role=role_id)
         return role_id
 
     # ------------------------------------------------------------ 錄製
@@ -324,6 +327,7 @@ class RecordingService:
         """接著錄製：目前版本的場景與入參（用預設值；缺預設值時不能先執行既有步驟）。"""
         number = self.services.get_scene(scene_id).latest_number
         scenario = self.services.revision_scenario(scene_id, number)
+        self.services.check_use(scenario)  # M8.1：重播既有步驟用到它的登入角色與 Secrets
         defaults = {
             name: spec.default for name, spec in scenario.inputs.items() if spec.default is not None
         }

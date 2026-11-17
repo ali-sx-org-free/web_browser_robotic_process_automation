@@ -361,6 +361,7 @@ GET /agent-api/v1/batches/batch-20261105-…        （需要 runs:read）</pre>
       <div class="panel-body">
         <ul class="points">
           <li><strong>需要登录：</strong>运行停在 <code>needs_login</code>，或 <code>GET /roles</code> 显示角色要重新登录。请用户在录制端做人工登录，完成后调用 <code>POST /runs/{id}/rerun</code>。</li>
+          <li><strong>没有使用权限：</strong>403 <code>login_role_forbidden</code> 或 <code>secret_forbidden</code>（M8.1）：这个 API 用户端还没被指定使用那个登录角色或 Secret。请管理员在「登录与凭证」的「谁能用」加上这个用户端；<code>GET /roles</code>、<code>GET /secrets</code> 只列已经绑定的。</li>
           <li><strong>没有发布权限：</strong>告诉用户场景或组合场景的代号与验证通过的版本号，请人在 Portal 发布。</li>
           <li><strong>缺 Secret：</strong><code>GET /scenes/{id}</code> 的 <code>needs</code> 列出还没设置的 Secrets；值由人在 Portal 填，Agent 不能写入也读不到。</li>
           <li><strong>录制端不在线或太旧：</strong>请人打开或更新 RPA 录制端 App。</li>

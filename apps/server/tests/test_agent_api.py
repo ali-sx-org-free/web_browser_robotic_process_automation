@@ -769,3 +769,52 @@ def test_admin_pages_show_clients_audit_and_recorder_switches(
     assert "觸發的 Agent" in client.get(f"/runs/{run['id']}").text
     # 錄製端看到的管理頁面：沒有打開管理後台時沒有這個選單（只是選單，不是權限）
     assert body(client.get("/api/agents/agent-erp"))["recorders"] == ["agent-mac"]
+
+
+def test_login_roles_and_secrets_need_grants(client: Client, remote: Client) -> None:
+    """M8.1（ADR 0026）：API 用戶端綁定了登入角色與 Secrets 才看得到、用得到。"""
+    body(client.post("/api/domains", json={"id": "sales", "name": "業務"}), 201)
+    body(client.post("/api/roles", json={**AGENT_ROLE, "domainId": "sales"}), 201)
+    body(client.put("/api/secrets/ERP_PASSWORD", json={"value": "s3cret"}))
+    agent = register(client, remote, scopes=["scenes:read", "scenes:write"], domains=["sales"])
+    body(
+        agent.post("/scenes", {"id": "order-create", "name": "建立訂單", "domainId": "sales"}), 201
+    )
+    assert body(agent.get("/roles")) == {"roles": []}
+    assert body(agent.get("/secrets")) == {"secrets": []}
+
+    with_role = scene_yaml("order-create").replace(
+        "inputs:", "login: {role: erp-clerk}\nsecrets: [ERP_PASSWORD]\ninputs:", 1
+    )
+    save: JsonObject = {"baseRevision": 1, "files": {"scenario.yaml": with_role}}
+    assert error(agent.post("/scenes/order-create/revisions", save), 403)["code"] == (
+        "login_role_forbidden"
+    )
+    body(client.post("/api/roles/erp-clerk/grants", json={"client": "agent-erp"}), 201)
+    assert [
+        role["id"] for role in cast("list[JsonObject]", body(agent.get("/roles"))["roles"])
+    ] == ["erp-clerk"]
+    assert error(agent.post("/scenes/order-create/revisions", save), 403)["code"] == (
+        "secret_forbidden"
+    )
+    holders = body(
+        client.post("/api/secrets/ERP_PASSWORD/grants", json={"client": "agent-erp"}), 201
+    )
+    assert holders["clients"] == [{"id": "agent-erp", "name": "ERP 助理"}]
+    assert body(agent.get("/secrets")) == {"secrets": [{"name": "ERP_PASSWORD"}]}
+    assert body(agent.post("/scenes/order-create/revisions", save), 201)["number"] == 2
+
+    # 移除綁定後又不能用；刪除用戶端時綁定一起刪
+    body(client.request("DELETE", "/api/roles/erp-clerk/grants", json={"client": "agent-erp"}))
+    assert body(agent.get("/roles")) == {"roles": []}
+    body(client.delete("/api/agents/agent-erp"))
+    secret = body(client.get("/api/secrets/ERP_PASSWORD/grants"))
+    assert secret["clients"] == []
+
+
+AGENT_ROLE: JsonObject = {
+    "id": "erp-clerk",
+    "name": "ERP 職員",
+    "loginUrl": "https://erp.example.test/login",
+    "check": "{ testId: current-user }",
+}

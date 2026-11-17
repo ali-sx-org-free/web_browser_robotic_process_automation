@@ -471,6 +471,7 @@ def test_roles_from_examples_and_in_use(client: Client) -> None:
         "roleRegistered": True,
         "roleStatus": "none",
         "secrets": [],
+        "forbidden": [],
     }
     page = client.get("/roles").text
     assert 'id="role-testsite-user"' in page

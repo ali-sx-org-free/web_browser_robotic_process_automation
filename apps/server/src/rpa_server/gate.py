@@ -153,8 +153,13 @@ RULES: Final[tuple[Rule, ...]] = (
     _rule("write", "/api/workflows/{id}…", "edit", "workflow"),
     _rule("read", "/api/workflow-runs/{id}…", "view", "workflow_run"),
     _rule("write", "/api/workflow-runs/{id}…", "run", "workflow_run"),
-    # ---- 登入角色（沒有領域的是全域角色：大家看得到，只有系統管理員能改）
+    # ---- 登入角色（沒有領域的是全域角色：只有系統管理員能改、能指定誰能用）。M8.1：另外要
+    # 已綁定才看得到、用得到（路由檢查）；指定誰能用要所在領域的管理員
     _rule("POST", "/api/roles", "edit-any"),
+    _rule("*", "/api/roles/{id}/grants…", "manage", "role"),
+    _rule("write", "/api/roles/{id}/login…", "run", "role"),
+    _rule("POST", "/api/roles/{id}/check", "run", "role"),
+    _rule("DELETE", "/api/roles/{id}/state", "run", "role"),
     _rule("read", "/api/roles/{id}…", "view", "role"),
     _rule("write", "/api/roles/{id}…", "edit", "role"),
     # ---- 錄製、逐步調試、選取元素
@@ -218,7 +223,8 @@ def decide(access: Access, method: str, path: str, resolve: Resolve) -> Literal[
         return 200  # 讓路由回 404
     capability = need
     if rule.kind == "role" and domain is None:
-        return 200 if capability == "view" else 403  # 全域角色
+        # 全域角色：看與用（人工登入、檢查）交給路由查綁定；改與指定誰能用只有系統管理員
+        return 200 if capability in ("view", "run") else 403
     if not access.can("view", domain):
         return 404
     return 200 if access.can(capability, domain) else 403

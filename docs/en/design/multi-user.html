@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:7b7fb4281fb33cae">
+<meta name="translation-source" content="sha256:2506d27229efce5f">
 <title>Multi-user and internal systems · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -28,6 +28,7 @@
             <dt>Authentication</dt><dd>Local accounts (passwords hashed with scrypt); the account table keeps <code>provider</code> and <code>subject</code> for OIDC and LDAP later (the company's AD or SSO). The management portal's pages and API always require signing in; the first system administrator can only be created on the server machine (<code>/setup</code> on 127.0.0.1, or <code>rpa user create --admin</code>). Device pairing, worker and Recorder tokens and Agent API keys are unchanged.</dd>
             <dt>Permissions</dt><dd>Per domain: each domain's members are administrators, editors, runners or viewers, covering that domain's scenarios, composite scenes, runs, batches and replays. Domains you cannot see are left out of lists, and opening their URLs gives 404. Projects only group composite scenes and do not carry permissions.</dd>
             <dt>Secrets</dt><dd>Stored encrypted with AES-256-GCM (the key is <code>secrets.key</code> in the data folder or the <code>RPA_SECRETS_KEY</code> environment variable, and must be backed up with the data). Secrets are global and only system administrators set or delete them; scenarios and login roles reference them by name, and nobody can read the plain value. They are sent only to the worker or Recorder that needs them.</dd>
+            <dt>Who can use login roles and secrets</dt><dd>M8.1 (<a href="../adr/0026-credential-grants.html">ADR 0026</a>): login roles and secrets are also granted to accounts and API clients, and only the granted ones can see and use them (saving, publishing, validating, running, batches, composite runs, step debugging, recording and manual sign-in are all checked). Admins of a login role's domain choose who can use it; system administrators do so for global login roles and secrets, and aren't restricted themselves.</dd>
             <dt>Auditing</dt><dd>Sign-ins, sign-outs, failed sign-ins and every request that changes something (who, when, which path, the result) are appended and never changed, chained by hashes: changing or deleting any entry in the middle shows up when the chain is verified. System administrators see it under Admin › Audit log.</dd>
             <dt>Versions</dt><dd>Every save of a scenario creates a new immutable version; each run points to its exact version. Revisions and validation and publishing records live in the domain folders and can be reviewed through git (M11).</dd>
             <dt>Database</dt><dd>Production uses PostgreSQL, which supports several workers and concurrent writes; SQLite is only for development and prototypes (single machine, single process). See <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>.</dd>
@@ -45,7 +46,9 @@
               <tr><td>View scenarios, composite scenes, runs, batches and replays</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
               <tr><td>Run, run batches, cancel, rerun</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
               <tr><td>Create, edit, validate and publish scenarios and composite scenes; record; step-by-step debugging; the domain's login roles</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
-              <tr><td>Reference secrets (write their names in scenarios and login roles)</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+              <tr><td>Reference secrets (write their names in scenarios and login roles; from M8.1 the secret must also be granted)</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+              <tr><td>Use login roles (M8.1: the login role must also be granted)</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+              <tr><td>Choose "Who can use" for a login role</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
               <tr><td>Manage members, the domain's name and description, git sync</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
             </tbody>
           </table>

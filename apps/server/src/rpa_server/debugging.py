@@ -329,6 +329,14 @@ class DebugManager:
             raise not_found("debug_not_found", t("error.debug_not_found", id=session_id))
         return session
 
+    def use(self, session_id: str, revision: int | None = None) -> DebugSession:
+        """M8.1：操作或查看調試工作階段的人要能用它的登入角色與 Secrets（換版本時看新版本）。"""
+        session = self.get(session_id)
+        self.services.check_use(session.scenario)
+        if revision is not None:
+            self.services.check_revision_use(session.scene_id, revision)
+        return session
+
     def for_scene(self, scene_id: str) -> DebugSession | None:
         """這個場景進行中的工作階段。"""
         with self._lock:
@@ -361,11 +369,13 @@ class DebugManager:
         via = self.hosts.current() if self.hosts is not None else None
         here = via.id if via is not None else None
         if existing is not None and not restart and existing.device == here:
+            self.services.check_use(existing.scenario)  # M8.1
             return existing  # 進行中的工作階段在別台時，關掉它、在操作的這台重新開始
         number = revision or scene.latest_number
         scenario = self.services.revision_scenario(scene_id, number)
         if scenario.script is not None:
             raise invalid("debug_script", t("error.debug_script"))
+        self.services.check_use(scenario)  # M8.1：調試的瀏覽器用場景的登入角色與 Secrets
         display = self.display if via is None or self.hosts is None else self.hosts.display(via)
         if headless is None:
             headless = not display

@@ -37,6 +37,7 @@ from rpa_core.dsl.features import FEATURES
 from rpa_core.dsl.files import MAX_ATTACHMENT_BYTES, uploaded_ids
 from rpa_runner.files import REPORT, RESULT, STEPS, VIDEO, read_json_or
 from rpa_server import __version__
+from rpa_server.access import bind_client
 from rpa_server.agents import ApiClientRecord
 from rpa_server.api import ContractItem, RevisionCreate, SceneCreate
 from rpa_server.batch_table import Table, row_values
@@ -325,6 +326,12 @@ def current_client(
 Client = Annotated[ApiClientRecord, Depends(current_client)]
 
 
+async def client_context(client: Client) -> None:
+    """M8.1：之後的服務呼叫以這個用戶端的登入角色與 Secrets 綁定檢查（每個請求一個 task，
+    ContextVar 隨請求結束；同步的路由在執行緒裡也讀得到）。"""
+    bind_client(client.id)
+
+
 def _scoped(*scopes: str) -> Callable[[ApiClientRecord], ApiClientRecord]:
     def check(client: Client) -> ApiClientRecord:
         client.require(*scopes)
@@ -375,6 +382,7 @@ def agent_api(services: Services) -> FastAPI:
         docs_url="/docs",
         redoc_url=None,
         openapi_url="/openapi.json",
+        dependencies=[Depends(client_context)],
     )
     app.state.services = services
     agents = services.agents
@@ -436,7 +444,7 @@ def agent_api(services: Services) -> FastAPI:
         session = debug.get(session_id)
         if session.client_id != client.id:
             raise not_found("debug_not_found", t("error.debug_not_found", id=session_id))
-        return session
+        return debug.use(session_id)  # M8.1：要已綁定它的登入角色與 Secrets
 
     def session_json(client: ApiClientRecord, session: DebugSession) -> dict[str, object]:
         data = session.to_json()
@@ -981,6 +989,7 @@ def agent_api(services: Services) -> FastAPI:
     def debug_reload(client: Debugger, session_id: str, body: ReloadBody) -> dict[str, object]:
         """換到剛存的版本：瀏覽器與已執行的步驟（依 id）保留。"""
         session_for(client, session_id)
+        debug.use(session_id, body.revision)
         return session_json(client, debug.reload(session_id, body.revision))
 
     @app.post("/debug/{session_id}/reset")

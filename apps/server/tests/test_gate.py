@@ -69,6 +69,19 @@ def _zh_hant() -> Iterator[None]:
         ("editor", "POST", "/api/scenes", 200),
         ("editor", "PUT", "/api/domains/sales/members/bob", 403),
         ("editor", "PATCH", "/api/roles/sales-user", 200),
+        # 登入角色（M8.1）：人工登入、檢查、登出要執行者以上（綁定由路由檢查），指定誰能用要管理員
+        ("viewer", "POST", "/api/roles/sales-user/login", 403),
+        ("runner", "POST", "/api/roles/sales-user/login", 200),
+        ("runner", "POST", "/api/roles/sales-user/login/finish", 200),
+        ("runner", "POST", "/api/roles/sales-user/check", 200),
+        ("runner", "DELETE", "/api/roles/sales-user/state", 200),
+        ("runner", "PATCH", "/api/roles/sales-user", 403),
+        ("editor", "GET", "/api/roles/sales-user/grants", 403),
+        ("editor", "POST", "/api/roles/sales-user/grants", 403),
+        ("admin", "GET", "/api/roles/sales-user/grants", 200),
+        ("admin", "POST", "/api/roles/sales-user/grants", 200),
+        ("admin", "DELETE", "/api/roles/sales-user/grants", 200),
+        ("admin", "POST", "/api/secrets/ERP_PASSWORD/grants", 403),
         # 管理員：成員、領域設定、git 同步；刪除領域只有系統管理員
         ("admin", "PUT", "/api/domains/sales/members/bob", 200),
         ("admin", "PATCH", "/api/domains/sales", 200),
@@ -93,6 +106,9 @@ def test_other_domains_are_hidden() -> None:
     # 全域角色：大家看得到，只有系統管理員能改
     assert decide(amy, "GET", "/api/roles/global", resolve) == 200
     assert decide(amy, "PATCH", "/api/roles/global", resolve) == 403
+    # M8.1：全域角色的人工登入交給路由查綁定；指定誰能用只有系統管理員
+    assert decide(amy, "POST", "/api/roles/global/login", resolve) == 200
+    assert decide(amy, "POST", "/api/roles/global/grants", resolve) == 403
 
 
 def test_system_pages_and_defaults() -> None:

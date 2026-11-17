@@ -27,6 +27,7 @@
             <dt>認證</dt><dd>本地帳號（密碼用 scrypt 雜湊）；帳號表預留 <code>provider</code>、<code>subject</code> 給之後的 OIDC 與 LDAP（公司的 AD 或 SSO）。管理 Portal 的頁面與 API 一律要登入；第一個系統管理員只能在伺服器那台電腦上（127.0.0.1 的 <code>/setup</code>，或 <code>rpa user create --admin</code>）建立。裝置配對、Worker 與錄製端的權杖、Agent API 的金鑰照舊。</dd>
             <dt>權限</dt><dd>以「領域」為單位：每個領域的成員是管理員、編輯者、執行者或檢視者，管的是那個領域的場景、組合場景、執行、批次與回看。看不到的領域不出現在清單裡，直接打開網址是 404。專案只是組合場景的分組，不管權限。</dd>
             <dt>Secrets</dt><dd>AES-256-GCM 加密存放（金鑰在資料目錄的 <code>secrets.key</code> 或環境變數 <code>RPA_SECRETS_KEY</code>，要和資料一起備份）。Secrets 是全域的，只有系統管理員能設定與刪除；場景與登入角色照名稱引用，任何人都讀不出明文。只送到需要它的 worker 或錄製端。</dd>
+            <dt>登入角色與 Secrets 的使用權限</dt><dd>M8.1（<a href="../adr/0026-credential-grants.html">ADR 0026</a>）：登入角色與 Secrets 另外綁定到帳號與 API 用戶端，綁定的才看得到、用得到（存檔、發布、驗證、執行、批次、組合運行、逐步調試、錄製、人工登入都檢查）。登入角色由所在領域的管理員指定誰能用，全域的登入角色與 Secrets 由系統管理員；系統管理員不受限制。</dd>
             <dt>稽核</dt><dd>登入、登出、登入失敗，以及每一個改變東西的請求（誰、何時、哪個路徑、結果），只增不改，每一筆串成雜湊鏈：改了或刪了中間任何一筆，驗證時就看得出來。系統管理員在「管理後台 › 稽核紀錄」查看。</dd>
             <dt>版本</dt><dd>場景每次儲存產生不可變的新版本；執行紀錄指向確切版本。版本、驗證與發布紀錄都在領域資料夾，可以經由 git 審閱（M11）。</dd>
             <dt>資料庫</dt><dd>正式環境用 PostgreSQL，支援多個 worker 與併發寫入；SQLite 只用於開發與原型（單機、單一程序），見 <a href="../adr/0008-sqlite-and-postgresql.html">ADR 0008</a>。</dd>
@@ -44,7 +45,9 @@
               <tr><td>檢視場景、組合場景、執行紀錄、批次與回看</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
               <tr><td>執行、批次執行、取消、重跑</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
               <tr><td>建立、編輯、驗證、發布場景與組合場景；錄製、逐步調試；領域的登入角色</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
-              <tr><td>引用 Secrets（在場景與登入角色寫名稱）</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+              <tr><td>引用 Secrets（在場景與登入角色寫名稱；M8.1 起還要綁定那個 Secret）</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+              <tr><td>用登入角色（M8.1：還要綁定那個登入角色）</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+              <tr><td>指定登入角色的「誰能用」</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
               <tr><td>管理成員、領域名稱與說明、git 同步</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
             </tbody>
           </table>

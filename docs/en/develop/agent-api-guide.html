@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:eb6067abd41a9642">
+<meta name="translation-source" content="sha256:272932f7d180def5">
 <title>Agent API guide · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -361,6 +361,7 @@ GET /agent-api/v1/batches/batch-20261105-…        (needs runs:read)</pre>
       <div class="panel-body">
         <ul class="points">
           <li><strong>Login needed:</strong> the run stops at <code>needs_login</code>, or <code>GET /roles</code> shows a role needs to log in again. Ask the user to log in manually on a recorder, then call <code>POST /runs/{id}/rerun</code>.</li>
+          <li><strong>Not allowed:</strong> 403 <code>login_role_forbidden</code> or <code>secret_forbidden</code> (M8.1): this API client hasn't been granted that login role or secret. Ask an admin to add the client under "Who can use" in Logins &amp; secrets; <code>GET /roles</code> and <code>GET /secrets</code> list only what is granted.</li>
           <li><strong>No publish permission:</strong> give the user the scene or composite code and the revision number that passed validation, and ask a person to publish it in the Portal.</li>
           <li><strong>Missing secret:</strong> <code>needs</code> in <code>GET /scenes/{id}</code> lists secrets not set yet. A person fills in the values in the Portal; agents can neither write nor read them.</li>
           <li><strong>Recorder offline or too old:</strong> ask a person to open or update the RPA Recorder app.</li>

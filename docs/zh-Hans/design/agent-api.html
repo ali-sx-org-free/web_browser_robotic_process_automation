@@ -182,7 +182,7 @@
             <tr><td><code>GET /openapi.json</code></td><td>这组 API 的 OpenAPI</td><td>任何</td><td>新</td></tr>
             <tr><td><code>GET /dsl/schema</code></td><td>场景 DSL 的 JSON Schema（同 <code>rpa schema</code>）</td><td>任何</td><td>新</td></tr>
             <tr><td><code>POST /dsl/check</code></td><td>不保存校验 YAML，回传问题所在的行号、步骤与字段</td><td>任何</td><td>新</td></tr>
-            <tr><td><code>GET /domains</code>、<code>/roles</code>、<code>/secrets</code></td><td>领域；角色与登录状态；Secrets 只有名称</td><td>scenes:read</td><td>沿用</td></tr>
+            <tr><td><code>GET /domains</code>、<code>/roles</code>、<code>/secrets</code></td><td>领域；角色与登录状态；Secrets 只有名称。M8.1 起只列绑定给这个用户端的登录角色与 Secrets（<a href="../adr/0026-credential-grants.html">ADR 0026</a>）</td><td>scenes:read</td><td>沿用</td></tr>
             <tr><td><code>GET /recorders</code></td><td>允许的录制端：是否在线、有没有画面、浏览器、App 版本与支持的功能</td><td>debug</td><td>新</td></tr>
             <tr><td><code>GET /workers</code></td><td>允许的 Worker：是否在线、平台、忙不忙</td><td>runs:validate 或 runs:execute</td><td>沿用（筛选）</td></tr>
             <tr><td><code>GET /scenes</code>、<code>GET /scenes/{id}</code></td><td>场景、版本清单、发布状态、需要的角色与 Secrets</td><td>scenes:read</td><td>沿用</td></tr>
