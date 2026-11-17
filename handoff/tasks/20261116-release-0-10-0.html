@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261116-release-0-10-0 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261116-release-0-10-0：發布 v0.10.0</h1><p>把 v0.9.1 標籤之後合併到 <code>main</code> 的工作發布為 v0.10.0：M7 流程能力全部（流程控制、子場景、批次執行、收尾）、組合場景的條件連線／同時執行／重複次數，以及 M8 多用戶與治理、M8.1 登入角色與 Secrets 的使用權限。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261116-release-0-10-0；2026-11-16 20:45 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-16 20:36 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話（原文）：「幫我基於最新的main分支代碼打一個新的版本出來。」使用者沒有指定版本號；Claude 依內容選次版本 <strong>0.10.0</strong>（v0.9.1 之後有 M7、M8 兩個里程碑、資料庫遷移 0018～0021 與新的伺服器依賴），已在對話說明，使用者可以在合併前改。驗收條件：版本一致、版本 PR 的 CI 通過、標籤 <code>v0.10.0</code> 位於 <code>main</code>、發布流程通過、分發檔與 <code>SHA256SUMS.txt</code> 齊全；草稿 Release 經使用者驗收後才發布。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：版本號（<code>tools/release_version.py bump 0.10.0</code>）、本紀錄與任務索引；回填 PR #18、#20、#22、#29 的任務紀錄的合併狀態。不包含：功能修改；開著的 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/30">PR #30</a>（<code>deps/uv-upgrade</code>，Python 依賴更新，沒有合併，不在這個版本）；文檔站對齊 v0.10.0（另開，和 v0.9.1 之後的 PR #23 相同做法）；推標籤、發布 Release（使用者）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude 準備版本差異與本紀錄、開版本 PR；使用者合併 PR、在自己的電腦推標籤（Claude 的雲端環境推不了標籤）、驗收草稿、按 Publish。本任務不代表線上環境已升級。</dd>
+        <dt>修改檔案／整合者</dt><dd>九個套件的 <code>pyproject.toml</code>、<code>uv.lock</code>；本紀錄、任務索引，以及 <a href="20261111-scene-dag-visual-order.html">20261111-scene-dag-visual-order</a>、<a href="20261111-composite-flow.html">20261111-composite-flow</a>、<a href="20261111-nightly-firefox-video.html">20261111-nightly-firefox-video</a>、<a href="20261114-m8-1-credential-grants.html">20261114-m8-1-credential-grants</a> 的狀態與追加紀錄。Claude 整合。</dd>
+        <dt>狀態</dt><dd>實作中：版本已改、本紀錄已寫，待推送與開 PR。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>chore/release-0.10.0</code>，從 <code>origin/main@85d0db0</code>（PR #29 合併後）建立；PR 待開。</dd>
+        <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端容器（Linux x86_64、系統 Python 3.13.18）做版本差異與文件檢查；不能下載套件，沒有 OpenCC。跨平台安裝包由 GitHub Actions 建置。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="changes">
+      <div class="panel-header"><h2>發布內容與升級</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><a href="20261106-m7-flow.html">PR #15：M7.1 流程控制</a>：場景可以用 <code>if</code>、<code>forEach</code>、<code>repeat</code>、<code>try</code>、<code>onError</code>、<code>retry</code>、<code>openPage</code>／<code>closePage</code>、<code>extract.append</code>（ADR 0021）。回看、報告與逐步調試顯示巢狀的步驟與每一輪。</li>
+        <li><a href="20261111-composite-flow.html">PR #20：組合場景的條件連線、同時執行與重複次數</a>（ADR 0022）。</li>
+        <li><a href="20261113-m7-2-subscenario.html">PR #24：M7.2 子場景</a>：<code>action: call</code> 在同一個瀏覽器執行另一個場景的固定版本（ADR 0023）。</li>
+        <li><a href="20261113-m7-3-batch.html">PR #25：M7.3 批次執行</a>：上傳或貼上一張表，一列一次正式執行，匯出結果、只重跑沒有通過的列（ADR 0024）。</li>
+        <li><a href="20261114-m7-wrapup.html">PR #27：M7 收尾</a>：流程範例匯入、運行頁提醒、用到 call 的場景接著錄製、子場景的檔案、組合場景的批次、選工作表、共用的上限。</li>
+        <li><a href="20261114-m8-multi-user.html">PR #28：M8 多用戶與治理</a>：本地帳號與登入、以領域為單位的角色（管理員、編輯者、執行者、檢視者，加上系統管理員）、Secrets 以 AES-GCM 加密存放、稽核紀錄（ADR 0025）。不含 PostgreSQL。</li>
+        <li><a href="20261114-m8-1-credential-grants.html">PR #29：M8.1 登入角色與 Secrets 的使用權限</a>：登入角色與 Secrets 綁定到帳號與 API 用戶端，只有綁定的才看得到、用得到（ADR 0026）。</li>
+        <li>其他：<a href="20261111-scene-dag-visual-order.html">PR #18</a> 場景排序、類型角標與 DAG 畫布整理；<a href="20261111-nightly-firefox-video.html">PR #19、#22</a> 每晚測試的 Firefox 錄影對時（只改測試）；PR #16、#23、#26 只改文件。</li>
+        <li>和 v0.9.1（<code>ab15ce6</code>）的差異就是上面 13 個 PR。第三方依賴：<code>rpa-server</code> 直接依賴 <code>cryptography&gt;=50.0.2</code>（M8，Secrets 加密）；<code>uv.lock</code> 其他的第三方套件版本不變。資料庫遷移 0018～0021（批次、組合場景的批次、多用戶、使用權限）在新版本啟動時執行。</li>
+        <li><strong>升級時要注意</strong>（從 v0.9.1，也就是目前已發布的最新版）：
+          <ul>
+            <li>伺服器分發包預期要用<strong>完整的安裝包</strong>（多了 <code>cryptography</code>，M8 的決定 D3 已接受）；RPA Worker 與錄製端能不能只用更新檔，以發布流程比較環境代號的結果（Release 說明的「從 v0.9.1 升級」）為準。</li>
+            <li>升級前照<a href="../../docs/develop/setup.html">設定文件</a>備份整個資料目錄；升級後 <code>secrets.key</code> 要和資料一起備份，少了它已存的 Secrets 解不開。</li>
+            <li>升級後一律要登入。第一個系統管理員只能在伺服器那台（127.0.0.1）的頁面建立，或用 <code>rpa user create 帳號 --admin</code>。裝置配對與 Agent API 金鑰照舊。</li>
+            <li>升級第一次啟動時，既有的 API 用戶端自動綁到它可用領域的登入角色與所有 Secrets（只做一次，記稽核）；其他帳號要由管理員在「登入與憑證」的「誰能用」指定（Secrets 只有系統管理員能指定）。</li>
+            <li>用到新流程欄位（M7.1）的場景，v0.9.x 的 Worker 與錄製端看不懂，會提示更新；用到 <code>call</code>（M7.2）的場景不會派給 v0.9.x 的 Worker。</li>
+            <li>簽章私鑰沿用 2026-10-25 那把，<code>keys.py</code> 不變。</li>
+          </ul>
+        </li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong><code>python3 tools/release_version.py bump 0.10.0</code>（九個套件與 <code>uv.lock</code>），<code>check v0.10.0</code> 一致；回填四份任務紀錄的合併狀態（見追加紀錄）。確認產品程式沒有用字串比較版本號（<code>0.10.0</code> 排在 <code>0.9.1</code> 後面不會出錯）：更新與安裝都用環境代號和 GitHub 的 <code>releases/latest</code>，Python 運行環境的版本用整數元組排序。</li>
+        <li><strong>下一個具體動作（使用者）：</strong>版本 PR 的 CI 通過後合併 → 在自己的電腦 <code>git switch main &amp;&amp; git pull</code> 後 <code>git tag v0.10.0 &amp;&amp; git push origin v0.10.0</code>（只推這一個標籤）→ 發布流程建草稿 Release → 用草稿的安裝檔驗收（見下一項）→ 按 Publish → 正式伺服器與各台電腦升級。</li>
+        <li><strong>草稿要驗的：</strong>從 v0.9.1 的伺服器分發包升級（資料保留、遷移 0018～0021、建立第一個系統管理員、既有 Secrets 仍可用、API 用戶端自動綁定）；打包版的 Windows／macOS Worker 與 macOS 錄製端執行用到流程控制、<code>call</code> 的場景（M7.1 記在下一步的「打包版錄製端與 Worker App 等發布時用草稿 Release 驗」）；舊版 App 被提示更新。M8.1 的人工驗收（<a href="20261114-m8-1-credential-grants.html#manual">#manual</a>）結果還沒有回填，沒做的話可以一起在草稿做。</li>
+        <li><strong>之後：</strong>文檔站對齊 v0.10.0（首頁、路線圖、設計文件裡「尚未發布」的狀態），另開 PR。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>85d0db0＋本分支的修改；雲端容器、系統 Python 3.13.18</td><td><code>python3 tools/release_version.py check v0.10.0</code></td><td>版本一致</td><td>CI、發布流程</td></tr>
+          <tr><td>同上</td><td><code>pytest tests/ci/test_release_version.py tests/docs tests/i18n</code></td><td>428 passed、1 failed：<code>test_simplified_chinese_is_generated</code> 需要 OpenCC，這個環境沒有（和 v0.9.0、v0.9.1 的版本 PR 相同）</td><td>簡中檢查交給 CI</td></tr>
+          <tr><td>同上</td><td><code>git diff --check</code>；改過的六個 handoff HTML 用標準函式庫檢查標籤成對、相對連結與錨點</td><td>通過</td><td>無</td></tr>
+          <tr><td>同上</td><td>搜尋產品程式裡比較版本號的地方（<code>0.10.0</code> 用字串比較會排在 <code>0.9.1</code> 前面）</td><td>沒有：更新與安裝看環境代號和 GitHub 的 <code>releases/latest</code>，Python 運行環境以整數元組排序</td><td>發布流程實際產生的「從 v0.9.1 升級」</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI、發布流程、人工驗收：未執行。審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-11-16 20:45 America/Los_Angeles（PST，UTC−08:00），Claude：<code>main</code> 在 20:33 合併 PR #29（85d0db0）。v0.9.1 已在 2026-11-10 23:45 發布（GitHub 上最新的已發布 Release），之後 <code>main</code> 以第一父提交合併了 PR #16、#18、#19、#15、#20、#22、#23、#24、#25、#26、#27、#28、#29。從 <code>origin/main@85d0db0</code> 開 <code>chore/release-0.10.0</code>，bump 0.10.0，寫本紀錄。回填：#18（2026-11-11 16:50，554fe2f）、#20（2026-11-13 18:10，d74ebaa）、#22（2026-11-13 18:10，3ba4e39）、#29（2026-11-16 20:33，85d0db0）的任務紀錄改為已合併。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

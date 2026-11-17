@@ -15,12 +15,12 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261111-composite-flow；2026-11-13 18:10 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261111-composite-flow；2026-11-16 20:45 America/Los_Angeles（PST，UTC−08:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-11 17:04 America/Los_Angeles（PST，UTC−08:00）：「把組合場景這一層的平行節點、條件分支、重複次數合併做完。結合 M7.1 給我一份人工驗收教程教我驗收。」驗收條件見<a href="#acceptance">人工驗收</a>。</dd>
         <dt>範圍／不包含</dt><dd>範圍：組合場景（第 2 版 DAG）的條件連線（<code>when</code>／<code>otherwise</code>）、同時執行（<code>concurrency</code>）、重複次數（<code>repeat</code>）的定義、檢查、排程、伺服器執行、運行頁、匯總報告、回看、畫布、發布門檻、文件。不包含：一台 worker 同時開多個瀏覽器（D1 沒選）；回看的多軌同時播；M7.2 子場景、M7.3 資料驅動；M7.1 的兩個已知缺口（流程範例自動匯入、運行頁的黃色提醒）。</dd>
         <dt>主責／審閱／接收方</dt><dd>設計與實作：Claude（Opus 5.5）；審閱：未審閱；合併：使用者。</dd>
         <dt>修改檔案／整合者</dt><dd><code>packages/rpa_core</code>（<code>workflow.py</code>、<code>pack.py</code> 的發布證明、訊息目錄、測試）；<code>apps/server</code>（<code>workflows.py</code>、<code>domain.py</code>、<code>composite_report.py</code>、<code>composite_replay.py</code>、<code>render.py</code>、樣板、<code>portal.js</code>、<code>portal-app.css</code>、訊息目錄、<code>test_workflow_api.py</code>）；文件（管理 Portal、Agent 使用指南、ADR 0022、ADR 索引、導覽、路線圖）；本頁、任務索引、決定、未完成工作。共用檔案：訊息目錄、<code>docs/assets/nav.js</code>、任務索引，本分支整合；簡中由 bootstrap 產生。</dd>
-        <dt>狀態</dt><dd>實作完成，<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/20">PR #20</a> 人工驗收進行中：M7.1 的部分已驗收，#15 於 2026-11-13 17:57 合併；驗收回報的三項已處理（見追加紀錄），最新 head 的 CI 見驗證表。</dd>
+        <dt>狀態</dt><dd>已合併：<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/20">PR #20</a> 於 2026-11-13 18:10 America/Los_Angeles（PST，UTC−08:00）合併（main <span class="mono">d74ebaa</span>，合併的 head <span class="mono">f62e78d</span>）。M7.1 的部分已驗收（#15 於 2026-11-13 17:57 合併）；驗收回報的三項已處理（見追加紀錄），完整的人工驗收結果沒有紀錄。隨 <a href="20261116-release-0-10-0.html">v0.10.0</a> 發布（準備中）。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>feat/composite-flow</code>，從 <code>feat/m7-flow-control</code> 的 <span class="mono">b6129bd</span>（已合併 main <span class="mono">554fe2f</span>）開；D4 決定疊在 M7.1 上；<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/20">PR #20</a> 開到 main，#15 合併前它的差異包含 M7.1 的提交，合併後只剩本分支的。2026-11-11 17:44 兩個 PR 和 main 都可以直接合併；之後 main 合併 #19、#15，各把 main 合併進本分支一次（見追加紀錄）。</dd>
         <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準；全部已推送，沒有未提交的修改。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux，Python 3.13，Node）；不能安裝套件：沒有 SQLAlchemy、FastAPI、OpenCC，伺服器與 Worker 的測試、簡中產生都以 CI 為準。本機能跑 Ruff、Pyright（伺服器部分缺 SQLAlchemy 的型別，以 CI 為準）、rpa_core 的測試與 docs／i18n 的大部分測試。</dd>
@@ -97,6 +97,7 @@
         <li>2026-11-13 07:16～07:21 America/Los_Angeles（PST，UTC−08:00），Claude：使用者驗收回報三項。(1) 新分頁查月報表的回看看不出開了新分頁：M7.1 的問題，在 #15 修（<span class="mono">948b773</span>，見 <a href="20261106-m7-flow.html#log">M7 任務紀錄</a>），合併進本分支。(2) 條件分支驗證時 n3（BA-003 查詢不存在的紀錄）失敗：條件本身走對了（兩次都走到「其他情況」的 n3），是新加入畫布的節點入參預設「同名匹配」，n3 的 recordId 接到 n1 剛建的真實紀錄，查得到資料，等不到「查無紀錄」；教程漏了「n3 的 recordId 改成預設值」，已補上，程式不改。(3) 畫布按「儲存」後版本表不更新：<span class="mono">4212c82</span> 修正（JS，沒有自動化的瀏覽器測試）。</li>
         <li>2026-11-13 07:27～07:33 America/Los_Angeles（PST，UTC−08:00），Claude：main 合併 #19（每晚 Firefox 錄影）後，#20 和 main 在任務索引衝突（兩邊各加一行），GitHub 不跑有衝突的 PR 的 CI。把 main 合併進本分支（<span class="mono">5b8d33d</span>，不 rebase），兩行都留；07:33 全部流程通過（見驗證表）。</li>
         <li>2026-11-13 17:59～18:10 America/Los_Angeles（PST，UTC−08:00），Claude：使用者（原文）「PR15我驗收merge了，幫我解決其他兩個pr的衝突。」開著的是 #20 與 #22（<code>claude/project-thread-0k55i9</code>，另一個 session 的 issue #21 測試修正）。(1) #20：GitHub 標成有衝突，但 git 的 ort 合併沒有衝突、結果和 <span class="mono">5b8d33d</span> 的樹相同；原因是 main 的 #15 合併提交讓兩邊有兩個共同祖先（<span class="mono">429a51f</span>、<span class="mono">3437048</span>）。把 main 合併進本分支（<span class="mono">12ca8ec</span>），共同祖先變成一個。(2) #22 和 main 沒有衝突（GitHub 也標可合併），但它和 #20 改到任務索引相鄰的兩行（#22 改 nightly-firefox-video 那一行，#20 在它上面加一行），哪一個先合併，另一個就會衝突。在本分支把組合場景那一行移到 scene-dag-visual-order 下面，和 #22 改的那一行隔開；#22 的分支沒有動。同一個提交把 M7 任務紀錄與索引改成 #15 已合併（#15 的分支已合併，所以放在這裡）。</li>
+        <li>2026-11-16 20:45 America/Los_Angeles（PST，UTC−08:00），Claude（<a href="20261116-release-0-10-0.html">發布 v0.10.0</a> 時回填）：PR #20 已在 2026-11-13 18:10 合併（d74ebaa）；狀態改為已合併。</li>
       </ul></div>
     </section>
   </div>
