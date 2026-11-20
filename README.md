@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-11-20 05:46 America/Los_Angeles（PST，UTC−08:00）。共 307 次運行。
+更新：2026-11-20 05:46 America/Los_Angeles（PST，UTC−08:00）。共 308 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -12,7 +12,7 @@
 | CI | 43（43） | 24（33） | 4.8 分（4.7 分） | 7.6 分（8.7 分） | 0.1 分（0.1 分） | 304／78／0 分（333／54／0 分） |
 | 桌面端建置 | 31（30） | 27（29） | 0.2 分（0.2 分） | 5.8 分（6.3 分） | 0.1 分（0.1 分） | 5／37／47 分（3／49／42 分） |
 | 伺服器分發包 | 35（33） | 31（32） | 0.3 分（0.2 分） | 2.8 分（2.7 分） | 0.1 分（0.1 分） | 70／0／0 分（55／0／0 分） |
-| 一鍵安裝腳本 | 38（37） | 37（34） | 0.2 分（0.2 分） | 31.0 分（5.1 分） | 0.1 分（0.1 分） | 230／297／296 分（115／146／146 分） |
+| 一鍵安裝腳本 | 39（37） | 38（34） | 0.2 分（0.2 分） | 31.0 分（5.1 分） | 0.1 分（0.1 分） | 230／297／296 分（115／146／146 分） |
 | 每晚完整測試 | 8（5） | 7（3） | 73.3 分（58.9 分） | 78.5 分（64.9 分） | 0.1 分（0.1 分） | 511／474／589 分（255／246／268 分） |
 | 發布 | 1（3） | 1（3） | 7.8 分（8.0 分） | 7.8 分（8.2 分） | 0.1 分（0.1 分） | 5／6／11 分（16／16／34 分） |
 
@@ -20,7 +20,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-11-20 | 3 | 0 | 0 | 0 | 0 |
+| 2026-11-20 | 4 | 1 | 0 | 0 | 1 |
 | 2026-11-19 | 2 | 104 | 110 | 127 | 342 |
 | 2026-11-18 | 2 | 112 | 113 | 131 | 356 |
 | 2026-11-17 | 2 | 116 | 111 | 133 | 361 |
@@ -260,6 +260,7 @@
 
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
+| 11-20 05:45 | 一鍵安裝腳本 | PR | m14/expected-revision | success | 0.3 分 | 0.1 分 | [#44747159432](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44747159432/attempts/1) |
 | 11-20 05:45 | 桌面端建置 | PR | m14/expected-revision | success | 0.2 分 | 0.1 分 | [#44747159403](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44747159403/attempts/1) |
 | 11-20 05:45 | 桌面端建置 | PR | m14/expected-revision | success | 0.2 分 | 0.1 分 | [#44747124672](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44747124672/attempts/1) |
 | 11-20 05:45 | 伺服器分發包 | PR | m14/expected-revision | cancelled | 0.2 分 | 0.1 分 | [#44747124873](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44747124873/attempts/1) |
@@ -299,5 +300,4 @@
 | 11-14 23:19 | CI | PR | feat/m8-1-credential-grants | failure | 4.5 分 | 0.1 分 | [#43689425181](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43689425181/attempts/1) |
 | 11-14 23:13 | 桌面端建置 | PR | feat/m8-1-credential-grants | success | 0.1 分 | 0.0 分 | [#43688984565](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43688984565/attempts/1) |
 | 11-14 23:13 | 一鍵安裝腳本 | PR | feat/m8-1-credential-grants | success | 0.2 分 | 0.1 分 | [#43688984603](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43688984603/attempts/1) |
-| 11-14 23:13 | 伺服器分發包 | PR | feat/m8-1-credential-grants | success | 3.8 分 | 0.1 分 | [#43688984561](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/43688984561/attempts/1) |
 
