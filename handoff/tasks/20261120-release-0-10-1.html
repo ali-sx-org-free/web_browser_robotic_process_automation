@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>v0.10.1 版本建置與驗證 · 瀏覽器 RPA</title>
+  <link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+  <link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="index.html">任務索引</a></nav>
+  <h1>v0.10.1 版本建置與驗證</h1>
+  <section id="identity"><h2>任務與版本</h2>
+    <p>2026-11-20 05:53 America/Los_Angeles（PST，UTC−08:00），使用者要求從最新主線建置一版。Codex 從 main 的 <code>3cf228d4</code> 建立 <code>chore/release-0.10.1</code>，將九個工作區套件及鎖定檔更新為 0.10.1。</p>
+  </section>
+  <section id="changes"><h2>從 v0.10.0 升級</h2>
+    <p><a href="20261120-agent-expected-revision.html">PR #32</a> 在執行與驗證場景的 Agent API 加入選填參數 <code>expectedRevision</code>。實際版本與預期不符時，伺服器回傳 HTTP 409 與 <code>revision_mismatch</code>。既有呼叫端可沿用原請求。本版沒有資料庫遷移或第三方套件升級。</p>
+  </section>
+  <section id="validation"><h2>驗證與交接</h2>
+    <p>在 macOS arm64、Python 3.13.16、uv 0.12.24 上，<code>python tools/release_version.py check v0.10.1</code> 通過。<code>uv run --locked --all-packages pytest -q tests/ci/test_release_version.py apps/server/tests/test_agent_api.py tests/docs tests/i18n</code> 共 438 項通過。各平台安裝包由 GitHub Actions 建置。正式簽章更新檔由版本標籤觸發的發布流程產生。人工驗收待執行。</p>
+  </section>
+</main>
+</body>
+</html>
