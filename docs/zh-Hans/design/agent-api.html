@@ -206,7 +206,7 @@
             <tr><td><code>POST /debug/{sid}/reset</code>、<code>DELETE /debug/{sid}</code></td><td>从头开始、结束</td><td>debug</td><td>沿用</td></tr>
             <tr><td><code>POST /scenes/{id}/revisions/{n}/validate</code></td><td>交给 Worker 验证；选填 <code>workerId</code>、运行位置、入参</td><td>runs:validate</td><td>沿用＋<code>workerId</code></td></tr>
             <tr><td><code>POST /scenes/{id}/revisions/{n}/publish</code></td><td>发布验证通过、哈希相符的版本</td><td>scenes:publish</td><td>沿用</td></tr>
-            <tr><td><code>POST /scenes/{id}/runs</code></td><td>正式运行已发布版本</td><td>runs:execute</td><td>沿用＋<code>workerId</code></td></tr>
+            <tr><td><code>POST /scenes/{id}/runs</code></td><td>正式运行已发布版本；选填 <code>expectedRevision</code>：发布的版本不是它时回 409 <code>revision_mismatch</code>，不排入（2026-11-20，供知识库锁定审阅过的版本）</td><td>runs:execute</td><td>沿用＋<code>workerId</code>、<code>expectedRevision</code></td></tr>
             <tr><td><code>POST /runs/{id}/cancel</code>、<code>/rerun</code></td><td>取消；同样的入参再跑一次</td><td>runs:execute</td><td>沿用</td></tr>
             <tr><td><code>POST /batches</code></td><td>批量运行（M7.3，<a href="../adr/0024-batch-runs.html">ADR 0024</a>）：<code>sceneId</code>、<code>rows</code>（1～1,000 列，每一列是一组入参）、<code>onFailure</code>、<code>concurrency</code>、运行位置等选项；创建后直接开始。任何一列有问题 422 <code>batch_rows_invalid</code>；同时排入的列算在排队上限里</td><td>runs:execute</td><td>沿用</td></tr>
             <tr><td><code>POST /batches/{id}/stop</code>、<code>/rerun</code></td><td>停下（取消排队中与运行中的列）；重跑没有通过的列（或 <code>rows</code> 指定的列）；只限自己创建的批量</td><td>runs:execute</td><td>沿用</td></tr>

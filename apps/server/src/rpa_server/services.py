@@ -1600,6 +1600,7 @@ class Services:
         client_id: str | None = None,
         batch: tuple[str, int] | None = None,
         actor: Actor = CURRENT,
+        expected_revision: int | None = None,
     ) -> RunRecord:
         """排入一次執行。驗證可以用任何版本（預設最新）；正式執行只用已發布版本；
         試驗場序列的節點（workflow）用序列固定的版本，只能是發布過的版本（M6）。
@@ -1611,6 +1612,10 @@ class Services:
         headless 沒指定時：執行的地方能顯示瀏覽器視窗就用有頭模式，不能就用無頭模式。
         actor 是用登入角色與 Secrets 的人（M8.1）：預設是觸發的 API 用戶端或目前請求的人；
         批次的列與組合運行的節點傳開始的人，沒有人時是 None（不檢查）。
+        expected_revision 是呼叫端預期執行的版本（M14，知識庫等外部系統鎖定審閱過的版本）：
+        這次要用的版本不是它時 409 ``revision_mismatch``，不排入。版本在同一個工作階段裡決定，
+        排入的運行就是檢查過的版本，發布同時切換也不會跑到沒有預期的版本。
+        冪等鍵用過時照舊回傳那次運行，不再檢查。
         """
         inputs = dict(inputs or {})
         target = self.resolve_target(target)
@@ -1631,6 +1636,18 @@ class Services:
                     raise _conflict("not_published", t("error.not_published", id=scene_id))
                 number = scene.published_number
             revision = self._revision(session, scene_id, number or scene.latest_number)
+            if expected_revision is not None and revision.number != expected_revision:
+                raise _conflict(
+                    "revision_mismatch",
+                    t(
+                        "error.revision_mismatch",
+                        id=scene_id,
+                        number=revision.number,
+                        expected=expected_revision,
+                    ),
+                    revision=revision.number,
+                    expected=expected_revision,
+                )
             self._check_usable(revision)
             if (purpose == "workflow" or batch is not None) and revision.published_at is None:
                 raise _conflict(

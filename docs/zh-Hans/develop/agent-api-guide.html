@@ -207,7 +207,7 @@ POST /agent-api/v1/scenes/order-create/runs
 → 202 {"id": "…", "purpose": "execution", "status": "queued", …}
 GET /agent-api/v1/runs/…
 → {"status": "passed", "output": {"orderId": "SO-10231"}, …}</pre>
-        <p>只有 <code>status</code> 是 <code>passed</code> 时才有 <code>output</code>。没有发布权限时，告诉用户哪个场景的哪个版本已验证通过，请人在 Portal 发布。<code>GET /runs?scene=…&amp;status=…&amp;purpose=…&amp;mine=true</code> 列出看得到的运行（可用领域里的场景，<code>mine</code> 只列自己触发的）；<code>POST /runs/{id}/cancel</code> 只能取消自己触发的。</p>
+        <p>只有 <code>status</code> 是 <code>passed</code> 时才有 <code>output</code>。只想运行自己审阅过的版本时带 <code>expectedRevision</code>（例如 <code>6</code>）：发布的版本已经换成别的时回 409 <code>revision_mismatch</code>（带 <code>revision</code> 与 <code>expected</code>），不会排入；验证也可以带，比较的是路径上的版本。没有发布权限时，告诉用户哪个场景的哪个版本已验证通过，请人在 Portal 发布。<code>GET /runs?scene=…&amp;status=…&amp;purpose=…&amp;mine=true</code> 列出看得到的运行（可用领域里的场景，<code>mine</code> 只列自己触发的）；<code>POST /runs/{id}/cancel</code> 只能取消自己触发的。</p>
       </div>
     </section>
 
@@ -336,6 +336,7 @@ GET /agent-api/v1/batches/batch-20261105-…        （需要 runs:read）</pre>
             <tr><td>409</td><td><code>recorder_offline</code></td><td>录制端不在线</td><td>换一台，或请人打开录制端 App</td></tr>
             <tr><td>409</td><td><code>not_validated</code>、<code>content_changed</code></td><td>这个版本没有验证通过的记录，或内容和验证时不同</td><td>先验证</td></tr>
             <tr><td>409</td><td><code>not_published</code></td><td>场景没有已发布版本，不能正式运行</td><td>发布，或请人发布</td></tr>
+            <tr><td>409</td><td><code>revision_mismatch</code></td><td>这次要运行的版本（<code>revision</code>）不是 <code>expectedRevision</code>（<code>expected</code>）</td><td>审阅新的发布版本后改用它，或请人发布原本的版本</td></tr>
             <tr><td>409</td><td><code>rerun_workflow</code></td><td>组合场景的节点不能单独重跑</td><td>重跑组合场景的运行：<code>POST /composite-runs/{id}/rerun</code></td></tr>
             <tr><td>409</td><td><code>stale_workflow</code></td><td>组合场景的 <code>baseRevision</code> 不是最新版</td><td>读 <code>latest</code> 那一版，把修改套上去再存</td></tr>
             <tr><td>409</td><td><code>project_exists</code>、<code>workflow_code_exists</code></td><td>项目或组合场景的代号已经有了</td><td>换代号，或读现有的</td></tr>

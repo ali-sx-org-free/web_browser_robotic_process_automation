@@ -1026,6 +1026,7 @@
   "js.batch_rerun_started": "Rerun started",
   "purpose.workflow": "Playground",
   "error.revision_unpublished": "Revision v{number} of scenario {id} has never been published; the playground only uses published revisions",
+  "error.revision_mismatch": "Scenario {id} would run v{number}, not the expected v{expected}",
   "error.workflow_not_found": "Composite scenario {id} not found",
   "error.workflow_name_missing": "Enter a name for the composite scenario",
   "error.workflow_format": "The composite scenario definition has {count} format problem(s)",

@@ -206,7 +206,7 @@ POST /agent-api/v1/scenes/order-create/runs
 → 202 {"id": "…", "purpose": "execution", "status": "queued", …}
 GET /agent-api/v1/runs/…
 → {"status": "passed", "output": {"orderId": "SO-10231"}, …}</pre>
-        <p>只有 <code>status</code> 是 <code>passed</code> 時才有 <code>output</code>。沒有發布權限時，告訴使用者哪個場景的哪個版本已驗證通過，請人在 Portal 發布。<code>GET /runs?scene=…&amp;status=…&amp;purpose=…&amp;mine=true</code> 列出看得到的運行（可用領域裡的場景，<code>mine</code> 只列自己觸發的）；<code>POST /runs/{id}/cancel</code> 只能取消自己觸發的。</p>
+        <p>只有 <code>status</code> 是 <code>passed</code> 時才有 <code>output</code>。只想執行自己審閱過的版本時帶 <code>expectedRevision</code>（例如 <code>6</code>）：發布的版本已經換成別的時回 409 <code>revision_mismatch</code>（帶 <code>revision</code> 與 <code>expected</code>），不會排入；驗證也可以帶，比對的是路徑上的版本。沒有發布權限時，告訴使用者哪個場景的哪個版本已驗證通過，請人在 Portal 發布。<code>GET /runs?scene=…&amp;status=…&amp;purpose=…&amp;mine=true</code> 列出看得到的運行（可用領域裡的場景，<code>mine</code> 只列自己觸發的）；<code>POST /runs/{id}/cancel</code> 只能取消自己觸發的。</p>
       </div>
     </section>
 
@@ -335,6 +335,7 @@ GET /agent-api/v1/batches/batch-20261105-…        （需要 runs:read）</pre>
             <tr><td>409</td><td><code>recorder_offline</code></td><td>錄製端不在線</td><td>換一台，或請人開啟錄製端 App</td></tr>
             <tr><td>409</td><td><code>not_validated</code>、<code>content_changed</code></td><td>這個版本沒有驗證通過的紀錄，或內容和驗證時不同</td><td>先驗證</td></tr>
             <tr><td>409</td><td><code>not_published</code></td><td>場景沒有已發布版本，不能正式執行</td><td>發布，或請人發布</td></tr>
+            <tr><td>409</td><td><code>revision_mismatch</code></td><td>這次要執行的版本（<code>revision</code>）不是 <code>expectedRevision</code>（<code>expected</code>）</td><td>審閱新的發布版本後改用它，或請人發布原本的版本</td></tr>
             <tr><td>409</td><td><code>rerun_workflow</code></td><td>組合場景的節點不能單獨重跑</td><td>重跑組合場景的執行：<code>POST /composite-runs/{id}/rerun</code></td></tr>
             <tr><td>409</td><td><code>stale_workflow</code></td><td>組合場景的 <code>baseRevision</code> 不是最新版</td><td>讀 <code>latest</code> 那一版，把修改套上去再存</td></tr>
             <tr><td>409</td><td><code>project_exists</code>、<code>workflow_code_exists</code></td><td>專案或組合場景的代號已經有了</td><td>換代號，或讀現有的</td></tr>

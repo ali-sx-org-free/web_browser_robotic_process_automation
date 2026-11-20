@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:272932f7d180def5">
+<meta name="translation-source" content="sha256:7fb4d3fe4f870c40">
 <title>Agent API guide · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -207,7 +207,7 @@ POST /agent-api/v1/scenes/order-create/runs
 → 202 {"id": "…", "purpose": "execution", "status": "queued", …}
 GET /agent-api/v1/runs/…
 → {"status": "passed", "output": {"orderId": "SO-10231"}, …}</pre>
-        <p><code>output</code> is present only when <code>status</code> is <code>passed</code>. Without publish permission, tell the user which revision of which scene passed validation and ask a person to publish it in the Portal. <code>GET /runs?scene=…&amp;status=…&amp;purpose=…&amp;mine=true</code> lists the runs you can see (scenes in your domains; <code>mine</code> limits it to runs you started); <code>POST /runs/{id}/cancel</code> cancels only runs you started.</p>
+        <p><code>output</code> is present only when <code>status</code> is <code>passed</code>. To run only a revision you reviewed, send <code>expectedRevision</code> (for example <code>6</code>): if another revision has been published since, you get 409 <code>revision_mismatch</code> (with <code>revision</code> and <code>expected</code>) and nothing is queued. Validation accepts it too and compares it with the revision in the path. Without publish permission, tell the user which revision of which scene passed validation and ask a person to publish it in the Portal. <code>GET /runs?scene=…&amp;status=…&amp;purpose=…&amp;mine=true</code> lists the runs you can see (scenes in your domains; <code>mine</code> limits it to runs you started); <code>POST /runs/{id}/cancel</code> cancels only runs you started.</p>
       </div>
     </section>
 
@@ -336,6 +336,7 @@ GET /agent-api/v1/batches/batch-20261105-…        (needs runs:read)</pre>
             <tr><td>409</td><td><code>recorder_offline</code></td><td>The recorder is offline</td><td>Use another one, or ask a person to open the Recorder app</td></tr>
             <tr><td>409</td><td><code>not_validated</code>, <code>content_changed</code></td><td>This revision has no passed validation, or its content differs from what was validated</td><td>Validate first</td></tr>
             <tr><td>409</td><td><code>not_published</code></td><td>The scene has no published revision and cannot run in production</td><td>Publish, or ask a person to publish</td></tr>
+            <tr><td>409</td><td><code>revision_mismatch</code></td><td>The revision this run would use (<code>revision</code>) is not <code>expectedRevision</code> (<code>expected</code>)</td><td>Review the newly published revision and switch to it, or ask a person to publish the original one</td></tr>
             <tr><td>409</td><td><code>rerun_workflow</code></td><td>A composite's node cannot be rerun on its own</td><td>Rerun the composite run: <code>POST /composite-runs/{id}/rerun</code></td></tr>
             <tr><td>409</td><td><code>stale_workflow</code></td><td>The composite's <code>baseRevision</code> is not the latest</td><td>Read the <code>latest</code> revision, reapply your change and save again</td></tr>
             <tr><td>409</td><td><code>project_exists</code>, <code>workflow_code_exists</code></td><td>The project ID or composite code is taken</td><td>Pick another, or read the existing one</td></tr>
