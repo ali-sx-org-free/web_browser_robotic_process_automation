@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:12bfed27b5cdb475">
+<meta name="translation-source" content="sha256:15d776d9d853e4c4">
 <title>Agent API · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -206,7 +206,7 @@
             <tr><td><code>POST /debug/{sid}/reset</code>, <code>DELETE /debug/{sid}</code></td><td>Start over; end the session</td><td>debug</td><td>Existing</td></tr>
             <tr><td><code>POST /scenes/{id}/revisions/{n}/validate</code></td><td>Have a Worker validate; optional <code>workerId</code>, run location, inputs</td><td>runs:validate</td><td>Existing + <code>workerId</code></td></tr>
             <tr><td><code>POST /scenes/{id}/revisions/{n}/publish</code></td><td>Publish a revision that passed validation with a matching hash</td><td>scenes:publish</td><td>Existing</td></tr>
-            <tr><td><code>POST /scenes/{id}/runs</code></td><td>Run the published revision</td><td>runs:execute</td><td>Existing + <code>workerId</code></td></tr>
+            <tr><td><code>POST /scenes/{id}/runs</code></td><td>Run the published revision; optional <code>expectedRevision</code>: if the published revision is a different one, 409 <code>revision_mismatch</code> and nothing is queued (2026-11-20, lets the knowledge base pin the revision it reviewed)</td><td>runs:execute</td><td>Existing + <code>workerId</code>, <code>expectedRevision</code></td></tr>
             <tr><td><code>POST /runs/{id}/cancel</code>, <code>/rerun</code></td><td>Cancel; run again with the same inputs</td><td>runs:execute</td><td>Existing</td></tr>
             <tr><td><code>POST /batches</code></td><td>Batch runs (M7.3, <a href="../adr/0024-batch-runs.html">ADR 0024</a>): <code>sceneId</code>, <code>rows</code> (1–1,000 rows, each a set of inputs), <code>onFailure</code>, <code>concurrency</code>, run location and other options; the batch starts right away. 422 <code>batch_rows_invalid</code> when any row has a problem; rows queued at once count toward the queue limit</td><td>runs:execute</td><td>Existing</td></tr>
             <tr><td><code>POST /batches/{id}/stop</code>, <code>/rerun</code></td><td>Stop (cancels the rows queued or running); rerun the rows that did not pass (or the rows given in <code>rows</code>); only batches the client created</td><td>runs:execute</td><td>Existing</td></tr>

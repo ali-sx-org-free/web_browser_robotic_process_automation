@@ -1026,6 +1026,7 @@
   "js.batch_rerun_started": "已开始重跑",
   "purpose.workflow": "试验场",
   "error.revision_unpublished": "场景 {id} 的 v{number} 没有发布过，试验场只能用发布过的版本",
+  "error.revision_mismatch": "场景 {id} 这次要运行的是 v{number}，不是预期的 v{expected}",
   "error.workflow_not_found": "找不到组合场景 {id}",
   "error.workflow_name_missing": "请输入组合场景名称",
   "error.workflow_format": "组合场景的定义有 {count} 个格式问题",

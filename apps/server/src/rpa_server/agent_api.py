@@ -159,6 +159,9 @@ class RunBody(AgentBody):
     worker_id: str | None = Field(default=None, max_length=64)
     """指定由哪台 Worker 執行（local 是伺服器本機）。"""
     idempotency_key: str | None = Field(default=None, max_length=100)
+    expected_revision: int | None = Field(default=None, ge=1)
+    """預期執行的版本：這次要用的版本（正式執行是目前發布的版本）不是它時 409
+    ``revision_mismatch``，不排入。外部系統用它鎖定審閱過的版本。"""
 
 
 class AgentBatchCreate(AgentBody):
@@ -554,6 +557,7 @@ def agent_api(services: Services) -> FastAPI:
             target=target,
             required_worker=worker,
             client_id=client.id,
+            expected_revision=body.expected_revision,
         )
         return run_json(client, run)
 

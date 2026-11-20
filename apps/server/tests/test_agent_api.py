@@ -17,9 +17,13 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx2 import Client, Response
+from sqlalchemy import select
 
 from rpa_core.dsl.features import FEATURES
 from rpa_server.config import Settings
+from rpa_server.domain import now
+from rpa_server.models import Revision, Scene
+from rpa_server.services import Services
 from rpa_worker.environment import PROTOCOL
 from rpa_worker.pairing import CLIENT_API_PREFIX, parse_invite
 
@@ -419,6 +423,70 @@ def test_runs_follow_scopes_limits_and_placement(
         "local",
         "win-01",
     ]
+
+
+def publish(app: FastAPI, scene_id: str, number: int) -> None:
+    """直接在資料庫標成已發布（發布門檻本身在 test_api.py 測過）。"""
+    with cast("Services", app.state.services).sessions() as session:
+        scene = session.get(Scene, scene_id)
+        revision = session.scalars(
+            select(Revision).where(Revision.scene_id == scene_id, Revision.number == number)
+        ).one()
+        assert scene is not None
+        revision.status = "passed"
+        revision.published_at = now()
+        scene.published_number = number
+        session.commit()
+
+
+def test_expected_revision_locks_the_revision_that_runs(
+    app: FastAPI, client: Client, remote: Client
+) -> None:
+    """外部系統（例如知識庫）只想執行審閱過的版本：expectedRevision 不是這次要用的版本時 409，
+    不排入；相同時照常排入。驗證也一樣比對指定的版本。"""
+    agent = register(client, remote, scopes=EVERYTHING)
+    body(agent.post("/scenes", {"id": "order-create", "name": "建立訂單"}), 201)
+    for base in (1, 2):
+        body(
+            agent.post(
+                "/scenes/order-create/revisions",
+                {"baseRevision": base, "files": {"scenario.yaml": scene_yaml("order-create")}},
+            ),
+            201,
+        )
+    publish(app, "order-create", 2)
+
+    run = body(agent.post("/scenes/order-create/runs", {"expectedRevision": 2}), 202)
+    assert run["revision"] == 2
+    assert run["purpose"] == "execution"
+
+    # 發布切到 v3 之後，鎖定 v2 的請求不排入，錯誤帶這次會用的版本與預期的版本
+    publish(app, "order-create", 3)
+    before = len(cast("list[JsonObject]", body(agent.get("/runs"))["runs"]))
+    mismatch = error(agent.post("/scenes/order-create/runs", {"expectedRevision": 2}), 409)
+    assert mismatch["code"] == "revision_mismatch"
+    assert mismatch["revision"] == 3
+    assert mismatch["expected"] == 2
+    assert "v3" in str(mismatch["message"])
+    assert len(cast("list[JsonObject]", body(agent.get("/runs"))["runs"])) == before
+    assert (
+        body(agent.post("/scenes/order-create/runs", {"expectedRevision": 3}), 202)["revision"] == 3
+    )
+    # 冪等鍵用過時照舊回傳那次運行（重送不因發布切換而失敗）
+    keyed: JsonObject = {"expectedRevision": 3, "idempotencyKey": "kb:EX-1"}
+    first = body(agent.post("/scenes/order-create/runs", keyed), 202)
+    publish(app, "order-create", 2)
+    assert body(agent.post("/scenes/order-create/runs", keyed), 202)["id"] == first["id"]
+
+    # 驗證比對指定的版本；不帶 expectedRevision 時行為不變
+    validate = "/scenes/order-create/revisions/2/validate"
+    assert error(agent.post(validate, {"expectedRevision": 3}), 409)["code"] == (
+        "revision_mismatch"
+    )
+    assert body(agent.post(validate, {"expectedRevision": 2}), 202)["revision"] == 2
+    assert body(agent.post("/scenes/order-create/runs", {}), 202)["revision"] == 2
+    invalid = error(agent.post("/scenes/order-create/runs", {"expectedRevision": 0}), 422)
+    assert invalid["code"] == "request_invalid"
 
 
 # ---------------------------------------------------------------- 調試

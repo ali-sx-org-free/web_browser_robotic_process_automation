@@ -1026,6 +1026,7 @@
   "js.batch_rerun_started": "已開始重跑",
   "purpose.workflow": "試驗場",
   "error.revision_unpublished": "場景 {id} 的 v{number} 沒有發布過，試驗場只能用發布過的版本",
+  "error.revision_mismatch": "場景 {id} 這次要執行的是 v{number}，不是預期的 v{expected}",
   "error.workflow_not_found": "找不到組合場景 {id}",
   "error.workflow_name_missing": "請輸入組合場景名稱",
   "error.workflow_format": "組合場景的定義有 {count} 個格式問題",
