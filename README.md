@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-11-23 02:54 America/Los_Angeles（PST，UTC−08:00）。共 338 次運行。
+更新：2026-11-23 02:55 America/Los_Angeles（PST，UTC−08:00）。共 339 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -10,7 +10,7 @@
 | 流程 | 次數 | 通過 | 耗時中位數 | 耗時 P90 | 最長排隊中位數 | 機器時間（Linux／Windows／macOS） |
 |---|---|---|---|---|---|---|
 | CI | 12（82） | 11（53） | 5.3 分（4.7 分） | 10.4 分（8.1 分） | 0.1 分（0.1 分） | 114／6／0 分（594／132／0 分） |
-| 桌面端建置 | 9（56） | 9（51） | 0.2 分（0.2 分） | 0.3 分（6.3 分） | 0.1 分（0.1 分） | 1／5／12 分（7／86／89 分） |
+| 桌面端建置 | 10（56） | 10（51） | 0.2 分（0.2 分） | 6.4 分（6.3 分） | 0.1 分（0.1 分） | 1／11／23 分（7／86／89 分） |
 | 伺服器分發包 | 10（65） | 9（61） | 0.2 分（0.2 分） | 2.7 分（2.8 分） | 0.1 分（0.1 分） | 16／0／0 分（124／0／0 分） |
 | 一鍵安裝腳本 | 15（67） | 15（63） | 0.3 分（0.2 分） | 34.8 分（5.1 分） | 0.1 分（0.1 分） | 230／302／294 分（210／271／271 分） |
 | 每晚完整測試 | 8（9） | 8（6） | 75.1 分（61.2 分） | 78.5 分（69.5 分） | 0.1 分（0.1 分） | 516／472／602 分（466／449／511 分） |
@@ -20,7 +20,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-11-23 | 3 | 12 | 6 | 0 | 19 |
+| 2026-11-23 | 4 | 12 | 12 | 12 | 36 |
 | 2026-11-22 | 2 | 101 | 108 | 127 | 335 |
 | 2026-11-21 | 3 | 109 | 119 | 133 | 360 |
 | 2026-11-20 | 26 | 183 | 114 | 141 | 439 |
@@ -266,6 +266,7 @@
 | 11-23 02:47 | 一鍵安裝腳本 | PR | dependabot/github_actions/actions-ab053d56de | success | 0.2 分 | 0.1 分 | [#45159294505](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45159294505/attempts/1) |
 | 11-23 02:47 | 伺服器分發包 | PR | dependabot/github_actions/actions-ab053d56de | success | 2.6 分 | 0.1 分 | [#45159294351](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45159294351/attempts/1) |
 | 11-23 02:47 | CI | PR | dependabot/github_actions/actions-ab053d56de | success | 6.5 分 | 0.1 分 | [#45159294498](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45159294498/attempts/1) |
+| 11-23 02:47 | 桌面端建置 | PR | dependabot/github_actions/actions-ab053d56de | success | 7.3 分 | 0.1 分 | [#45159294402](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45159294402/attempts/1) |
 | 11-22 17:08 | 一鍵安裝腳本 | 排程 | main | success | 33.0 分 | 0.1 分 | [#45092865743](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45092865743/attempts/1) |
 | 11-22 16:55 | 每晚完整測試 | 排程 | main | success | 74.5 分 | 0.1 分 | [#45091601896](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45091601896/attempts/1) |
 | 11-21 18:40 | 每晚完整測試 | 排程 | main | success | 7.1 分 | 0.1 分 | [#44977205698](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44977205698/attempts/1) |
@@ -302,5 +303,4 @@
 | 11-18 18:01 | 一鍵安裝腳本 | 排程 | main | success | 38.7 分 | 0.1 分 | [#44441238925](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44441238925/attempts/1) |
 | 11-18 17:53 | 每晚完整測試 | 排程 | main | success | 75.9 分 | 0.1 分 | [#44440221457](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44440221457/attempts/1) |
 | 11-17 18:37 | 一鍵安裝腳本 | 排程 | main | success | 34.8 分 | 0.1 分 | [#44224618237](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44224618237/attempts/1) |
-| 11-17 18:26 | 每晚完整測試 | 排程 | main | success | 82.4 分 | 0.1 分 | [#44223299599](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44223299599/attempts/1) |
 
