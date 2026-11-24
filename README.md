@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-11-23 04:11 America/Los_Angeles（PST，UTC−08:00）。共 340 次運行。
+更新：2026-11-23 21:32 America/Los_Angeles（PST，UTC−08:00）。共 341 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -9,18 +9,18 @@
 
 | 流程 | 次數 | 通過 | 耗時中位數 | 耗時 P90 | 最長排隊中位數 | 機器時間（Linux／Windows／macOS） |
 |---|---|---|---|---|---|---|
-| CI | 12（82） | 11（53） | 5.3 分（4.7 分） | 10.4 分（8.1 分） | 0.1 分（0.1 分） | 114／6／0 分（594／132／0 分） |
-| 桌面端建置 | 10（56） | 10（51） | 0.2 分（0.2 分） | 6.4 分（6.3 分） | 0.1 分（0.1 分） | 1／11／23 分（7／86／89 分） |
-| 伺服器分發包 | 10（65） | 9（61） | 0.2 分（0.2 分） | 2.7 分（2.8 分） | 0.1 分（0.1 分） | 16／0／0 分（124／0／0 分） |
-| 一鍵安裝腳本 | 15（67） | 15（63） | 0.3 分（0.2 分） | 34.8 分（5.1 分） | 0.1 分（0.1 分） | 230／302／294 分（210／271／271 分） |
-| 每晚完整測試 | 9（9） | 9（6） | 75.7 分（61.2 分） | 82.4 分（69.5 分） | 0.1 分（0.1 分） | 592／546／698 分（466／449／511 分） |
+| CI | 9（74） | 8（47） | 5.2 分（4.7 分） | 8.8 分（8.0 分） | 0.1 分（0.1 分） | 85／6／0 分（535／119／0 分） |
+| 桌面端建置 | 8（50） | 8（45） | 0.2 分（0.2 分） | 6.4 分（6.2 分） | 0.1 分（0.1 分） | 1／11／23 分（7／74／65 分） |
+| 伺服器分發包 | 8（59） | 7（55） | 0.2 分（0.3 分） | 2.7 分（2.8 分） | 0.1 分（0.1 分） | 16／0／0 分（119／0／0 分） |
+| 一鍵安裝腳本 | 12（62） | 12（60） | 32.3 分（0.2 分） | 34.8 分（27.2 分） | 0.1 分（0.1 分） | 229／298／295 分（212／274／273 分） |
+| 每晚完整測試 | 8（9） | 8（7） | 75.1 分（61.2 分） | 82.4 分（71.0 分） | 0.1 分（0.1 分） | 523／478／611 分（475／462／521 分） |
 | 發布 | 2（3） | 2（3） | 8.1 分（8.0 分） | 8.3 分（8.2 分） | 0.1 分（0.1 分） | 11／11／23 分（16／16／34 分） |
 
 ## 每天的機器時間（分鐘，洛杉磯日期，最近 14 天）
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-11-23 | 5 | 88 | 86 | 108 | 283 |
+| 2026-11-23 | 6 | 121 | 124 | 149 | 394 |
 | 2026-11-22 | 2 | 101 | 108 | 127 | 335 |
 | 2026-11-21 | 3 | 109 | 119 | 133 | 360 |
 | 2026-11-20 | 26 | 183 | 114 | 141 | 439 |
@@ -34,7 +34,6 @@
 | 2026-11-12 | 12 | 117 | 97 | 104 | 318 |
 | 2026-11-11 | 41 | 210 | 120 | 96 | 426 |
 | 2026-11-10 | 61 | 265 | 177 | 153 | 595 |
-| 2026-11-09 | 37 | 186 | 119 | 138 | 442 |
 
 ## 最慢的測試檔案（每份報告最近一次，括號是近 7 次的中位數）
 
@@ -263,6 +262,7 @@
 
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
+| 11-23 20:59 | 一鍵安裝腳本 | 排程 | main | success | 32.5 分 | 0.1 分 | [#45330171052](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45330171052/attempts/1) |
 | 11-23 02:47 | 每晚完整測試 | PR | dependabot/github_actions/actions-ab053d56de | success | 83.9 分 | 0.7 分 | [#45159294696](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45159294696/attempts/1) |
 | 11-23 02:47 | 一鍵安裝腳本 | PR | dependabot/github_actions/actions-ab053d56de | success | 0.2 分 | 0.1 分 | [#45159294505](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45159294505/attempts/1) |
 | 11-23 02:47 | 伺服器分發包 | PR | dependabot/github_actions/actions-ab053d56de | success | 2.6 分 | 0.1 分 | [#45159294351](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45159294351/attempts/1) |
@@ -302,5 +302,4 @@
 | 11-19 17:54 | 一鍵安裝腳本 | 排程 | main | success | 33.5 分 | 0.1 分 | [#44656964332](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44656964332/attempts/1) |
 | 11-19 17:46 | 每晚完整測試 | 排程 | main | success | 75.7 分 | 0.1 分 | [#44656057698](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44656057698/attempts/1) |
 | 11-18 18:01 | 一鍵安裝腳本 | 排程 | main | success | 38.7 分 | 0.1 分 | [#44441238925](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44441238925/attempts/1) |
-| 11-18 17:53 | 每晚完整測試 | 排程 | main | success | 75.9 分 | 0.1 分 | [#44440221457](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44440221457/attempts/1) |
 
