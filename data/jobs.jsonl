@@ -1610,3 +1610,10 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 3100.0, "job": "完整測試（ubuntu-latest，Python 3.13）", "os": "linux", "queue_s": 2.0, "run_id": 45757505720, "workflow": "每晚完整測試"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "macOS 桌面 App（程式碼層）", "os": "linux", "queue_s": 0.0, "run_id": 45757505720, "workflow": "每晚完整測試"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 45757505720, "workflow": "每晚完整測試"}
+{"attempt": 2, "conclusion": "success", "duration_s": 3926.0, "job": "完整測試（windows-latest，Python 3.13）", "os": "windows", "queue_s": 3.0, "run_id": 45757505720, "workflow": "每晚完整測試"}
+{"attempt": 2, "conclusion": "skipped", "duration_s": 0, "job": "桌面 App 每週完整建置", "os": "linux", "queue_s": 0.0, "run_id": 45757505720, "workflow": "每晚完整測試"}
+{"attempt": 2, "conclusion": "success", "duration_s": 1091.0, "job": "完整測試（ubuntu-latest，Python 3.12）", "os": "linux", "queue_s": 0.0, "run_id": 45757505720, "workflow": "每晚完整測試"}
+{"attempt": 2, "conclusion": "skipped", "duration_s": 0, "job": "macOS 桌面 App（程式碼層）", "os": "linux", "queue_s": 0.0, "run_id": 45757505720, "workflow": "每晚完整測試"}
+{"attempt": 2, "conclusion": "success", "duration_s": 3100.0, "job": "完整測試（ubuntu-latest，Python 3.13）", "os": "linux", "queue_s": 0.0, "run_id": 45757505720, "workflow": "每晚完整測試"}
+{"attempt": 2, "conclusion": "success", "duration_s": 9.0, "job": "執行範圍", "os": "linux", "queue_s": 0.0, "run_id": 45757505720, "workflow": "每晚完整測試"}
+{"attempt": 2, "conclusion": "skipped", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 45757505720, "workflow": "每晚完整測試"}
