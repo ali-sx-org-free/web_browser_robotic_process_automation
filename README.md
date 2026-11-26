@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-11-25 23:02 America/Los_Angeles（PST，UTC−08:00）。共 355 次運行。
+更新：2026-11-25 23:03 America/Los_Angeles（PST，UTC−08:00）。共 356 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -13,14 +13,14 @@
 | 桌面端建置 | 8（32） | 8（28） | 0.3 分（0.2 分） | 6.4 分（5.8 分） | 0.1 分（0.1 分） | 1／14／23 分（5／37／47 分） |
 | 伺服器分發包 | 10（36） | 9（33） | 0.2 分（0.3 分） | 2.8 分（2.8 分） | 0.1 分（0.1 分） | 21／0／0 分（70／0／0 分） |
 | 一鍵安裝腳本 | 12（40） | 12（38） | 31.6 分（0.2 分） | 33.5 分（30.6 分） | 0.1 分（0.1 分） | 224／292／292 分（223／289／291 分） |
-| 每晚完整測試 | 12（8） | 10（7） | 73.0 分（70.2 分） | 75.7 分（78.5 分） | 0.1 分（0.1 分） | 737／663／683 分（506／464／572 分） |
+| 每晚完整測試 | 13（8） | 11（7） | 72.8 分（70.2 分） | 75.7 分（78.5 分） | 0.1 分（0.1 分） | 737／663／683 分（506／464／572 分） |
 | 發布 | 1（1） | 1（1） | 8.3 分（7.8 分） | 8.3 分（7.8 分） | 0.1 分（0.1 分） | 6／6／11 分（5／6／11 分） |
 
 ## 每天的機器時間（分鐘，洛杉磯日期，最近 14 天）
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-11-25 | 11 | 289 | 256 | 127 | 672 |
+| 2026-11-25 | 12 | 289 | 256 | 127 | 672 |
 | 2026-11-24 | 2 | 95 | 104 | 123 | 323 |
 | 2026-11-23 | 7 | 198 | 180 | 231 | 609 |
 | 2026-11-22 | 2 | 101 | 108 | 127 | 335 |
@@ -262,6 +262,7 @@
 
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
+| 11-25 23:03 | 每晚完整測試 | PR | claude/project-thread-nniq4z | success | 0.1 分 | 0.1 分 | [#45772533245](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45772533245/attempts/1) |
 | 11-25 21:57 | 每晚完整測試 | PR | claude/project-thread-nniq4z | success | 65.5 分 | 0.1 分 | [#45757505720 第 2 次](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45757505720/attempts/2) |
 | 11-25 20:48 | 每晚完整測試 | PR | claude/project-thread-nniq4z | failure | 67.0 分 | 0.0 分 | [#45757505720](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45757505720/attempts/1) |
 | 11-25 20:48 | 伺服器分發包 | PR | claude/project-thread-nniq4z | success | 0.2 分 | 0.0 分 | [#45757505843](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45757505843/attempts/1) |
@@ -301,5 +302,4 @@
 | 11-20 06:08 | CI | 推送 | main | success | 8.6 分 | 0.1 分 | [#44750575277](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44750575277/attempts/1) |
 | 11-20 05:55 | 伺服器分發包 | 手動 | chore/release-0.10.1 | success | 3.7 分 | 0.1 分 | [#44748630657](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44748630657/attempts/1) |
 | 11-20 05:55 | 桌面端建置 | 手動 | chore/release-0.10.1 | success | 6.4 分 | 0.1 分 | [#44748623130](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44748623130/attempts/1) |
-| 11-20 05:55 | 伺服器分發包 | PR | chore/release-0.10.1 | success | 0.1 分 | 0.0 分 | [#44748617026](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/44748617026/attempts/1) |
 
