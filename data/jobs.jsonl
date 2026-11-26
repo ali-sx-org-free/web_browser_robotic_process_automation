@@ -1598,3 +1598,8 @@
 {"attempt": 1, "conclusion": "cancelled", "duration_s": 521.0, "job": "完整測試（ubuntu-latest，Python 3.13）", "os": "linux", "queue_s": 2.0, "run_id": 45756601741, "workflow": "每晚完整測試"}
 {"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "macOS 桌面 App（程式碼層）", "os": "linux", "queue_s": 0.0, "run_id": 45756601741, "workflow": "每晚完整測試"}
 {"attempt": 1, "conclusion": "cancelled", "duration_s": 0, "job": "失敗時開 issue", "os": "linux", "queue_s": 0.0, "run_id": 45756601741, "workflow": "每晚完整測試"}
+{"attempt": 1, "conclusion": "success", "duration_s": 6.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 45757505754, "workflow": "CI"}
+{"attempt": 1, "conclusion": "success", "duration_s": 33.0, "job": "靜態檢查", "os": "linux", "queue_s": 2.0, "run_id": 45757505754, "workflow": "CI"}
+{"attempt": 1, "conclusion": "success", "duration_s": 333.0, "job": "Worker 測試（Windows）", "os": "windows", "queue_s": 2.0, "run_id": 45757505754, "workflow": "CI"}
+{"attempt": 1, "conclusion": "success", "duration_s": 280.0, "job": "測試（Python 3.13）", "os": "linux", "queue_s": 2.0, "run_id": 45757505754, "workflow": "CI"}
+{"attempt": 1, "conclusion": "success", "duration_s": 148.0, "job": "測試（Python 3.12）", "os": "linux", "queue_s": 2.0, "run_id": 45757505754, "workflow": "CI"}
