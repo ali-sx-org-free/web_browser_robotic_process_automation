@@ -19,8 +19,8 @@
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-25 20:27 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話：「現在我想把流水綫裏的macos的測試關掉要怎麽辦（後續可能還要開），因爲我決定倉庫私有化，但是現有的每月18美金金額又不太夠。」完成條件：合併後 PR、main 與排程不再排 macOS 的工作；之後只改設定（不改程式）就能恢復；文檔寫清楚怎麼恢復。</dd>
         <dt>範圍／不包含</dt><dd>範圍：<code>tools/ci_changes.py</code> 的開關、四個有 macOS 工作的 workflow、測試、CI 文檔（繁中、英文、簡中）、決定與本紀錄。不包含：發布流程（照建 macOS）；Linux、Windows 的排程頻率（見下方的建議）；倉庫改成私有後「從零開始」下載腳本的問題（見未完成）。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責：Claude（雲端 session）；審閱與合併：使用者；接收方：未指定</dd>
-        <dt>修改檔案／整合者</dt><dd><code>tools/ci_changes.py</code>、<code>tests/ci/test_ci_changes.py</code>、<code>.github/workflows/</code> 的 <code>desktop.yml</code>、<code>nightly.yml</code>、<code>setup-scripts.yml</code>、<code>python-runtime.yml</code>；<code>docs/develop/ci.html</code> 與英文、簡中版；<code>handoff/decisions.html</code>、<code>handoff/tasks/index.html</code>（共用檔案，合併時以 main 為準）</dd>
-        <dt>狀態</dt><dd>待審閱（PR 已建立，連結見追加紀錄）</dd>
+        <dt>修改檔案／整合者</dt><dd><code>tools/ci_changes.py</code>、<code>tests/ci/test_ci_changes.py</code>、<code>packages/rpa_runner/tests/test_flow_browser.py</code>（見追加紀錄）、<code>.github/workflows/</code> 的 <code>desktop.yml</code>、<code>nightly.yml</code>、<code>setup-scripts.yml</code>、<code>python-runtime.yml</code>；<code>docs/develop/ci.html</code> 與英文、簡中版；<code>handoff/decisions.html</code>、<code>handoff/tasks/index.html</code>（共用檔案，合併時以 main 為準）</dd>
+        <dt>狀態</dt><dd>待審閱：<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/36">PR #36</a></dd>
         <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-nniq4z</code>；base <code>16cb5a3</code>（origin/main，2026-11-25 fetch）</dd>
         <dt>交接版本／同步狀態</dt><dd>已推送到上述分支；SHA 以 PR 的最新 head 為準</dd>
         <dt>工作區／環境</dt><dd>Linux 雲端容器、uv 依 <code>uv.lock</code> 安裝；沒有 actionlint（下載被環境拒絕），workflow 的語法由這個 PR 的 GitHub 運行檢查</dd>
@@ -44,8 +44,9 @@
         <tbody>
           <tr><td>base <code>16cb5a3</code>＋本任務的差異；Linux 容器</td><td><code>uv run ruff check .</code>、<code>uv run ruff format --check .</code>、<code>uv run pyright</code></td><td>通過（pyright 0 errors，11 個既有的 warning）</td><td>無</td></tr>
           <tr><td>同上</td><td><code>uv run pytest -q -m "not browser" tests/ci tests/docs tests/i18n</code>；<code>uv run python tools/i18n.py check</code>；<code>git diff --check</code></td><td>676 passed；翻譯檢查與 diff 檢查通過</td><td>無</td></tr>
-          <tr><td>同上</td><td><code>uv run pytest -q -m "not browser" -n 4</code></td><td>見追加紀錄</td><td>瀏覽器測試沒有在本機跑（這次沒有改到產品程式）</td></tr>
-          <tr><td>GitHub Actions</td><td>這個 PR 的運行（變數沒設，等於暫停）</td><td>見 PR 的檢查</td><td>一鍵安裝腳本的從零開始只在排程與手動觸發時跑，PR 上看不到它的矩陣；第一次排程（合併後 20:47 UTC）才實際用到</td></tr>
+          <tr><td>同上</td><td><code>uv run pytest -q -m "not browser" -n 4</code></td><td>2565 passed、7 skipped（需要 ssh-keygen、Windows 登錄檔等環境）</td><td>瀏覽器測試只跑了下一列</td></tr>
+          <tr><td>同上＋測試修正；Chromium（容器內建的 headless shell）</td><td><code>uv run pytest -q packages/rpa_runner/tests/test_flow_browser.py -k chromium -n 4</code>，連跑 3 次</td><td>每次 13 passed</td><td>Firefox 與 Windows 交給 CI</td></tr>
+          <tr><td>GitHub Actions，head <code>e90d001</code>（變數沒設，等於暫停）</td><td>這個 PR 的全部流程</td><td>沒有任何 macOS 工作：桌面端建置只有 RPA Worker（Windows）、每晚完整測試只有 Ubuntu 的 3.12／3.13 與 Windows、macOS 程式碼層檢查略過、一鍵安裝腳本的專案內執行只有 Ubuntu 與 Windows、運行環境只有 Linux x64／arm64 與 Windows。Worker 測試（Windows）的 <code>test_retry_waits_for_the_report[chromium]</code> 失敗（attempts＝1），其餘已完成的都通過。修正後的 head 見 PR</td><td>一鍵安裝腳本的從零開始只在排程與手動觸發時跑，PR 上看不到它的矩陣；第一次排程（合併後 20:47 UTC）才實際用到</td></tr>
         </tbody>
       </table></div>
       <div class="panel-body"><p>人工驗收：未執行。審閱者／SHA／發現與處理：未審閱。</p></div>
@@ -58,6 +59,8 @@
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-11-25 20:50 America/Los_Angeles（PST，UTC−08:00），Claude：開工、實作與本機檢查。</li>
+        <li>2026-11-25 20:39 America/Los_Angeles（PST，UTC−08:00），Claude：建立 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/36">PR #36</a>（head <code>e90d001</code>）。</li>
+        <li>2026-11-25 21:00 America/Los_Angeles（PST，UTC−08:00），Claude：PR 的 Worker 測試（Windows，<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45756601684/job/139696619185">job 139696619185</a>）<code>test_retry_waits_for_the_report[chromium]</code> 失敗：<code>wait-done</code> 第一次就通過（attempts＝1，測試要求至少 2）。原因：範例的報表在按下後 1500 毫秒完成，第一次 expect 等 1000 毫秒，只要按下到第一次 expect 開始超過 500 毫秒就不會重試；Windows 上 4 個程序平行時這個間隔不一定在 500 毫秒內。這次跑到它是因為 <code>tools/ci_changes.py</code> 改了、Worker 測試重新驗證，不是本 PR 改到的行為。修正：測試傳 <code>delay</code>＝3000（範例的預設不變），留 2 秒餘裕；重試四次仍然等得到。</li>
       </ul></div>
     </section>
   </div>
