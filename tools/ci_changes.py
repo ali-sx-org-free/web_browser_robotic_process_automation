@@ -40,6 +40,16 @@ App，裝上這次的程式碼層（更新檔）測試，不重新打包；外�
 - 一鍵安裝腳本：``linux``（Rocky 8 的兩種模式）、``inrepo``（三個系統的專案內執行）。
 - CI：``worker``（``true``／``false``）與 ``worker_record``（通過時上傳的產物名稱）。
 
+三、macOS 的開關（2026-11-25 起）
+----------------------------------
+
+倉庫改成私有後，macOS 的機器時間以 Linux 的 10 倍計，使用者決定先暫停 macOS。倉庫變數
+``ENABLE_MACOS_CI``（:data:`MACOS_SWITCH`，workflow 在「執行範圍」那一步用同名的環境變數傳進來）
+不是 ``true`` 時，矩陣裡 ``os`` 是 macOS 的工作標成「暫停」、不放進矩陣，每晚完整測試的矩陣也
+拿掉 macOS。推版本標籤（發布）照建；手動觸發時明確選了 macOS 也照跑（:func:`macos_enabled`）。
+每個 workflow 都另外輸出 ``macos``（``true``／``false``），給不在 :data:`GROUPS` 裡的 macOS 工作
+（一鍵安裝腳本的從零開始、每晚的 macOS 程式碼層檢查）判斷。恢復的方法見 docs/develop/ci.html#macos。
+
 用法（GitHub Actions 裡）::
 
     python3 tools/ci_changes.py --workflow ci.yml [--scope role|full]
@@ -171,17 +181,75 @@ def decide(
     return Decision("normal", "照常執行")
 
 
-def nightly_matrix(systems: str, extra: int) -> list[dict[str, object]]:
-    """每晚完整測試的矩陣：``systems`` 是逗號分隔的 ubuntu／macos／windows（空的是全部）。"""
+def nightly_matrix(systems: str, extra: int, *, macos: bool = True) -> list[dict[str, object]]:
+    """每晚完整測試的矩陣：``systems`` 是逗號分隔的 ubuntu／macos／windows（空的是全部）。
+
+    ``macos`` 是 False（macOS 暫停，:func:`macos_enabled`）時拿掉 macOS。
+    """
     wanted = {name.strip() for name in systems.split(",") if name.strip()}
     rows: list[dict[str, object]] = []
     for row in NIGHTLY:
         os_name = str(row["os"]).split("-")[0]
         if wanted and os_name not in wanted:
             continue
+        if not macos and is_macos(row["os"]):
+            continue
         repeat = extra if row["repeat"] else 0
         rows.append({"os": row["os"], "python": row["python"], "extra": repeat})
     return rows
+
+
+# ---------------------------------------------------------------- macOS 的開關（2026-11-25 起）
+
+MACOS_SWITCH: Final = "ENABLE_MACOS_CI"
+"""倉庫變數的名稱；``true`` 時照常跑 macOS。
+
+在倉庫的 Settings › Secrets and variables › Actions › Variables 設定；
+workflow 在「執行範圍」那一步用同名的環境變數傳進來：
+``ENABLE_MACOS_CI: ${{ vars.ENABLE_MACOS_CI }}``。
+"""
+
+
+@dataclass(frozen=True, slots=True)
+class MacOS:
+    enabled: bool
+    reason: str
+
+
+def is_macos(runner_os: object) -> bool:
+    """``runs-on`` 的值（macos-15、macos-latest）是不是 macOS。"""
+    return str(runner_os).startswith("macos")
+
+
+def macos_enabled(
+    event_name: str,
+    event: Json,
+    setting: str,
+    *,
+    targets: Sequence[str] = (),
+    systems: str = "",
+) -> MacOS:
+    """這次跑不跑 macOS 的工作（倉庫改成私有後 macOS 以 10 倍計，2026-11-25 起預設暫停）。
+
+    - 推版本標籤（發布）一律跑：錄製端只有 macOS 版，發布少了它的 DMG 會失敗。
+    - 倉庫變數 :data:`MACOS_SWITCH` 是 ``true``（不分大小寫）時照常跑。
+    - 手動觸發時明確選了 macOS（桌面端建置的 ``targets``、每晚完整測試的 ``systems``）也跑：
+      不必改變數就能補跑一次。每晚完整測試的 macOS 程式碼層檢查呼叫桌面端建置時固定帶 macOS 的
+      ``targets``，所以 nightly.yml 另外用它自己的 ``macos`` 輸出決定要不要呼叫。
+    - 其他時候（PR、合併到 main、排程）不跑。
+    """
+    if event_name == "push" and str(event.get("ref", "")).startswith("refs/tags/"):
+        return MacOS(True, "推版本標籤（發布）：macOS 照常建置")
+    if setting.strip().lower() == "true":
+        return MacOS(True, f"倉庫變數 {MACOS_SWITCH} 是 true：macOS 照常執行")
+    named = [*targets, *systems.split(",")]
+    if event_name == "workflow_dispatch" and any("macos" in name for name in named):
+        return MacOS(True, "手動觸發明確選了 macOS：這次照跑")
+    return MacOS(
+        False,
+        f"倉庫變數 {MACOS_SWITCH} 不是 true：這次不跑 macOS 的工作（發布照建；"
+        "手動觸發明確選 macOS 也照跑）。恢復的方法見 docs/develop/ci.html#macos",
+    )
 
 
 # ---------------------------------------------------------------- 依層建置：工作與它們的輸入
@@ -584,11 +652,13 @@ class Planned:
     shell_key: str
     build: str
     reused: str | None
-    """沿用的運行網址；None 是要執行。"""
+    """沿用的運行網址；None 是要執行（除非 ``paused``）。"""
+    paused: bool = False
+    """macOS 暫停中（:func:`macos_enabled`）：不執行，也不查通過紀錄。"""
 
     @property
     def runs(self) -> bool:
-        return self.reused is None
+        return self.reused is None and not self.paused
 
     def entry(self) -> dict[str, str]:
         """矩陣的一項。"""
@@ -612,8 +682,12 @@ def plan(
     repo: str = "",
     repository_id: int | None = None,
     runner: Runner = run,
+    macos: bool = True,
 ) -> dict[str, list[Planned]]:
-    """每一組要執行與沿用的工作。``targets`` 非空時只看矩陣欄位 target 在裡面的工作。"""
+    """每一組要執行與沿用的工作。``targets`` 非空時只看矩陣欄位 target 在裡面的工作。
+
+    ``macos`` 是 False（macOS 暫停）時，``os`` 是 macOS 的工作標成暫停，不查通過紀錄。
+    """
     result: dict[str, list[Planned]] = {}
     for group, jobs in GROUPS.get(workflow, {}).items():
         planned: list[Planned] = []
@@ -624,12 +698,13 @@ def plan(
             print_ = fingerprint(job, files)
             key = shell_key(target, files) if job.shell else ""
             name = record_name(job, print_)
+            paused = not macos and is_macos(job.fields.get("os", ""))
             url = (
                 passed(repo, name, repository_id=repository_id, runner=runner)
-                if reuse and repo
+                if reuse and repo and not paused
                 else None
             )
-            planned.append(Planned(job, print_, key, build if job.shell else "", url))
+            planned.append(Planned(job, print_, key, build if job.shell else "", url, paused))
         result[group] = planned
     return result
 
@@ -662,7 +737,9 @@ def summary(planned: Mapping[str, Sequence[Planned]]) -> str:
     ]
     for items in planned.values():
         for item in items:
-            if item.reused:
+            if item.paused:
+                result = f"暫停：macOS（倉庫變數 {MACOS_SWITCH} 不是 true）"
+            elif item.reused:
                 result = f"沿用：[同一組輸入已通過]({item.reused})"
             elif item.build == "full":
                 result = "執行（完整建置）"
@@ -680,6 +757,8 @@ def notices(planned: Mapping[str, Sequence[Planned]]) -> list[str]:
     lines: list[str] = []
     for items in planned.values():
         for item in items:
+            if item.paused:
+                continue  # main 另寫一則 macOS 暫停的註記
             if item.reused:
                 text = f"輸入指紋 {item.fingerprint} 已在 {item.reused} 通過：略過，沿用那次的結果"
                 lines.append(f"::notice title=沿用（{item.job.id}）::{text}")
@@ -714,18 +793,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     event: Json = json.loads(Path(path).read_text(encoding="utf-8")) if path else {}
     repo = os.environ.get("GITHUB_REPOSITORY", "")
     decision = decide(event_name, event, repo=repo, workflow=args.workflow, scope=args.scope)
-    outputs = {"mode": decision.mode}
+    targets = [name.strip() for name in args.targets.split(",") if name.strip()]
+    macos = macos_enabled(
+        event_name,
+        event,
+        os.environ.get(MACOS_SWITCH, ""),
+        targets=targets,
+        systems=args.systems,
+    )
+    outputs = {"mode": decision.mode, "macos": "true" if macos.enabled else "false"}
     if args.nightly:
         extra = int(args.extra) if args.extra.strip() else 2  # 排程沒有手動選項
-        outputs["matrix"] = json.dumps(nightly_matrix(args.systems, extra))
+        outputs["matrix"] = json.dumps(nightly_matrix(args.systems, extra, macos=macos.enabled))
     lines = [f"::notice title=執行範圍：{decision.mode}::{decision.reason}"]
+    has_macos = args.nightly or any(
+        is_macos(job.fields.get("os", ""))
+        for jobs in GROUPS.get(args.workflow, {}).values()
+        for job in jobs
+    )
+    if has_macos:
+        state = "執行" if macos.enabled else "暫停"
+        lines.append(f"::notice title=macOS：{state}::{macos.reason}")
 
     if args.workflow in GROUPS:
         repository = cast("Json", event.get("repository") or {})
         identifier = repository.get("id")
         reuse = reuse_allowed(event_name, decision.mode)
         build = build_mode(event_name, event, decision.mode, args.build.strip())
-        targets = [name.strip() for name in args.targets.split(",") if name.strip()]
         planned = plan(
             args.workflow,
             tree(),
@@ -734,6 +828,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             targets=targets,
             repo=repo,
             repository_id=identifier if isinstance(identifier, int) else None,
+            macos=macos.enabled,
         )
         for group, items in planned.items():
             outputs[group] = json.dumps([item.entry() for item in items if item.runs])

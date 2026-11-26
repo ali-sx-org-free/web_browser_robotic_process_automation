@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CI 暫停 macOS · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>CI 暫停 macOS</h1><p>倉庫改成私有後 macOS 的機器時間最貴：用倉庫變數 <code>ENABLE_MACOS_CI</code> 開關 PR、main 與排程上的 macOS 工作，預設暫停，發布照建。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261125-pause-macos-ci；2026-11-25 20:50 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-25 20:27 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話：「現在我想把流水綫裏的macos的測試關掉要怎麽辦（後續可能還要開），因爲我決定倉庫私有化，但是現有的每月18美金金額又不太夠。」完成條件：合併後 PR、main 與排程不再排 macOS 的工作；之後只改設定（不改程式）就能恢復；文檔寫清楚怎麼恢復。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：<code>tools/ci_changes.py</code> 的開關、四個有 macOS 工作的 workflow、測試、CI 文檔（繁中、英文、簡中）、決定與本紀錄。不包含：發布流程（照建 macOS）；Linux、Windows 的排程頻率（見下方的建議）；倉庫改成私有後「從零開始」下載腳本的問題（見未完成）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>主責：Claude（雲端 session）；審閱與合併：使用者；接收方：未指定</dd>
+        <dt>修改檔案／整合者</dt><dd><code>tools/ci_changes.py</code>、<code>tests/ci/test_ci_changes.py</code>、<code>.github/workflows/</code> 的 <code>desktop.yml</code>、<code>nightly.yml</code>、<code>setup-scripts.yml</code>、<code>python-runtime.yml</code>；<code>docs/develop/ci.html</code> 與英文、簡中版；<code>handoff/decisions.html</code>、<code>handoff/tasks/index.html</code>（共用檔案，合併時以 main 為準）</dd>
+        <dt>狀態</dt><dd>待審閱（PR 已建立，連結見追加紀錄）</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-nniq4z</code>；base <code>16cb5a3</code>（origin/main，2026-11-25 fetch）</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送到上述分支；SHA 以 PR 的最新 head 為準</dd>
+        <dt>工作區／環境</dt><dd>Linux 雲端容器、uv 依 <code>uv.lock</code> 安裝；沒有 actionlint（下載被環境拒絕），workflow 的語法由這個 PR 的 GitHub 運行檢查</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong><code>macos_enabled</code> 依事件與倉庫變數決定要不要跑 macOS；<code>plan</code> 把 macOS 工作標成暫停（不放進矩陣、不查通過紀錄，摘要表格照列）；每晚完整測試的矩陣拿掉 macOS；每個流程輸出 <code>macos</code>，一鍵安裝腳本的從零開始與每晚的 macOS 程式碼層檢查用它判斷。文檔新增 <a href="../../docs/develop/ci.html#macos">macOS 暫停</a> 一節。</li>
+        <li><strong>為什麼：</strong>ci-metrics 分支 2026-11-10～25 的紀錄（每個工作的時間無條件進位到分）換算成 30 天：macOS 約 3,945 分、Linux 約 5,563 分、Windows 約 3,682 分。以 GitHub 價目表（2026-11-25 查證：Linux 0.006、Windows 0.010、macOS 0.062 美元／分）計，macOS 約 245 美元、Linux 約 33 美元、Windows 約 37 美元。macOS 的大頭是每晚完整測試（約 1,960 分）與一鍵安裝腳本的排程（約 1,160 分）。</li>
+        <li><strong>未完成／阻礙：</strong>(1) 暫停 macOS 後 Linux 與 Windows 每月仍約 70 美元，超過 Pro／Team 每月 18 美元的內含額度；其中排程約 48 美元（每晚完整測試約 31、一鍵安裝腳本約 17），PR 與推送約 20 美元。要壓到額度內還得降低排程的頻率，待使用者決定。(2) 倉庫改成私有後，一鍵安裝腳本的「從零開始」從 <code>raw.githubusercontent.com</code> 下載腳本、匿名 <code>git clone</code>，私有倉庫兩者都會失敗，排程每天會開 <code>ci-schedule</code> issue；文檔裡的一行安裝命令也只有能讀取倉庫的人能用。未處理。</li>
+        <li><strong>決定：</strong>暫停 macOS、之後可能再開（使用者明確決定，見<a href="../decisions.html">決定</a>）。實作選擇（Claude）：用倉庫變數而不是改 workflow，恢復不必改程式；發布照建 macOS（錄製端只有 macOS 版，發布少了 DMG 會失敗）；手動觸發明確選了 macOS 照跑，方便臨時補測。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱、合併 PR。之後要恢復時在倉庫 Settings › Secrets and variables › Actions › Variables 新增 <code>ENABLE_MACOS_CI</code>＝<code>true</code>（或 <code>gh variable set ENABLE_MACOS_CI --body true</code>）。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>base <code>16cb5a3</code>＋本任務的差異；Linux 容器</td><td><code>uv run ruff check .</code>、<code>uv run ruff format --check .</code>、<code>uv run pyright</code></td><td>通過（pyright 0 errors，11 個既有的 warning）</td><td>無</td></tr>
+          <tr><td>同上</td><td><code>uv run pytest -q -m "not browser" tests/ci tests/docs tests/i18n</code>；<code>uv run python tools/i18n.py check</code>；<code>git diff --check</code></td><td>676 passed；翻譯檢查與 diff 檢查通過</td><td>無</td></tr>
+          <tr><td>同上</td><td><code>uv run pytest -q -m "not browser" -n 4</code></td><td>見追加紀錄</td><td>瀏覽器測試沒有在本機跑（這次沒有改到產品程式）</td></tr>
+          <tr><td>GitHub Actions</td><td>這個 PR 的運行（變數沒設，等於暫停）</td><td>見 PR 的檢查</td><td>一鍵安裝腳本的從零開始只在排程與手動觸發時跑，PR 上看不到它的矩陣；第一次排程（合併後 20:47 UTC）才實際用到</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>人工驗收：未執行。審閱者／SHA／發現與處理：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-11-25 20:50 America/Los_Angeles（PST，UTC−08:00），Claude：開工、實作與本機檢查。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
