@@ -8,6 +8,8 @@
 # - 依層建置（2026-10-27 起，docs/develop/ci.html#layered）：每個工作的輸入（tools/ci_changes.py 的
 #   SETUP：腳本、依賴、Python 版本與相關工具）算成指紋，同一個指紋已經通過就略過、沿用結果；
 #   只改版本號（發布 PR）不算改動。排程與手動觸發一律執行。
+# - macOS 暫停（2026-11-25 起，docs/develop/ci.html#macos）：倉庫變數 ENABLE_MACOS_CI 不是 true 時，
+#   專案內執行與從零開始都不跑 macOS。
 name: 一鍵安裝腳本
 
 on:
@@ -57,6 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       mode: ${{ steps.decide.outputs.mode }}
+      macos: ${{ steps.decide.outputs.macos }}
       linux: ${{ steps.decide.outputs.linux }}
       inrepo: ${{ steps.decide.outputs.inrepo }}
     steps:
@@ -66,6 +69,8 @@ jobs:
       - id: decide
         env:
           GH_TOKEN: ${{ github.token }}
+          # macOS 的開關（docs/develop/ci.html#macos）：倉庫變數不是 true 時不跑 macOS（發布照建）
+          ENABLE_MACOS_CI: ${{ vars.ENABLE_MACOS_CI }}
         run: python3 tools/ci_changes.py --workflow setup-scripts.yml --scope "${{ inputs.scope || 'full' }}"
 
   linux-server:
@@ -266,7 +271,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # macOS 暫停時（執行範圍的 macos＝false，docs/develop/ci.html#macos）只跑 Ubuntu 與 Windows
+        os: ${{ fromJSON(needs.changes.outputs.macos == 'true' && '["ubuntu-latest", "macos-latest", "windows-latest"]' || '["ubuntu-latest", "windows-latest"]') }}
     steps:
       - name: curl | bash
         if: runner.os != 'Windows'
