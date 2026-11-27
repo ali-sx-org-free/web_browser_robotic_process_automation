@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261127-release-0-10-2 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261127-release-0-10-2：v0.10.2 小版本（只帶 SQL 推送修正）</h1><p>使用者要先把場景的 git 資料同步上去，擔心資料遺失。v0.10.2 從 v0.10.1 開始，只加上 <a href="20261126-gitsync-sql.html">PR #37</a> 的修正（同步推送允許 <code>.sql</code>），第三方套件與 Python 和 v0.10.1 相同，已經裝好的伺服器與裝置可以只用更新檔升級。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261127-release-0-10-2；2026-11-27 00:25 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-27 00:24 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話：「先給我小版本的發版，因爲我需要小版本先把git資料同步。我比較擔心資料丟失。」驗收：v0.10.2 的伺服器可以用 <code>RPA-Update-0.10.2.zip</code> 從 v0.10.1 升級（發布流程的「從 v0.10.1 升級」顯示環境代號相同），升級後含 <code>query.sql</code> 的領域可以同步推送。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：v0.10.1 ＋ PR #37 的修正、九個套件與 <code>uv.lock</code> 的版本號改為 0.10.2、任務紀錄。不包含 v0.10.1 之後 main 上的其他改動：PR #30 的依賴升級（Playwright 1.65 等，環境代號會變、要完整安裝）、PR #35、#36 的 CI 調整、PR #38 的錄製修正（依賴 Playwright 1.65）。這些等下一個從 main 發的版本。</dd>
+        <dt>主責／審閱／接收方</dt><dd>主責 Claude；審閱、合併與推標籤：使用者；接收方未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd><code>apps/server/src/rpa_server/gitsync.py</code>、<code>locales/*.json</code>、<code>apps/server/tests/test_gitsync.py</code>（cherry-pick 自 PR #37 的 <span class="mono">5419330</span>）、<code>apps/*/pyproject.toml</code>、<code>packages/*/pyproject.toml</code>、<code>uv.lock</code>（只有工作區套件的版本）、本任務卡、<a href="20261126-gitsync-sql.html">gitsync-sql 任務卡</a>、任務索引。</dd>
+        <dt>狀態</dt><dd>待審閱：PR 合併後由使用者推標籤。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-g6e2z3</code>（雲端工作階段指定的分支名稱，PR #37 合併後重新從 <code>v0.10.1</code> 開始）；PR 見追加紀錄；起點 <span class="mono">742078a</span>（v0.10.1）</dd>
+        <dt>交接版本／同步狀態</dt><dd>推送到 <code>claude/project-thread-g6e2z3</code>；要打標籤的提交寫在 PR 說明。</dd>
+        <dt>工作區／環境</dt><dd>Linux 雲端容器，Python 3.13.18、uv 0.11.32，<code>uv sync --locked</code>（Playwright 1.64.0，同 v0.10.1）。雲端環境不能推標籤。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>從 v0.10.1 cherry-pick PR #37 的修正；<code>python tools/release_version.py bump 0.10.2</code>；任務紀錄。</li>
+        <li><strong>未完成／阻礙：</strong>使用者合併 PR、推標籤；發布流程建置並建立草稿 Release；使用者確認後按「發布」。</li>
+        <li><strong>決定：</strong>使用者決定先發小版本。實作選擇：從 v0.10.1 開分支而不是從 main 發，因為 main 已經含 PR #30 的依賴升級，環境代號會變，只能完整安裝。發布流程（<code>.github/workflows/release.yml</code>）要求標籤指向的提交已經在 main 上，所以這個 PR 合併回 main（<strong>要用「Create a merge commit」，不能用 Squash</strong>，否則發布提交不在 main 的歷史裡），標籤打在發布提交上（不是合併提交）。合併後 main 的版本號是 0.10.2，下一個從 main 發的版本用 0.10.3 或 0.11.0。</li>
+        <li><strong>下一個具體動作：</strong>使用者用合併提交合併 PR 後，在自己的電腦執行 PR 說明裡的打標籤指令；發布流程跑完後確認草稿 Release 的「從 v0.10.1 升級」五個目標都是「相同（可以用更新檔）」，再按「發布」。伺服器執行 <code>&lt;安裝位置&gt;/bin/rpa update RPA-Update-0.10.2.zip</code>。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>742078a（v0.10.1）＋本分支差異；Linux、Python 3.13.18</td><td><code>python tools/release_version.py check v0.10.2</code></td><td>版本一致：v0.10.2</td><td>無</td></tr>
+          <tr><td>同上</td><td>見追加紀錄</td><td>見追加紀錄</td><td>見追加紀錄</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：見追加紀錄；發布流程：未執行；人工驗收：未執行。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points"><li>2026-11-27 00:25 America/Los_Angeles（PST，UTC−08:00），Claude：建立任務，從 v0.10.1 開分支、cherry-pick 修正、改版本號。</li></ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
