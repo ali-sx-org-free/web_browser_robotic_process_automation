@@ -49,6 +49,7 @@ __all__ = [
     "MANIFEST",
     "PreparedRuntime",
     "RuntimeUnavailableError",
+    "acquire_lock",
     "archive_dirs",
     "available_versions",
     "find_archives",
@@ -246,8 +247,11 @@ def _archive_manifest(archive: Path) -> bytes:
     raise RuntimeUnavailableError(f"{archive.name}: {MANIFEST} missing")
 
 
-def _acquire(lock: Path, wait_seconds: float) -> None:
-    """建立鎖檔；別的程序正在解壓同一版時等它完成（或鎖檔太舊時接手）。"""
+def acquire_lock(lock: Path, wait_seconds: float) -> None:
+    """建立鎖檔；別的程序正在準備同一份時等它完成（或鎖檔太舊時接手）。
+
+    運行環境的解壓與套件環境（:mod:`rpa_runner.pypackages`）共用。
+    """
     end = time.monotonic() + wait_seconds
     lock.parent.mkdir(parents=True, exist_ok=True)
     while True:
@@ -366,7 +370,7 @@ def prepare(
         if _usable(target, digest):
             return done(target, reused=True)
         lock = cache / f".{target.name}.lock"
-        _acquire(lock, wait_seconds)
+        acquire_lock(lock, wait_seconds)
         try:
             if _usable(target, digest):  # 等鎖的時候別人已經解壓好了
                 return done(target, reused=True)
