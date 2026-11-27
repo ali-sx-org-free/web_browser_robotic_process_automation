@@ -139,9 +139,8 @@ Worker：內附運行環境（直譯器＋預設套件）＋ 缺的 wheel ─▶
           <li><strong>用 import 名稱找。</strong>很多套件的名稱和 import 不同：<code>import docx</code> 是 python-docx、<code>cv2</code> 是 opencv-python-headless、<code>yaml</code> 是 PyYAML、<code>PIL</code> 是 pillow、<code>fitz</code> 是 PyMuPDF。輸入的名稱先比對程式內建的對照表與目前套件的 top_level 名稱，找不到才當成套件名稱查。</li>
           <li><strong>常用套件清單。</strong>程式內建一份依 RPA 用途分類的建議清單：Excel 與 Office 文件、PDF、圖片與條碼、資料庫、檔案傳輸與郵件、壓縮、中文處理、Windows 自動化。每項附一句用途、授權與限制（例如 xlwings 要裝 Excel、pywin32 只有 Windows、PyMuPDF 是 AGPL）；點一下帶到名稱查詢。清單跟著程式碼層的更新檔更新。</li>
           <li><strong>從場景找缺的。</strong>用和移除時同一個 <code>ast</code> 掃描，列出運行環境模式的場景 import 了、但目前的套件沒有的模組（不算標準函式庫、rpa_script 與場景 <code>files</code> 裡自己的模組），每個附建議的套件與「加進草稿」。</li>
-          <li><strong>執行時缺模組。</strong>Python 節點因 <code>ModuleNotFoundError</code> 失敗時，運行報告說明「目前的套件沒有 X」並附建議的套件；系統管理員看到 Python 套件頁的連結，其他人看到「申請加入」。</li>
+          <li><strong>執行時缺模組。</strong>Python 節點因 <code>ModuleNotFoundError</code> 失敗時，運行報告說明「目前的套件沒有 X」並附建議的套件；系統管理員看到 Python 套件頁的連結，其他人看到「請系統管理員加入」。</li>
           <li><strong>到 PyPI 網站搜尋。</strong>頁面附連結，在瀏覽器打開 pypi.org 的搜尋，用關鍵字找到名稱後回來查詢。</li>
-          <li><strong>編輯者看得到、可以申請。</strong>場景的編輯者在場景編輯頁看得到目前可用的套件與版本（唯讀），可以申請加入（套件名稱、用途、哪個場景）；系統管理員在 Python 套件頁看到申請，帶進名稱查詢處理或寫原因拒絕，申請人在同一個地方看到結果（<a href="#open-questions">D9</a>）。</li>
         </ul>
       </div>
     </section>
@@ -193,7 +192,7 @@ Worker：內附運行環境（直譯器＋預設套件）＋ 缺的 wheel ─▶
         <div class="panel-header"><h2>分期與驗證</h2></div>
         <div class="panel-body">
           <ul class="points">
-            <li><strong>第一期。</strong>資料表與遷移、uv 的取得、解析與平台確認、來源測速與下載器、wheel 庫、管理頁（新增、移除與受影響的場景、差異、檢查、發布、歷史、回退、設定）、找套件（名稱查詢、import 名稱、常用清單、從場景找缺的、缺模組的提示、編輯者申請）、稽核；Worker API 的清單與檔案、Worker 的組裝與預先準備、派工與報告；文件（本 ADR、管理 Portal、Python 節點、遠端 Worker，三種語言）。</li>
+            <li><strong>第一期。</strong>資料表與遷移、uv 的取得、解析與平台確認、來源測速與下載器、wheel 庫、管理頁（新增、移除與受影響的場景、差異、檢查、發布、歷史、回退、設定）、找套件（名稱查詢、import 名稱、常用清單、從場景找缺的、缺模組的提示）、稽核；Worker API 的清單與檔案、Worker 的組裝與預先準備、派工與報告；文件（本 ADR、管理 Portal、Python 節點、遠端 Worker，三種語言）。</li>
             <li><strong>第二期。</strong>離線環境上傳 wheel、匯出與匯入鎖定檔（測試與正式伺服器用同一份）、發布前先在指定的裝置試用、查詢 OSV 的已知漏洞（<a href="#open-questions">D8</a>）。</li>
             <li><strong>自動測試。</strong>假的套件來源用本機的 wheel 資料夾，不連網；解析、平台確認、換來源與續傳、組裝、清理、派工、權限與稽核。CI 的 RPA Python 運行環境工作在各平台實際建立套件環境並執行 Python 節點。</li>
             <li><strong>人工驗收。</strong>在管理頁新增 tabulate 與 scikit-learn、移除一個、回到前一版；Windows Worker 與 Linux 伺服器各執行一次用到它們的 Python 節點；看下載量與時間。</li>
@@ -216,7 +215,7 @@ Worker：內附運行環境（直譯器＋預設套件）＋ 缺的 wheel ─▶
             <tr><td>D6</td><td>驗證後套件版本變了</td><td>只顯示差異，不擋執行，不自動重新驗證。</td><td>套件改變後，受影響的場景要重新驗證才能執行。</td></tr>
             <tr><td>D7</td><td>伺服器的 uv 從哪裡來</td><td>第一次用到時從套件來源下載固定的版本，不用重裝伺服器。</td><td>放進伺服器分發包：下次要用完整的分發包裝一次。</td></tr>
             <tr><td>D8</td><td>分期</td><td>先做第一期；第二期之後再排。</td><td>兩期一起做。</td></tr>
-            <tr><td>D9</td><td>場景的編輯者能不能看到套件、申請加入</td><td>可以：第一期就做唯讀的套件清單與申請，由系統管理員處理。</td><td>只有系統管理員看得到、加得了，需求在平台外溝通。</td></tr>
+            <tr><td>D9</td><td>場景的編輯者能不能看到套件、申請加入</td><td><span class="badge">暫不做</span> 使用者 2026-11-27 04:00 America/Los_Angeles（PST，UTC−08:00）決定。這一版只有系統管理員看得到、加得了套件，需求在平台外溝通；之後要做時再提出。</td><td>原本的建議：第一期就做唯讀的套件清單與申請，由系統管理員處理。</td></tr>
           </tbody>
         </table>
       </div>

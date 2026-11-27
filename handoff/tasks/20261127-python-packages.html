@@ -15,8 +15,8 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261127-python-packages；2026-11-27 04:00 America/Los_Angeles（PST，UTC−08:00）</dd>
-        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-27 03:02 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話（原文）：「對的，現在要對獨立環境python環境提一個需求，伺服器管理後臺支持管理固定套件、支持新增、移除功能。設計一下方案，在新增固定套件時候要考慮下載速度，默認的固定套件就是現狀這些。先設計方案，方案沒問題后再動手開發。」這一步的驗收：設計寫進倉庫（<a href="../../docs/adr/0027-python-packages.html">ADR 0027，提議中</a>），使用者確認待確認事項 D1～D9。開發的驗收條件見 ADR 0027「分期與驗證」。</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261127-python-packages；2026-11-27 04:10 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-27 03:02 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話（原文）：「對的，現在要對獨立環境python環境提一個需求，伺服器管理後臺支持管理固定套件、支持新增、移除功能。設計一下方案，在新增固定套件時候要考慮下載速度，默認的固定套件就是現狀這些。先設計方案，方案沒問題后再動手開發。」這一步的驗收：設計寫進倉庫（<a href="../../docs/adr/0027-python-packages.html">ADR 0027，提議中</a>），使用者確認待確認事項 D1～D9（D9 已決定暫不做）。開發的驗收條件見 ADR 0027「分期與驗證」。</dd>
         <dt>範圍／不包含</dt><dd>這一步只有設計文件：ADR 0027（繁中、英文，簡中由工具產生）、ADR 索引、導航、本頁與任務索引。不包含任何程式；開發等使用者確認後在同一個任務接續。</dd>
         <dt>主責／審閱／接收方</dt><dd>設計：Claude（Claude 專案對話的雲端 session）。審閱與決定：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>docs/adr/0027-python-packages.html、docs/en/adr/0027-python-packages.html、docs/zh-Hans/adr/0027-python-packages.html（產生）、docs/adr/index.html 與英文、簡中版、docs/assets/nav.js、handoff/tasks/index.html、本頁。ADR 編號 0027：開工時沒有開著的 PR，最新的是 0026。</dd>
@@ -30,8 +30,8 @@
       <div class="panel-header"><h2>進度、決定與下一步</h2></div>
       <div class="panel-body"><ul class="points">
         <li><strong>已完成：</strong>讀現有實作（<code>packages/rpa_runner/src/rpa_runner/pyruntime.py</code>、<code>tools/build_python_runtime.py</code>、<code>tools/build_desktop.py</code>、<code>tools/build_server.py</code>、<code>runtimes/python/</code>、派工的 <code>runs_on</code>、ADR 0018／0020、<code>scripts/setup-linux.sh</code> 的鏡像測速）；查證（2026-11-27）：預設套件每個平台的 wheel 合計約 30～36 MB、scikit-learn 每個平台多約 23～45 MB（PyPI JSON API）；uv 0.11.32 的 <code>uv pip compile --universal</code> 能輸出含 wheel 網址、大小、上架時間與 sha256 的 pylock.toml，新增套件時保留既有的版本，<code>--exclude-newer</code> 可用；沒有平台條件的 pywin32 會被鎖進所有平台（所以要另外確認每個平台有 wheel）；python-build-standalone 3.13.14 的 Windows 版有 <code>Lib/venv/scripts/nt/venvlauncher.exe</code>（只確認檔案存在，沒有在 Windows 上執行）。寫成 ADR 0027。</li>
-        <li><strong>未完成／阻礙：</strong>等使用者確認 D1～D9；沒有程式。</li>
-        <li><strong>決定：</strong>D1～D9 都是建議、待定，見 <a href="../../docs/adr/0027-python-packages.html#open-questions">ADR 0027 待確認事項</a>。</li>
+        <li><strong>未完成／阻礙：</strong>等使用者確認 D1～D8；沒有程式。</li>
+        <li><strong>決定：</strong>D9（編輯者看套件、申請加入）使用者 2026-11-27 04:00 America/Los_Angeles（PST，UTC−08:00）決定暫不做（已確認）；D1～D8 是建議、待定，見 <a href="../../docs/adr/0027-python-packages.html#open-questions">ADR 0027 待確認事項</a>。</li>
         <li><strong>下一個具體動作：</strong>使用者回覆後，把決定寫進 ADR 0027 與 <a href="../decisions.html">決定紀錄</a>，ADR 改成已接受，開始第一期。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。查證用的暫存檔在 session 的 scratchpad，不屬於倉庫。</li>
       </ul></div>
@@ -54,6 +54,7 @@
         <li>2026-11-27 03:03～03:45 America/Los_Angeles（PST，UTC−08:00），Claude：建立本頁，查證並寫 ADR 0027（提議中）。</li>
         <li>2026-11-27 約 03:50 America/Los_Angeles（PST，UTC−08:00），Claude：推送 b4df6d5，開草稿 PR #42；把 PR 指派給使用者與請求審閱都被 GitHub 拒絕（帳號不是倉庫的協作者），不影響 PR。</li>
         <li>2026-11-27 03:49 America/Los_Angeles（PST，UTC−08:00），使用者在 Claude 專案對話問（原文）：「那我想找我需要的套件現在怎麽處理的。」Claude 確認 PyPI 沒有給程式用的搜尋（XML-RPC search 回錯誤），在 ADR 0027 補上「找到需要的套件」（名稱查詢、用 import 名稱找、常用套件清單、從場景找缺的、執行時缺模組的提示、到 PyPI 網站搜尋、編輯者申請）與待確認事項 D9。</li>
+        <li>2026-11-27 04:00 America/Los_Angeles（PST，UTC−08:00），使用者在 Claude 專案對話回覆（原文）：「D9暂不做。另外“目前沒辦法自己加套件”是什麽意思，我這次想做的不就是自建管理包含添加python套件嗎，不能添加那不相當於功能白做嗎。」Claude：ADR 0027 的 D9 標成暫不做，拿掉編輯者申請的設計；說明「沒辦法自己加」指的是目前已發布的版本，本設計就是要讓系統管理員在管理後台加。</li>
       </ul></div>
     </section>
   </div>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:ae4442073a88458e">
+<meta name="translation-source" content="sha256:bb123576905d69a3">
 <title>ADR 0027 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -140,9 +140,8 @@ Worker: bundled runtime (interpreter + default packages) + missing wheels ─▶
           <li><strong>Find by import name.</strong> Many packages are imported under another name: <code>import docx</code> is python-docx, <code>cv2</code> is opencv-python-headless, <code>yaml</code> is PyYAML, <code>PIL</code> is pillow, <code>fitz</code> is PyMuPDF. The name entered is first matched against a mapping built into the code and the current packages' top_level names, and only then looked up as a package name.</li>
           <li><strong>Common packages.</strong> The code ships a suggested list grouped by RPA use: Excel and Office documents, PDF, images and barcodes, databases, file transfer and email, compression, Chinese text, Windows automation. Each entry has a one-line use, license and limits (e.g. xlwings needs Excel installed, pywin32 is Windows only, PyMuPDF is AGPL); clicking it opens "Look up by name". The list updates with the code layer's update file.</li>
           <li><strong>Find what scenarios are missing.</strong> The same <code>ast</code> scan used for removal lists modules that runtime-mode scenarios import but the current packages don't have (excluding the standard library, rpa_script and the scenario's own modules in <code>files</code>), each with a suggested package and "Add to draft".</li>
-          <li><strong>Missing modules at run time.</strong> When a Python node fails with <code>ModuleNotFoundError</code>, the run report says "the current packages don't include X" with a suggested package; system administrators get a link to the Python packages page, others get "Request it".</li>
+          <li><strong>Missing modules at run time.</strong> When a Python node fails with <code>ModuleNotFoundError</code>, the run report says "the current packages don't include X" with a suggested package; system administrators get a link to the Python packages page, others get "Ask a system administrator to add it".</li>
           <li><strong>Search on the PyPI website.</strong> The page links to pypi.org's search in the browser; find the name by keyword there, then come back and look it up.</li>
-          <li><strong>Editors can see and request.</strong> Scenario editors see the available packages and versions (read-only) on the scenario editing page and can request one (package name, purpose, which scenario); system administrators see requests on the Python packages page, take them into "Look up by name" or decline with a reason, and the requester sees the outcome in the same place (<a href="#open-questions">D9</a>).</li>
         </ul>
       </div>
     </section>
@@ -194,7 +193,7 @@ Worker: bundled runtime (interpreter + default packages) + missing wheels ─▶
         <div class="panel-header"><h2>Phases and verification</h2></div>
         <div class="panel-body">
           <ul class="points">
-            <li><strong>Phase 1.</strong> Tables and migration, getting uv, resolving and platform checks, source speed tests and the downloader, the wheel store, the admin page (add, remove with affected scenarios, differences, check, publish, history, restore, settings), finding packages (lookup by name, import names, common list, what scenarios are missing, missing-module hints, editor requests), audit; the Worker API's list and files, building and preparing ahead on Workers, dispatch and reports; docs (this ADR, management Portal, Python nodes, remote Workers, in three languages).</li>
+            <li><strong>Phase 1.</strong> Tables and migration, getting uv, resolving and platform checks, source speed tests and the downloader, the wheel store, the admin page (add, remove with affected scenarios, differences, check, publish, history, restore, settings), finding packages (lookup by name, import names, common list, what scenarios are missing, missing-module hints), audit; the Worker API's list and files, building and preparing ahead on Workers, dispatch and reports; docs (this ADR, management Portal, Python nodes, remote Workers, in three languages).</li>
             <li><strong>Phase 2.</strong> Uploading wheels for offline servers, exporting and importing lock files (the same one on test and production servers), trying a version on chosen devices before publishing, looking up known vulnerabilities in OSV (<a href="#open-questions">D8</a>).</li>
             <li><strong>Automated tests.</strong> A fake package source from a local wheel folder, no network; resolving, platform checks, source fallback and resuming, building, cleanup, dispatch, permissions and audit. CI's RPA Python runtime jobs build real package environments on each platform and run Python nodes in them.</li>
             <li><strong>Manual acceptance.</strong> Add tabulate and scikit-learn on the admin page, remove one, restore the previous version; run a Python node that uses them once on a Windows Worker and once on the Linux server; check download sizes and times.</li>
@@ -217,7 +216,7 @@ Worker: bundled runtime (interpreter + default packages) + missing wheels ─▶
             <tr><td>D6</td><td>Package version changed after validation</td><td>Show the differences only; don't block runs or re-validate automatically.</td><td>Affected scenarios must be validated again before they run.</td></tr>
             <tr><td>D7</td><td>Where the server's uv comes from</td><td>Download a pinned version from the package source the first time it's needed; no server reinstall.</td><td>Ship it in the server package: the next upgrade needs the full server package.</td></tr>
             <tr><td>D8</td><td>Phases</td><td>Do phase 1 first; schedule phase 2 later.</td><td>Do both phases together.</td></tr>
-            <tr><td>D9</td><td>Can scenario editors see packages and request new ones</td><td>Yes: a read-only package list and requests in phase 1, handled by system administrators.</td><td>Only system administrators see and add packages; requests happen outside the platform.</td></tr>
+            <tr><td>D9</td><td>Can scenario editors see packages and request new ones</td><td><span class="badge">Not now</span> Decided by the user on 2026-11-27 04:00 America/Los_Angeles (PST, UTC−08:00). In this version only system administrators see and add packages, and requests happen outside the platform; it can be raised again later.</td><td>The original recommendation: a read-only package list and requests in phase 1, handled by system administrators.</td></tr>
           </tbody>
         </table>
       </div>
