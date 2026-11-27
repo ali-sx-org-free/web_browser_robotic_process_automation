@@ -43,6 +43,7 @@ def test_migrations_match_models(tmp_path: Path) -> None:
             "domains",
             "login_sessions",
             "projects",
+            "python_package_sets",
             "recorders",
             "recordings",
             "revisions",

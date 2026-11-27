@@ -198,6 +198,9 @@ class Run(Base):
     """屬於哪個批次（M7.3，目的是 execution）；單獨的執行是 None。"""
     batch_row: Mapped[int | None] = mapped_column()
     """批次的第幾列（從 1 起）；同一列重跑時有好幾筆執行。"""
+    python_packages: Mapped[int | None] = mapped_column()
+    """運行環境模式的 Python 節點用的套件版本（ADR 0027 的「套件 #N」），排入時固定；
+    組合運行與批次的節點用整次開始時的版本。之前的執行與其他場景是 None。"""
 
 
 class Batch(Base):
@@ -247,6 +250,8 @@ class Batch(Base):
     """由哪個 API 用戶端建立（M14）；Portal 建立的是 None。"""
     user_id: Mapped[int | None] = mapped_column(index=True)
     """最近一次開始或重跑的帳號（M8.1）：之後排的每一列用他的登入角色與 Secrets 綁定檢查。"""
+    python_packages: Mapped[int | None] = mapped_column()
+    """批次開始時固定的套件版本（ADR 0027）：每一列的執行都用它，中途發布新版也不混用。"""
     idempotency_key: Mapped[str | None] = mapped_column(String(100), unique=True)
 
 
@@ -429,6 +434,8 @@ class WorkflowRun(Base):
     """觸發的對外 API 用戶端（M14）；Portal 觸發的是 None。節點的執行也記同一個用戶端。"""
     user_id: Mapped[int | None] = mapped_column(index=True)
     """開始的帳號（M8.1）：之後的每個節點用他的登入角色與 Secrets 綁定檢查。"""
+    python_packages: Mapped[int | None] = mapped_column()
+    """組合運行開始時固定的套件版本（ADR 0027）：每個節點都用它。"""
     batch_id: Mapped[str | None] = mapped_column(ForeignKey("batches.id"), index=True)
     """屬於哪個批次（M7 收尾，組合場景的批次）；單獨的組合運行是 None。"""
     batch_row: Mapped[int | None] = mapped_column()
@@ -657,6 +664,42 @@ class CredentialGrant(Base):
     granted_at: Mapped[datetime] = mapped_column(UtcDateTime())
     granted_by: Mapped[str | None] = mapped_column(String(64))
     """指定的人（帳號）；升級時自動綁定的是 None。"""
+
+
+class PythonPackageSet(Base):
+    """RPA Python 運行環境的套件版本（ADR 0027）：發布的「套件 #N」與目前的草稿。
+
+    發布的版本不再改變（number 有值、status 是 published）；同一個運行環境主版本最多一份草稿
+    （draft、checking、checked、failed），檢查通過後發布成下一個號碼。requirements 是直接加的
+    套件，lock 是 uv 產生的 pylock.toml（所有平台），manifests 是每個平台實際用的 wheel。
+    """
+
+    __tablename__ = "python_package_sets"
+    __table_args__ = (UniqueConstraint("runtime", "number"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    runtime: Mapped[str] = mapped_column(String(10), index=True)
+    """運行環境的主版本（目前只有 1）。"""
+    number: Mapped[int | None] = mapped_column()
+    status: Mapped[str] = mapped_column(String(20), index=True)
+    requirements: Mapped[list[dict[str, object]]] = mapped_column(JsonType)
+    lock: Mapped[str | None] = mapped_column(Text)
+    lock_hash: Mapped[str | None] = mapped_column(String(64))
+    manifests: Mapped[dict[str, object] | None] = mapped_column(JsonType)
+    """平台代號 → wheel 清單（名稱、版本、檔名、網址、大小、sha256），與套件的資訊（被誰需要、上架時間）。"""
+    check: Mapped[dict[str, object] | None] = mapped_column(JsonType)
+    """最近一次檢查：步驟、錯誤、提醒、差異、下載量。"""
+    note: Mapped[str | None] = mapped_column(Text)
+    """發布的說明；強制移除有場景用到的套件時寫的原因。"""
+    base_number: Mapped[int | None] = mapped_column()
+    """草稿從哪個發布的版本開始改。"""
+    restored_from: Mapped[int | None] = mapped_column()
+    """回到某一版：用那一版的鎖定檔（不重新解析）。"""
+    created_by: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    updated_at: Mapped[datetime] = mapped_column(UtcDateTime())
+    published_by: Mapped[str | None] = mapped_column(String(64))
+    published_at: Mapped[datetime | None] = mapped_column(UtcDateTime())
 
 
 class AuditEvent(Base):

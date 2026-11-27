@@ -1,6 +1,7 @@
 """建置 RPA Python 運行環境（ADR 0020）：Python 節點的運行環境模式用的那一套 Python。
 
     uv run python tools/build_python_runtime.py lock              # 依 requirements.in 更新鎖定檔
+                                                                  # （與伺服器的預設套件 #1）
     uv run python tools/build_python_runtime.py build             # 建這台電腦平台的運行環境
     uv run python tools/build_python_runtime.py build --install   # 建好後解壓到本機的快取（開發用）
 
@@ -28,6 +29,11 @@ requirements.lock、smoke.py）。
 運行環境的內容（Python、套件）改了要升 runtime.toml 的 version：App 的環境代號（ADR 0018）只看
 壓縮檔的名稱，同一個版本號的裝置不會換新的運行環境。
 
+``lock`` 同時產生伺服器的預設套件 #1（ADR 0027）：放在
+``apps/server/src/rpa_server/pypackages/defaults/``，有 requirements.in 與 requirements.lock 的
+副本、通用的 ``pylock.toml`` 與每個平台的 ``pylock.<平台>.toml``，版本和
+requirements.lock 相同（以它為 constraints），伺服器第一次啟動時用它們建立「套件 #1」。
+
 ``lock`` 要連得到 PyPI：連不到的開發環境在提交訊息加 [bootstrap]，由 bootstrap 流程產生。
 只用標準函式庫，伺服器分發包的建置（系統的 python3）也能呼叫；需要 PATH 上有 uv。
 最後印出 ``archive: …``，在 GitHub Actions 裡同時寫進步驟的輸出。
@@ -43,6 +49,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
 import tomllib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -58,6 +65,8 @@ WORK: Final = ROOT / "build" / "runtime"
 MANIFEST: Final = "rpa-runtime.json"
 """運行環境根目錄裡的說明檔（rpa_runner.pyruntime 讀它）。"""
 LOCK_COMMAND: Final = "uv run python tools/build_python_runtime.py lock"
+SERVER_DEFAULTS: Final = ROOT / "apps" / "server" / "src" / "rpa_server" / "pypackages" / "defaults"
+"""伺服器的預設套件 #1（ADR 0027）：和內附的運行環境相同的套件與版本。"""
 
 STDLIB_REMOVED: Final = ("ensurepip", "idlelib", "tkinter", "turtledemo", "test", "turtle.py")
 """標準函式庫裡拿掉的：安裝工具、圖形介面與它的範例、測試。"""
@@ -211,6 +220,67 @@ def lock(uv: str, spec: Spec, source: Path = SOURCE) -> Path:
             target,
         ]
     )
+    write_defaults(uv, spec, source)
+    return target
+
+
+def pins(requirements: Path) -> list[str]:
+    """requirements.lock 的 ``名稱==版本``（不含雜湊與註解）。"""
+    found: list[str] = []
+    for line in requirements.read_text(encoding="utf-8").splitlines():
+        match = re.match(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([^\s;\\]+)", line)
+        if match:
+            found.append(f"{match.group(1)}=={match.group(2)}")
+    return found
+
+
+def write_defaults(
+    uv: str, spec: Spec, source: Path = SOURCE, target: Path = SERVER_DEFAULTS
+) -> Path:
+    """伺服器的預設套件 #1（ADR 0027）：requirements.in、requirements.lock 的副本，通用的
+    pylock.toml，每個平台的 pylock.<平台>.toml（那個平台用得到的套件）；版本照 requirements.lock。
+    """
+    target.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source / "requirements.in", target / "requirements.in")
+    shutil.copyfile(source / "requirements.lock", target / "requirements.lock")  # 「被誰需要」
+    minor = ".".join(spec.python.split(".")[:2])
+    with tempfile.TemporaryDirectory() as temp:
+        constraints = Path(temp) / "constraints.txt"
+        constraints.write_text(
+            "\n".join(pins(source / "requirements.lock")) + "\n", encoding="utf-8"
+        )
+        common = ["--only-binary", ":all:", "--constraint", constraints, "--format", "pylock.toml"]
+        common += ["--custom-compile-command", LOCK_COMMAND, "--no-config"]
+        _run(
+            [
+                uv,
+                "pip",
+                "compile",
+                source / "requirements.in",
+                "--universal",
+                "--python-version",
+                minor,
+                *common,
+                "--output-file",
+                target / "pylock.toml",
+            ]
+        )
+        for tag, item in sorted(spec.platforms.items()):
+            _run(
+                [
+                    uv,
+                    "pip",
+                    "compile",
+                    source / "requirements.in",
+                    "--python-platform",
+                    item.wheels,
+                    "--python-version",
+                    spec.python,
+                    *common,
+                    "--output-file",
+                    target / f"pylock.{tag}.toml",
+                ]
+            )
     return target
 
 
