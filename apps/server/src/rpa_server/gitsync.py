@@ -103,8 +103,8 @@ MIN_GIT: Final = (2, 25)
 TIMEOUT: Final = 120
 """每個 git 命令的逾時（秒）。"""
 MAX_FILE_BYTES: Final = 1024 * 1024
-ALLOWED_SUFFIXES: Final = frozenset({".yaml", ".yml", ".json", ".py", ".md", ".txt"})
-"""能推送的檔案：定義檔與說明。"""
+ALLOWED_SUFFIXES: Final = frozenset({".yaml", ".yml", ".json", ".py", ".sql", ".md", ".txt"})
+"""能推送的檔案：定義檔（含 Python 節點 ``files`` 常用的 SQL）與說明。"""
 DEFAULT_BRANCH: Final = "main"
 SYNCED_REF: Final = "refs/rpa/synced"
 """上次同步的提交也留一個參照，免得被 git 的垃圾回收清掉。"""
