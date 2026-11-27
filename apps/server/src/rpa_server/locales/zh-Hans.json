@@ -1637,7 +1637,7 @@
   "sync.startup_pull_failed": "领域 {id} 拉取失败，用本机上一次的数据：{detail}",
   "sync.block_manifest": "pack.yaml 不见了或格式不对",
   "sync.block_sensitive": "{path}：看起来是登录状态、Secrets 或私钥，不能推送",
-  "sync.block_suffix": "{path}：只能推送 yaml、json、py、md、txt",
+  "sync.block_suffix": "{path}：只能推送 yaml、json、py、sql、md、txt",
   "sync.block_size": "{path}：超过 {limit} KB",
   "sync.block_secret": "{path}：内容含有 Secret {name} 的值",
   "sync.warn_problems": "领域文件夹有 {count} 个加载问题（推送后别人也会看到）",
