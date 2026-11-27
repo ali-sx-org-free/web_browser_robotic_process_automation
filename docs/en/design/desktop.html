@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:98a05fbac6a3baa8">
+<meta name="translation-source" content="sha256:7a36534d0fe5ab07">
 <title>Desktop distribution · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -548,7 +548,7 @@
             <li><strong>WebView2.</strong>Built into Windows 11 and usually present on Windows 10 through Edge updates; the installer installs it if missing.</li>
             <li><strong>macOS local network permission.</strong>Confirm that the Chromium started by Playwright reaching intranet sites counts against the app's permission.</li>
             <li><strong>Antivirus false positives.</strong>The PyInstaller launcher is occasionally flagged; folder mode is flagged less, and reports go to the vendor if needed.</li>
-            <li><strong>Private Playwright command.</strong>"Continue recording" uses codegen's internal <code>enableRecorder</code>; the packaged app must use the same driver, and a Playwright upgrade that breaks it is caught by the self-test.</li>
+            <li><strong>Private Playwright command.</strong>"Continue recording" uses codegen's internal recorder command (<code>showRecorder</code> since Playwright 1.65, <code>enableRecorder</code> before); the packaged app must use the same driver. A Playwright upgrade that breaks it is caught by the Runner's real-browser test (<code>test_record_browser.py</code>, run on Linux for every PR); the packaged app's self-test does not cover it.</li>
             <li><strong>New windows and downloads in pywebview.</strong>WKWebView and WebView2 behave differently; both need a manual check.</li>
           </ul>
         </div>
