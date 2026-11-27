@@ -16,14 +16,14 @@
       <h1>ADR 0027：RPA Python 運行環境的套件由伺服器管理，Worker 從伺服器取得</h1>
       <p>系統管理員在管理後台新增、移除 Python 節點能用的套件；伺服器解析出一份鎖定檔、從最快的來源下載一次 wheel，Worker 從區網取得缺的檔案，用 App 內附的直譯器組成同一個套件環境。不用重裝任何 App。</p>
     </div>
-    <span class="badge amber">提議中</span>
+    <span class="badge green">已接受</span>
   </div>
 
   <div class="stack">
     <section class="panel panel-body">
       <dl class="spec-list">
         <dt>日期</dt><dd class="mono">2026-11-27</dd>
-        <dt>狀態</dt><dd>提議中。使用者 2026-11-27 03:02 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話提出：「<span translate="no">伺服器管理後臺支持管理固定套件、支持新增、移除功能……在新增固定套件時候要考慮下載速度，默認的固定套件就是現狀這些。先設計方案，方案沒問題后再動手開發。</span>」本頁是設計；<a href="#open-questions">待確認事項</a>由使用者決定後才開始寫程式。</dd>
+        <dt>狀態</dt><dd>已接受。使用者 2026-11-27 03:02 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話提出：「<span translate="no">伺服器管理後臺支持管理固定套件、支持新增、移除功能……在新增固定套件時候要考慮下載速度，默認的固定套件就是現狀這些。先設計方案，方案沒問題后再動手開發。</span>」04:00 決定 D9 暫不做，04:02 回覆「<span translate="no">按照建議實作開始。</span>」：<a href="#open-questions">D1～D8</a> 照建議，先做第一期。</dd>
         <dt>影響範圍</dt><dd>rpa-server（資料表與遷移、套件管理頁、解析與下載、Worker API）、rpa-worker（回報、下載、預先準備）、rpa-runner（套件環境的組裝與執行，<code>pyruntime.py</code>）、文件。rpa-core 的 DSL、錄製端、相容模式的 Python 節點不改；內附的運行環境壓縮檔與 <code>runtimes/python/</code> 不改。</dd>
         <dt>相關</dt><dd><a href="0020-python-nodes.html">ADR 0020</a>（Python 節點與 RPA Python 運行環境）、<a href="0018-layered-updates.html">ADR 0018</a>（分層更新、環境代號）、<a href="0012-remote-workers.html">ADR 0012</a>（遠端 Worker）、<a href="0025-multi-user.html">ADR 0025</a>（系統管理員、稽核紀錄）。</dd>
       </dl>
@@ -202,19 +202,19 @@ Worker：內附運行環境（直譯器＋預設套件）＋ 缺的 wheel ─▶
     </div>
 
     <section class="panel" id="open-questions">
-      <div class="panel-header"><h2>待確認事項</h2></div>
+      <div class="panel-header"><h2>決定事項</h2></div>
       <div class="table-scroll">
         <table class="wrap">
-          <thead><tr><th>#</th><th>問題</th><th>建議</th><th>其他選擇</th></tr></thead>
+          <thead><tr><th>#</th><th>問題</th><th>決定</th><th>其他選擇</th></tr></thead>
           <tbody>
-            <tr><td>D1</td><td>套件清單管到哪一層</td><td>每台伺服器（每個運行環境主版本）一份，所有 Worker 一致。</td><td>每個領域各一份：同一台 Worker 要好幾套環境，組合場景跨領域時會衝突。</td></tr>
-            <tr><td>D2</td><td>預設的套件能不能移除</td><td>可以；有已發布的場景用到時要寫原因才能強制移除。</td><td>預設的固定，只能移除之後加的。</td></tr>
-            <tr><td>D3</td><td>套件來源</td><td>預設自動測速（PyPI 與五個國內鏡像），可以改成指定或公司的鏡像。</td><td>公司只允許核准的來源時改成指定，不用自動。</td></tr>
-            <tr><td>D4</td><td>冷卻期</td><td>7 天。</td><td>0（不限）或其他天數。</td></tr>
-            <tr><td>D5</td><td>發布前要通過哪些檢查</td><td>伺服器的檢查（解析、平台、下載、在伺服器的平台 import）一定要通過；其他平台在 Worker 準備時檢查，失敗時頁面提醒並可以馬上回退。</td><td>每個平台都要有線上的裝置檢查通過才能發布；沒有那個平台的裝置時發布不了。</td></tr>
-            <tr><td>D6</td><td>驗證後套件版本變了</td><td>只顯示差異，不擋執行，不自動重新驗證。</td><td>套件改變後，受影響的場景要重新驗證才能執行。</td></tr>
-            <tr><td>D7</td><td>伺服器的 uv 從哪裡來</td><td>第一次用到時從套件來源下載固定的版本，不用重裝伺服器。</td><td>放進伺服器分發包：下次要用完整的分發包裝一次。</td></tr>
-            <tr><td>D8</td><td>分期</td><td>先做第一期；第二期之後再排。</td><td>兩期一起做。</td></tr>
+            <tr><td>D1</td><td>套件清單管到哪一層</td><td><span class="badge green">照建議</span> 每台伺服器（每個運行環境主版本）一份，所有 Worker 一致。</td><td>每個領域各一份：同一台 Worker 要好幾套環境，組合場景跨領域時會衝突。</td></tr>
+            <tr><td>D2</td><td>預設的套件能不能移除</td><td><span class="badge green">照建議</span> 可以；有已發布的場景用到時要寫原因才能強制移除。</td><td>預設的固定，只能移除之後加的。</td></tr>
+            <tr><td>D3</td><td>套件來源</td><td><span class="badge green">照建議</span> 預設自動測速（PyPI 與五個國內鏡像），可以改成指定或公司的鏡像。</td><td>公司只允許核准的來源時改成指定，不用自動。</td></tr>
+            <tr><td>D4</td><td>冷卻期</td><td><span class="badge green">照建議</span> 7 天。</td><td>0（不限）或其他天數。</td></tr>
+            <tr><td>D5</td><td>發布前要通過哪些檢查</td><td><span class="badge green">照建議</span> 伺服器的檢查（解析、平台、下載、在伺服器的平台 import）一定要通過；其他平台在 Worker 準備時檢查，失敗時頁面提醒並可以馬上回退。</td><td>每個平台都要有線上的裝置檢查通過才能發布；沒有那個平台的裝置時發布不了。</td></tr>
+            <tr><td>D6</td><td>驗證後套件版本變了</td><td><span class="badge green">照建議</span> 只顯示差異，不擋執行，不自動重新驗證。</td><td>套件改變後，受影響的場景要重新驗證才能執行。</td></tr>
+            <tr><td>D7</td><td>伺服器的 uv 從哪裡來</td><td><span class="badge green">照建議</span> 第一次用到時從套件來源下載固定的版本，不用重裝伺服器。</td><td>放進伺服器分發包：下次要用完整的分發包裝一次。</td></tr>
+            <tr><td>D8</td><td>分期</td><td><span class="badge green">照建議</span> 先做第一期；第二期之後再排。</td><td>兩期一起做。</td></tr>
             <tr><td>D9</td><td>場景的編輯者能不能看到套件、申請加入</td><td><span class="badge">暫不做</span> 使用者 2026-11-27 04:00 America/Los_Angeles（PST，UTC−08:00）決定。這一版只有系統管理員看得到、加得了套件，需求在平台外溝通；之後要做時再提出。</td><td>原本的建議：第一期就做唯讀的套件清單與申請，由系統管理員處理。</td></tr>
           </tbody>
         </table>

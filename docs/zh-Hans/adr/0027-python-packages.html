@@ -17,14 +17,14 @@
       <h1>ADR 0027：RPA Python 运行环境的包由服务器管理，Worker 从服务器取得</h1>
       <p>系统管理员在管理后台添加、移除 Python 节点能用的包；服务器解析出一份锁定档、从最快的来源下载一次 wheel，Worker 从区网取得缺的文件，用 App 内附的解释器组成同一个包环境。不用重装任何 App。</p>
     </div>
-    <span class="badge amber">提议中</span>
+    <span class="badge green">已接受</span>
   </div>
 
   <div class="stack">
     <section class="panel panel-body">
       <dl class="spec-list">
         <dt>日期</dt><dd class="mono">2026-11-27</dd>
-        <dt>状态</dt><dd>提议中。用户 2026-11-27 03:02 America/Los_Angeles（PST，UTC−08:00）在 Claude 项目对话提出：「<span translate="no">伺服器管理後臺支持管理固定套件、支持新增、移除功能……在新增固定套件時候要考慮下載速度，默認的固定套件就是現狀這些。先設計方案，方案沒問題后再動手開發。</span>」本页是设计；<a href="#open-questions">待确认事项</a>由用户决定后才开始写程序。</dd>
+        <dt>状态</dt><dd>已接受。用户 2026-11-27 03:02 America/Los_Angeles（PST，UTC−08:00）在 Claude 项目对话提出：「<span translate="no">伺服器管理後臺支持管理固定套件、支持新增、移除功能……在新增固定套件時候要考慮下載速度，默認的固定套件就是現狀這些。先設計方案，方案沒問題后再動手開發。</span>」04:00 决定 D9 暂不做，04:02 回复「<span translate="no">按照建議實作開始。</span>」：<a href="#open-questions">D1～D8</a> 照建议，先做第一期。</dd>
         <dt>影响范围</dt><dd>rpa-server（数据表与迁移、包管理页、解析与下载、Worker API）、rpa-worker（回报、下载、预先准备）、rpa-runner（包环境的组装与运行，<code>pyruntime.py</code>）、文档。rpa-core 的 DSL、录制端、兼容模式的 Python 节点不改；内附的运行环境压缩档与 <code>runtimes/python/</code> 不改。</dd>
         <dt>相关</dt><dd><a href="0020-python-nodes.html">ADR 0020</a>（Python 节点与 RPA Python 运行环境）、<a href="0018-layered-updates.html">ADR 0018</a>（分层更新、环境代号）、<a href="0012-remote-workers.html">ADR 0012</a>（远程 Worker）、<a href="0025-multi-user.html">ADR 0025</a>（系统管理员、审核记录）。</dd>
       </dl>
@@ -203,19 +203,19 @@ Worker：内附运行环境（解释器＋默认包）＋ 缺的 wheel ─▶ �
     </div>
 
     <section class="panel" id="open-questions">
-      <div class="panel-header"><h2>待确认事项</h2></div>
+      <div class="panel-header"><h2>决定事项</h2></div>
       <div class="table-scroll">
         <table class="wrap">
-          <thead><tr><th>#</th><th>问题</th><th>建议</th><th>其他选择</th></tr></thead>
+          <thead><tr><th>#</th><th>问题</th><th>决定</th><th>其他选择</th></tr></thead>
           <tbody>
-            <tr><td>D1</td><td>包清单管到哪一层</td><td>每台服务器（每个运行环境主版本）一份，所有 Worker 一致。</td><td>每个领域各一份：同一台 Worker 要好几套环境，组合场景跨领域时会冲突。</td></tr>
-            <tr><td>D2</td><td>默认的包能不能移除</td><td>可以；有已发布的场景用到时要写原因才能强制移除。</td><td>默认的固定，只能移除之后加的。</td></tr>
-            <tr><td>D3</td><td>包来源</td><td>默认自动测速（PyPI 与五个国内镜像），可以改成指定或公司的镜像。</td><td>公司只允许核准的来源时改成指定，不用自动。</td></tr>
-            <tr><td>D4</td><td>冷却期</td><td>7 天。</td><td>0（不限）或其他天数。</td></tr>
-            <tr><td>D5</td><td>发布前要通过哪些检查</td><td>服务器的检查（解析、平台、下载、在服务器的平台 import）一定要通过；其他平台在 Worker 准备时检查，失败时页面提醒并可以马上回退。</td><td>每个平台都要有在线的设备检查通过才能发布；没有那个平台的设备时发布不了。</td></tr>
-            <tr><td>D6</td><td>验证后包版本变了</td><td>只显示差异，不挡运行，不自动重新验证。</td><td>包改变后，受影响的场景要重新验证才能运行。</td></tr>
-            <tr><td>D7</td><td>服务器的 uv 从哪里来</td><td>第一次用到时从包来源下载固定的版本，不用重装服务器。</td><td>放进服务器分发包：下次要用完整的分发包装一次。</td></tr>
-            <tr><td>D8</td><td>分期</td><td>先做第一期；第二期之后再排。</td><td>两期一起做。</td></tr>
+            <tr><td>D1</td><td>包清单管到哪一层</td><td><span class="badge green">照建议</span> 每台服务器（每个运行环境主版本）一份，所有 Worker 一致。</td><td>每个领域各一份：同一台 Worker 要好几套环境，组合场景跨领域时会冲突。</td></tr>
+            <tr><td>D2</td><td>默认的包能不能移除</td><td><span class="badge green">照建议</span> 可以；有已发布的场景用到时要写原因才能强制移除。</td><td>默认的固定，只能移除之后加的。</td></tr>
+            <tr><td>D3</td><td>包来源</td><td><span class="badge green">照建议</span> 默认自动测速（PyPI 与五个国内镜像），可以改成指定或公司的镜像。</td><td>公司只允许核准的来源时改成指定，不用自动。</td></tr>
+            <tr><td>D4</td><td>冷却期</td><td><span class="badge green">照建议</span> 7 天。</td><td>0（不限）或其他天数。</td></tr>
+            <tr><td>D5</td><td>发布前要通过哪些检查</td><td><span class="badge green">照建议</span> 服务器的检查（解析、平台、下载、在服务器的平台 import）一定要通过；其他平台在 Worker 准备时检查，失败时页面提醒并可以马上回退。</td><td>每个平台都要有在线的设备检查通过才能发布；没有那个平台的设备时发布不了。</td></tr>
+            <tr><td>D6</td><td>验证后包版本变了</td><td><span class="badge green">照建议</span> 只显示差异，不挡运行，不自动重新验证。</td><td>包改变后，受影响的场景要重新验证才能运行。</td></tr>
+            <tr><td>D7</td><td>服务器的 uv 从哪里来</td><td><span class="badge green">照建议</span> 第一次用到时从包来源下载固定的版本，不用重装服务器。</td><td>放进服务器分发包：下次要用完整的分发包装一次。</td></tr>
+            <tr><td>D8</td><td>分期</td><td><span class="badge green">照建议</span> 先做第一期；第二期之后再排。</td><td>两期一起做。</td></tr>
             <tr><td>D9</td><td>场景的编辑者能不能看到包、申请加入</td><td><span class="badge">暂不做</span> 用户 2026-11-27 04:00 America/Los_Angeles（PST，UTC−08:00）决定。这一版只有系统管理员看得到、加得了包，需求在平台外沟通；之后要做时再提出。</td><td>原本的建议：第一期就做唯读的包清单与申请，由系统管理员处理。</td></tr>
           </tbody>
         </table>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:bb123576905d69a3">
+<meta name="translation-source" content="sha256:f53412bf4dd86043">
 <title>ADR 0027 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -17,14 +17,14 @@
       <h1>ADR 0027: The server manages the RPA Python runtime's packages, and Workers get them from the server</h1>
       <p>System administrators add and remove the packages Python nodes can use in the admin console. The server resolves one lock file and downloads each wheel once from the fastest source; Workers fetch the missing files over the LAN and build the same package environment on the interpreter bundled with the App. No App needs reinstalling.</p>
     </div>
-    <span class="badge amber">Proposed</span>
+    <span class="badge green">Accepted</span>
   </div>
 
   <div class="stack">
     <section class="panel panel-body">
       <dl class="spec-list">
         <dt>Date</dt><dd class="mono">2026-11-27</dd>
-        <dt>Status</dt><dd>Proposed. On 2026-11-27 03:02 America/Los_Angeles (PST, UTC−08:00) the user asked in the Claude project chat for the server admin console to manage the fixed packages with add and remove, to take download speed into account when adding packages, and to keep today's packages as the defaults; design first, develop after the design is approved. This page is the design; coding starts after the user decides the <a href="#open-questions">open questions</a>.</dd>
+        <dt>Status</dt><dd>Accepted. On 2026-11-27 03:02 America/Los_Angeles (PST, UTC−08:00) the user asked in the Claude project chat for the server admin console to manage the fixed packages with add and remove, to take download speed into account when adding packages, and to keep today's packages as the defaults; design first, develop after the design is approved. At 04:00 the user decided not to do D9 for now, and at 04:02 replied “start implementing as recommended”: <a href="#open-questions">D1–D8</a> follow the recommendations, starting with phase 1.</dd>
         <dt>Scope</dt><dd>rpa-server (tables and migration, the package page, resolving and downloading, Worker API), rpa-worker (reporting, downloading, preparing ahead), rpa-runner (building and running the package environment, <code>pyruntime.py</code>), docs. The rpa-core DSL, the recorder and compatibility-mode Python nodes don't change; the bundled runtime archive and <code>runtimes/python/</code> don't change.</dd>
         <dt>Related</dt><dd><a href="0020-python-nodes.html">ADR 0020</a> (Python nodes and the RPA Python runtime), <a href="0018-layered-updates.html">ADR 0018</a> (layered updates, runtime IDs), <a href="0012-remote-workers.html">ADR 0012</a> (remote Workers), <a href="0025-multi-user.html">ADR 0025</a> (system administrators, audit log).</dd>
       </dl>
@@ -203,19 +203,19 @@ Worker: bundled runtime (interpreter + default packages) + missing wheels ─▶
     </div>
 
     <section class="panel" id="open-questions">
-      <div class="panel-header"><h2>Open questions</h2></div>
+      <div class="panel-header"><h2>Decisions</h2></div>
       <div class="table-scroll">
         <table class="wrap">
-          <thead><tr><th>#</th><th>Question</th><th>Recommendation</th><th>Alternatives</th></tr></thead>
+          <thead><tr><th>#</th><th>Question</th><th>Decision</th><th>Alternatives</th></tr></thead>
           <tbody>
-            <tr><td>D1</td><td>What the package list covers</td><td>One per server (per runtime major version), the same for every Worker.</td><td>One per domain: a Worker would need several environments, and composites spanning domains would conflict.</td></tr>
-            <tr><td>D2</td><td>Can default packages be removed</td><td>Yes; when a published scenario uses one, forcing the removal needs a reason.</td><td>Defaults are fixed; only packages added later can be removed.</td></tr>
-            <tr><td>D3</td><td>Package source</td><td>Speed-tested "auto" by default (PyPI and five mirrors in China), switchable to a specific source or the company mirror.</td><td>Use a specific source instead of "auto" when the company allows only approved sources.</td></tr>
-            <tr><td>D4</td><td>Cooldown</td><td>7 days.</td><td>0 (no limit) or another number of days.</td></tr>
-            <tr><td>D5</td><td>Which checks must pass before publishing</td><td>The server's checks (resolve, platforms, download, import on the server's platform) must pass; other platforms are checked when Workers prepare, and a failure is flagged on the page with a one-step rollback.</td><td>Every platform must pass on an online device before publishing; without a device for a platform, publishing isn't possible.</td></tr>
-            <tr><td>D6</td><td>Package version changed after validation</td><td>Show the differences only; don't block runs or re-validate automatically.</td><td>Affected scenarios must be validated again before they run.</td></tr>
-            <tr><td>D7</td><td>Where the server's uv comes from</td><td>Download a pinned version from the package source the first time it's needed; no server reinstall.</td><td>Ship it in the server package: the next upgrade needs the full server package.</td></tr>
-            <tr><td>D8</td><td>Phases</td><td>Do phase 1 first; schedule phase 2 later.</td><td>Do both phases together.</td></tr>
+            <tr><td>D1</td><td>What the package list covers</td><td><span class="badge green">As recommended</span> One per server (per runtime major version), the same for every Worker.</td><td>One per domain: a Worker would need several environments, and composites spanning domains would conflict.</td></tr>
+            <tr><td>D2</td><td>Can default packages be removed</td><td><span class="badge green">As recommended</span> Yes; when a published scenario uses one, forcing the removal needs a reason.</td><td>Defaults are fixed; only packages added later can be removed.</td></tr>
+            <tr><td>D3</td><td>Package source</td><td><span class="badge green">As recommended</span> Speed-tested "auto" by default (PyPI and five mirrors in China), switchable to a specific source or the company mirror.</td><td>Use a specific source instead of "auto" when the company allows only approved sources.</td></tr>
+            <tr><td>D4</td><td>Cooldown</td><td><span class="badge green">As recommended</span> 7 days.</td><td>0 (no limit) or another number of days.</td></tr>
+            <tr><td>D5</td><td>Which checks must pass before publishing</td><td><span class="badge green">As recommended</span> The server's checks (resolve, platforms, download, import on the server's platform) must pass; other platforms are checked when Workers prepare, and a failure is flagged on the page with a one-step rollback.</td><td>Every platform must pass on an online device before publishing; without a device for a platform, publishing isn't possible.</td></tr>
+            <tr><td>D6</td><td>Package version changed after validation</td><td><span class="badge green">As recommended</span> Show the differences only; don't block runs or re-validate automatically.</td><td>Affected scenarios must be validated again before they run.</td></tr>
+            <tr><td>D7</td><td>Where the server's uv comes from</td><td><span class="badge green">As recommended</span> Download a pinned version from the package source the first time it's needed; no server reinstall.</td><td>Ship it in the server package: the next upgrade needs the full server package.</td></tr>
+            <tr><td>D8</td><td>Phases</td><td><span class="badge green">As recommended</span> Do phase 1 first; schedule phase 2 later.</td><td>Do both phases together.</td></tr>
             <tr><td>D9</td><td>Can scenario editors see packages and request new ones</td><td><span class="badge">Not now</span> Decided by the user on 2026-11-27 04:00 America/Los_Angeles (PST, UTC−08:00). In this version only system administrators see and add packages, and requests happen outside the platform; it can be raised again later.</td><td>The original recommendation: a read-only package list and requests in phase 1, handled by system administrators.</td></tr>
           </tbody>
         </table>
