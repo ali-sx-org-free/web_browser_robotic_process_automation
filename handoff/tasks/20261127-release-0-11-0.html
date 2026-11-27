@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261127-release-0-11-0 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261127-release-0-11-0：發布 v0.11.0</h1><p>把 main 發布為 v0.11.0：v0.10.0 之後的 Agent API <code>expectedRevision</code>、同步推送允許 SQL 檔、Python 依賴更新（Playwright 1.65 等）與配套的接著錄製修正。依賴變了，伺服器、Worker 與錄製端都要用完整的安裝包升級。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261127-release-0-11-0；2026-11-27 01:27 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-27 01:25 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話：「同步問題解決了，發大版本吧。」使用者沒有指定版本號；Claude 依內容選次版本 0.11.0（第三方依賴更新、環境代號改變、要完整安裝，和 v0.10.0 的做法相同），使用者可以在合併前改。驗收：版本一致、版本 PR 的 CI 通過、標籤 v0.11.0 位於 main、發布流程通過（含 macOS 的建置與自我測試）、草稿 Release 的「從 v0.10.0 升級」顯示要完整的安裝包；草稿經使用者驗收後才發布。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：版本號（<code>tools/release_version.py bump 0.11.0</code>）、本紀錄、任務索引；回填 v0.10.2 與 gitsync-sql 任務紀錄、PR #38 在索引的狀態。不包含：功能修改；推標籤、發布 Release（使用者）；文檔站對齊 v0.11.0。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude 準備版本差異與本紀錄、開版本 PR；使用者合併 PR、在自己的電腦推標籤（Claude 的雲端環境推不了標籤）、驗收草稿、按「發布」。本任務不代表線上環境已升級。</dd>
+        <dt>修改檔案／整合者</dt><dd>九個套件的 <code>pyproject.toml</code>、<code>uv.lock</code>（只有工作區套件的版本）；本紀錄、任務索引、<a href="20261127-release-0-10-2.html">v0.10.2</a> 與 <a href="20261126-gitsync-sql.html">gitsync-sql</a> 任務紀錄。Claude 整合。</dd>
+        <dt>狀態</dt><dd>待審閱：等使用者合併版本 PR、推標籤。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-g6e2z3</code>（雲端工作階段指定的分支名稱；從 origin/main@<span class="mono">c75c557</span> 開始，對遠端的舊分支是快轉）；PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/40">#40</a>。</dd>
+        <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Linux 雲端容器，Python 3.13.18、uv 0.11.32，<code>uv sync --locked</code>（Playwright 1.65.2）。跨平台安裝包由 GitHub Actions 建置。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="changes">
+      <div class="panel-header"><h2>發布內容與升級</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>和 v0.10.0（GitHub 上最新的已發布版本）的差異。</strong>v0.10.1（PR #33）只建了草稿 Release、沒有發布；v0.10.2（PR #39，從 v0.10.1 只帶 SQL 修正）準備好了但沒有推標籤。兩者的內容都在 v0.11.0 裡。</li>
+        <li>PR #32：Agent API 執行與驗證加選填的 <code>expectedRevision</code>，版本不符時 409 <code>revision_mismatch</code>（<a href="20261120-agent-expected-revision.html">任務紀錄</a>）。</li>
+        <li>PR #37：領域 git 同步推送允許版本裡的 <code>.sql</code>（Python 節點 <code>files</code> 列的 <code>query.sql</code> 不再擋下推送）（<a href="20261126-gitsync-sql.html">任務紀錄</a>）。</li>
+        <li>PR #30：Python 依賴更新（<code>uv lock --upgrade</code>），32 個第三方套件版本改變，主要的有 Playwright 1.64.0 → 1.65.2、FastAPI 0.148.0 → 0.165.0、Starlette 1.9.0 → 1.10.0、SQLAlchemy 2.1.5 → 2.1.9、pyobjc 12.2.2 → 13.0（macOS 的錄製端與 Worker）；<code>pyee</code> 不再需要。Python 版本不變。</li>
+        <li>PR #38：Playwright 1.65 拿掉接著錄製用的內部命令，改用 <code>showRecorder</code>，補真實瀏覽器的回歸測試（<a href="20261126-playwright-1-65-recorder.html">任務紀錄</a>）。</li>
+        <li>其他：PR #35、#36 只改 CI（setup-uv 版本、用倉庫變數暫停 macOS 的工作）；PR #34、#39 只改任務紀錄與版本號。沒有資料庫遷移。</li>
+        <li><strong>升級時要注意（從 v0.10.0）：</strong>第三方套件改變，環境代號會變：伺服器、Windows／macOS 的 Worker 與 macOS 錄製端都要用完整的安裝包（以發布流程比較環境代號的結果，也就是 Release 說明的「從 v0.10.0 升級」為準）。伺服器：先備份整個資料目錄（含 <code>secrets.key</code>），解壓新版分發包後執行裡面的 <code>install.sh</code>（<code>--prefix</code> 相同時設定、資料與服務沿用）。簽章私鑰沿用 2026-10-25 那把，<code>keys.py</code> 不變。</li>
+        <li><strong>macOS 沒有在 PR 與 main 的 CI 驗證過。</strong>2026-11-25 起 PR、main 與排程的 macOS 工作暫停（<a href="20261125-pause-macos-ci.html">任務紀錄</a>），PR #30 的 pyobjc 13 與 PR #38 的錄製修正都沒有在 macOS 上跑過。推標籤後的發布流程照建 macOS（建置、錄製端視窗自我測試與端到端），是這兩項第一次在 macOS 上驗證；打包版的自我測試不涵蓋接著錄製，要在草稿的 macOS 錄製端人工試一次。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong><code>python3 tools/release_version.py bump 0.11.0</code>，<code>check v0.11.0</code> 一致；本紀錄；回填 v0.10.2（沒有打標籤，由 v0.11.0 取代）、gitsync-sql（收入 v0.11.0）與索引裡 PR #38 的狀態。</li>
+        <li><strong>決定：</strong>使用者決定從 main 發大版本。實作選擇：版本號 0.11.0（依賴更新、要完整安裝；0.10.1、0.10.2 都沒有發布，用新的次版本避免和它們混淆）。</li>
+        <li><strong>下一個具體動作（使用者）：</strong>版本 PR 的 CI 通過後合併 → 在自己的電腦 <code>git switch main &amp;&amp; git pull</code> 後 <code>git tag v0.11.0 &amp;&amp; git push origin v0.11.0</code>（只推這一個標籤）→ 發布流程建草稿 Release → 用草稿的安裝檔驗收（見下一項）→ 按「發布」→ 正式伺服器與各台電腦升級。v0.10.1 的草稿可以刪掉，不影響 v0.11.0。</li>
+        <li><strong>草稿要驗的：</strong>從目前的伺服器用完整分發包升級（資料保留、登入、Secrets 可用、git 同步推送含 SQL 的領域）；macOS 錄製端開啟、錄製、接著錄製一次；Windows／macOS Worker 執行一個場景；舊版 App 被提示要用完整的安裝包更新。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>c75c557＋本分支差異；Linux、Python 3.13.18</td><td><code>python3 tools/release_version.py check v0.11.0</code></td><td>版本一致：v0.11.0</td><td>無</td></tr>
+          <tr><td>同上</td><td><code>pytest -q tests/ci/test_release_version.py tests/docs tests/i18n</code>、<code>ruff check</code>、<code>git diff --check</code></td><td>429 passed；通過</td><td>程式碼沒有改動，main 上同樣內容的 CI（<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45966968689">運行 45966968689</a>）已通過</td></tr><tr><td><span class="mono">9874e3f</span>；GitHub Actions 手動觸發</td><td>伺服器分發包（<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45973997810">運行 45973997810</a>）</td><td>通過；x64「和 v0.10.0 不同（<span class="mono">0a5321eaf37eb169</span> → <span class="mono">7f0262edff709b01</span>）」、arm64「不同（<span class="mono">5ff31b790149ddb4</span> → <span class="mono">9e1a2aed5cbb45b2</span>）」：已經裝好的伺服器要用完整的安裝包更新；Rocky 8 安裝、沿用設定、冒煙、更新檔升級與自動退回通過</td><td>Worker、錄製端的環境代號由發布流程比較</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI（PR #40，head <span class="mono">9874e3f</span>）：靜態檢查、測試（Python 3.12、3.13）通過；Worker 測試（Windows）、桌面端建置、RPA Python 運行環境、一鍵安裝腳本依輸入指紋沿用之前的通過（版本號不算改動）；macOS 暫停。發布流程：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points"><li>2026-11-27 01:27 America/Los_Angeles（PST，UTC−08:00），Claude：從 origin/main@c75c557 開始，bump 0.11.0，寫本紀錄，回填相關紀錄。</li><li>2026-11-27 01:37 America/Los_Angeles（PST，UTC−08:00），Claude：推送 <span class="mono">9874e3f</span>，開 PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/40">#40</a>；手動觸發的伺服器分發包確認環境代號和 v0.10.0 不同（要完整安裝），PR 的 CI 通過（見驗證）。等使用者合併、推標籤。</li></ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
