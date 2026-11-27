@@ -102,7 +102,7 @@ Worker：内附运行环境（解释器＋默认包）＋ 缺的 wheel ─▶ �
           <p>新的页面放在管理后台，只有系统管理员看得到（和用户、审核记录相同）。</p>
           <ul>
             <li><strong>目前的包。</strong>直接加的包：名称、要求的版本、实际版本、平台、每个平台的大小、授权、简介、谁在什么时候加的；默认的标「默认」。依赖收合显示，标出被谁需要。</li>
-            <li><strong>添加。</strong>输入名称，可以加版本条件（例如 <code>tabulate</code>、<code>pandas&gt;=3,&lt;4</code>），可以限定平台。先显示最新版本、简介、授权、首页、上架时间、四个平台有没有 wheel 与大小，再加进草稿。</li>
+            <li><strong>添加。</strong>输入名称（怎么找到名称见<a href="#finding">找到需要的包</a>），可以加版本条件（例如 <code>tabulate</code>、<code>pandas&gt;=3,&lt;4</code>），可以限定平台。先显示最新版本、简介、授权、首页、上架时间、四个平台有没有 wheel 与大小，再加进草稿。</li>
             <li><strong>移除。</strong>从草稿拿掉；不再被需要的依赖一起拿掉，还被其他包需要的留着并说明。用 <code>ast</code> 扫描所有领域运行环境模式的场景（已发布与草稿）的 .py 档，列出 import 了这个包的场景；有已发布的场景用到时默认不能移除，写了原因才能强制移除（<a href="#open-questions">D2</a>）。</li>
             <li><strong>检查。</strong>解析、平台确认、下载（显示进度）、在服务器自己的平台组装并 import 每个直接加的包；列出和目前版本的差异（添加、移除、改版本，含依赖）与每个平台的下载量。</li>
             <li><strong>发布、历史、回到某一版。</strong>回到某一版是用那一版的锁定档发布一个新版本，文件都还在，所以很快。</li>
@@ -130,6 +130,22 @@ Worker：内附运行环境（解释器＋默认包）＋ 缺的 wheel ─▶ �
         </div>
       </section>
     </div>
+
+    <section class="panel" id="finding">
+      <div class="panel-header"><h2>找到需要的包</h2></div>
+      <div class="panel-body prose">
+        <p>PyPI 没有给程序用的搜索（2020 年起关闭；2026-11-27 确认 XML-RPC 的 search 仍回错误，要人到网站搜索），镜像也没有。所以页面不做关键字搜索，而是从下面几个方向找到名称，最后都用「名称查询」确认能不能加。</p>
+        <ul>
+          <li><strong>名称查询。</strong>输入包名称（不分大小写，<code>-</code>、<code>_</code>、<code>.</code> 视为相同）。服务器向目前的包来源取版本清单与每个文件的平台、大小、上架时间（PEP 691 的 simple API，镜像也有），再取该版 wheel 的 METADATA（PEP 658 的小文件）显示简介、授权、首页与依赖，都是小请求。结果列出最新版本与冷却期内可选的版本、四个平台各有没有 wheel 与大小，并先试解析一次，说明和目前的包会不会冲突、会多出哪些依赖。</li>
+          <li><strong>用 import 名称找。</strong>很多包的名称和 import 不同：<code>import docx</code> 是 python-docx、<code>cv2</code> 是 opencv-python-headless、<code>yaml</code> 是 PyYAML、<code>PIL</code> 是 pillow、<code>fitz</code> 是 PyMuPDF。输入的名称先比较程序内置的对照表与目前包的 top_level 名称，找不到才当成包名称查。</li>
+          <li><strong>常用包清单。</strong>程序内置一份依 RPA 用途分类的建议清单：Excel 与 Office 文档、PDF、图片与条码、数据库、文件传输与邮件、压缩、中文处理、Windows 自动化。每项附一句用途、授权与限制（例如 xlwings 要装 Excel、pywin32 只有 Windows、PyMuPDF 是 AGPL）；点一下带到名称查询。清单跟着代码层的更新档更新。</li>
+          <li><strong>从场景找缺的。</strong>用和移除时同一个 <code>ast</code> 扫描，列出运行环境模式的场景 import 了、但目前的包没有的模块（不算标准函数库、rpa_script 与场景 <code>files</code> 里自己的模块），每个附建议的包与「加进草稿」。</li>
+          <li><strong>运行时缺模块。</strong>Python 节点因 <code>ModuleNotFoundError</code> 失败时，运行报告说明「目前的包没有 X」并附建议的包；系统管理员看到 Python 包页的链接，其他人看到「申请加入」。</li>
+          <li><strong>到 PyPI 网站搜索。</strong>页面附链接，在浏览器打开 pypi.org 的搜索，用关键字找到名称后回来查询。</li>
+          <li><strong>编辑者看得到、可以申请。</strong>场景的编辑者在场景编辑页看得到目前可用的包与版本（唯读），可以申请加入（包名称、用途、哪个场景）；系统管理员在 Python 包页看到申请，带进名称查询处理或写原因拒绝，申请人在同一个地方看到结果（<a href="#open-questions">D9</a>）。</li>
+        </ul>
+      </div>
+    </section>
 
     <div class="two-col">
       <section class="panel" id="versions">
@@ -178,7 +194,7 @@ Worker：内附运行环境（解释器＋默认包）＋ 缺的 wheel ─▶ �
         <div class="panel-header"><h2>分期与验证</h2></div>
         <div class="panel-body">
           <ul class="points">
-            <li><strong>第一期。</strong>数据表与迁移、uv 的取得、解析与平台确认、来源测速与下载器、wheel 库、管理页（添加、移除与受影响的场景、差异、检查、发布、历史、回退、设置）、审核；Worker API 的清单与文件、Worker 的组装与预先准备、派工与报告；文档（本 ADR、管理 Portal、Python 节点、远程 Worker，三种语言）。</li>
+            <li><strong>第一期。</strong>数据表与迁移、uv 的取得、解析与平台确认、来源测速与下载器、wheel 库、管理页（添加、移除与受影响的场景、差异、检查、发布、历史、回退、设置）、找包（名称查询、import 名称、常用清单、从场景找缺的、缺模块的提示、编辑者申请）、审核；Worker API 的清单与文件、Worker 的组装与预先准备、派工与报告；文档（本 ADR、管理 Portal、Python 节点、远程 Worker，三种语言）。</li>
             <li><strong>第二期。</strong>脱机环境上传 wheel、导出与导入锁定档（测试与正式服务器用同一份）、发布前先在指定的设备试用、查询 OSV 的已知漏洞（<a href="#open-questions">D8</a>）。</li>
             <li><strong>自动测试。</strong>假的包来源用本机的 wheel 文件夹，不连网；解析、平台确认、换来源与续传、组装、清理、派工、权限与审核。CI 的 RPA Python 运行环境工作在各平台实际创建包环境并运行 Python 节点。</li>
             <li><strong>人工验收。</strong>在管理页添加 tabulate 与 scikit-learn、移除一个、回到前一版；Windows Worker 与 Linux 服务器各运行一次用到它们的 Python 节点；看下载量与时间。</li>
@@ -201,6 +217,7 @@ Worker：内附运行环境（解释器＋默认包）＋ 缺的 wheel ─▶ �
             <tr><td>D6</td><td>验证后包版本变了</td><td>只显示差异，不挡运行，不自动重新验证。</td><td>包改变后，受影响的场景要重新验证才能运行。</td></tr>
             <tr><td>D7</td><td>服务器的 uv 从哪里来</td><td>第一次用到时从包来源下载固定的版本，不用重装服务器。</td><td>放进服务器分发包：下次要用完整的分发包装一次。</td></tr>
             <tr><td>D8</td><td>分期</td><td>先做第一期；第二期之后再排。</td><td>两期一起做。</td></tr>
+            <tr><td>D9</td><td>场景的编辑者能不能看到包、申请加入</td><td>可以：第一期就做唯读的包清单与申请，由系统管理员处理。</td><td>只有系统管理员看得到、加得了，需求在平台外沟通。</td></tr>
           </tbody>
         </table>
       </div>

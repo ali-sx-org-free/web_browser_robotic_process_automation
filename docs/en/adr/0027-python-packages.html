@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:1bc922e5147fbee2">
+<meta name="translation-source" content="sha256:ae4442073a88458e">
 <title>ADR 0027 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -102,7 +102,7 @@ Worker: bundled runtime (interpreter + default packages) + missing wheels ─▶
           <p>A new page in the admin console, visible only to system administrators (like users and the audit log).</p>
           <ul>
             <li><strong>Current packages.</strong> Packages added directly: name, requested version, actual version, platforms, size per platform, license, summary, who added it and when; defaults are marked "Default". Dependencies are collapsed and show what needs them.</li>
-            <li><strong>Add.</strong> Enter a name, optionally with a version constraint (e.g. <code>tabulate</code>, <code>pandas&gt;=3,&lt;4</code>), optionally limited to platforms. The page first shows the latest version, summary, license, home page, upload time and whether each of the four platforms has a wheel and its size, then adds it to the draft.</li>
+            <li><strong>Add.</strong> Enter a name (see <a href="#finding">Finding the packages you need</a>), optionally with a version constraint (e.g. <code>tabulate</code>, <code>pandas&gt;=3,&lt;4</code>), optionally limited to platforms. The page first shows the latest version, summary, license, home page, upload time and whether each of the four platforms has a wheel and its size, then adds it to the draft.</li>
             <li><strong>Remove.</strong> Takes it out of the draft; dependencies nothing else needs go with it, and those still needed stay with an explanation. The <code>.py</code> files of runtime-mode scenarios in every domain (published and draft) are scanned with <code>ast</code> to list the scenarios that import the package; when a published scenario uses it, removal is blocked by default and needs a reason to force it (<a href="#open-questions">D2</a>).</li>
             <li><strong>Check.</strong> Resolve, check platforms, download (with progress), build on the server's own platform and import every directly added package; list the differences from the current version (added, removed, changed versions, including dependencies) and the download size per platform.</li>
             <li><strong>Publish, history, restore a version.</strong> Restoring publishes a new version with that version's lock file; the files are still there, so it's quick.</li>
@@ -130,6 +130,22 @@ Worker: bundled runtime (interpreter + default packages) + missing wheels ─▶
         </div>
       </section>
     </div>
+
+    <section class="panel" id="finding">
+      <div class="panel-header"><h2>Finding the packages you need</h2></div>
+      <div class="panel-body prose">
+        <p>PyPI has no search for programs (turned off in 2020; on 2026-11-27 its XML-RPC search still returns an error telling people to search on the website), and mirrors don't have one either. So the page doesn't do keyword search; the approaches below find a name, and each ends in "Look up by name" to confirm it can be added.</p>
+        <ul>
+          <li><strong>Look up by name.</strong> Enter a package name (case-insensitive; <code>-</code>, <code>_</code> and <code>.</code> count as the same). The server gets the version list and each file's platform, size and upload time from the current package source (the PEP 691 simple API, which mirrors serve too), then that version's wheel METADATA (a small PEP 658 file) for summary, license, home page and dependencies, all small requests. The result shows the latest version and the versions allowed by the cooldown, whether each of the four platforms has a wheel and its size, and a trial resolution saying whether it conflicts with the current packages and which dependencies it adds.</li>
+          <li><strong>Find by import name.</strong> Many packages are imported under another name: <code>import docx</code> is python-docx, <code>cv2</code> is opencv-python-headless, <code>yaml</code> is PyYAML, <code>PIL</code> is pillow, <code>fitz</code> is PyMuPDF. The name entered is first matched against a mapping built into the code and the current packages' top_level names, and only then looked up as a package name.</li>
+          <li><strong>Common packages.</strong> The code ships a suggested list grouped by RPA use: Excel and Office documents, PDF, images and barcodes, databases, file transfer and email, compression, Chinese text, Windows automation. Each entry has a one-line use, license and limits (e.g. xlwings needs Excel installed, pywin32 is Windows only, PyMuPDF is AGPL); clicking it opens "Look up by name". The list updates with the code layer's update file.</li>
+          <li><strong>Find what scenarios are missing.</strong> The same <code>ast</code> scan used for removal lists modules that runtime-mode scenarios import but the current packages don't have (excluding the standard library, rpa_script and the scenario's own modules in <code>files</code>), each with a suggested package and "Add to draft".</li>
+          <li><strong>Missing modules at run time.</strong> When a Python node fails with <code>ModuleNotFoundError</code>, the run report says "the current packages don't include X" with a suggested package; system administrators get a link to the Python packages page, others get "Request it".</li>
+          <li><strong>Search on the PyPI website.</strong> The page links to pypi.org's search in the browser; find the name by keyword there, then come back and look it up.</li>
+          <li><strong>Editors can see and request.</strong> Scenario editors see the available packages and versions (read-only) on the scenario editing page and can request one (package name, purpose, which scenario); system administrators see requests on the Python packages page, take them into "Look up by name" or decline with a reason, and the requester sees the outcome in the same place (<a href="#open-questions">D9</a>).</li>
+        </ul>
+      </div>
+    </section>
 
     <div class="two-col">
       <section class="panel" id="versions">
@@ -178,7 +194,7 @@ Worker: bundled runtime (interpreter + default packages) + missing wheels ─▶
         <div class="panel-header"><h2>Phases and verification</h2></div>
         <div class="panel-body">
           <ul class="points">
-            <li><strong>Phase 1.</strong> Tables and migration, getting uv, resolving and platform checks, source speed tests and the downloader, the wheel store, the admin page (add, remove with affected scenarios, differences, check, publish, history, restore, settings), audit; the Worker API's list and files, building and preparing ahead on Workers, dispatch and reports; docs (this ADR, management Portal, Python nodes, remote Workers, in three languages).</li>
+            <li><strong>Phase 1.</strong> Tables and migration, getting uv, resolving and platform checks, source speed tests and the downloader, the wheel store, the admin page (add, remove with affected scenarios, differences, check, publish, history, restore, settings), finding packages (lookup by name, import names, common list, what scenarios are missing, missing-module hints, editor requests), audit; the Worker API's list and files, building and preparing ahead on Workers, dispatch and reports; docs (this ADR, management Portal, Python nodes, remote Workers, in three languages).</li>
             <li><strong>Phase 2.</strong> Uploading wheels for offline servers, exporting and importing lock files (the same one on test and production servers), trying a version on chosen devices before publishing, looking up known vulnerabilities in OSV (<a href="#open-questions">D8</a>).</li>
             <li><strong>Automated tests.</strong> A fake package source from a local wheel folder, no network; resolving, platform checks, source fallback and resuming, building, cleanup, dispatch, permissions and audit. CI's RPA Python runtime jobs build real package environments on each platform and run Python nodes in them.</li>
             <li><strong>Manual acceptance.</strong> Add tabulate and scikit-learn on the admin page, remove one, restore the previous version; run a Python node that uses them once on a Windows Worker and once on the Linux server; check download sizes and times.</li>
@@ -201,6 +217,7 @@ Worker: bundled runtime (interpreter + default packages) + missing wheels ─▶
             <tr><td>D6</td><td>Package version changed after validation</td><td>Show the differences only; don't block runs or re-validate automatically.</td><td>Affected scenarios must be validated again before they run.</td></tr>
             <tr><td>D7</td><td>Where the server's uv comes from</td><td>Download a pinned version from the package source the first time it's needed; no server reinstall.</td><td>Ship it in the server package: the next upgrade needs the full server package.</td></tr>
             <tr><td>D8</td><td>Phases</td><td>Do phase 1 first; schedule phase 2 later.</td><td>Do both phases together.</td></tr>
+            <tr><td>D9</td><td>Can scenario editors see packages and request new ones</td><td>Yes: a read-only package list and requests in phase 1, handled by system administrators.</td><td>Only system administrators see and add packages; requests happen outside the platform.</td></tr>
           </tbody>
         </table>
       </div>
