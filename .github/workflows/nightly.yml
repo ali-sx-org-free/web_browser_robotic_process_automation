@@ -15,6 +15,10 @@
 #   時。這裡每晚用 main 的程式在兩個 macOS App 上跑一次程式碼層路徑（desktop.yml，外殼來自快取），
 #   一般的程式改動在 macOS 上的問題最晚隔天就看得到；發布一律完整建置。
 #
+# - macOS 暫停（2026-11-25 起，docs/develop/ci.html#macos）：倉庫改成私有後 macOS 以 10 倍計，
+#   倉庫變數 ENABLE_MACOS_CI 不是 true 時，完整測試、程式碼層檢查與每週完整建置都不跑 macOS；
+#   手動觸發時 systems 明確寫了 macos 照跑。
+#
 # 手動觸發（Actions → 每晚完整測試 → Run workflow）可以選系統與重跑次數，隨時跑一次大全量。
 # 排程失敗時自動開（或更新）一個 ci-schedule 標籤的 issue。
 #
@@ -68,6 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       mode: ${{ steps.decide.outputs.mode }}
+      macos: ${{ steps.decide.outputs.macos }}
       matrix: ${{ steps.decide.outputs.matrix }}
     steps:
       - uses: actions/checkout@v7
@@ -76,6 +81,8 @@ jobs:
       - id: decide
         env:
           GH_TOKEN: ${{ github.token }}
+          # macOS 的開關（docs/develop/ci.html#macos）：倉庫變數不是 true 時不跑 macOS（發布照建）
+          ENABLE_MACOS_CI: ${{ vars.ENABLE_MACOS_CI }}
         run: |
           python3 tools/ci_changes.py --workflow nightly.yml --scope full --nightly \
             --systems "${{ inputs.systems }}" --extra "${{ inputs.extra }}"
@@ -190,11 +197,14 @@ jobs:
 
   # macOS 的程式碼層檢查：桌面端建置（desktop.yml）在兩個 macOS App 上走程式碼層路徑
   # （外殼在快取裡；不在時完整建置並存進快取）。手動觸發時只在選了 macOS（或全部）時跑。
+  # macOS 暫停時（執行範圍的 macos＝false）不呼叫：這裡固定帶 macOS 的 targets，
+  # 被呼叫的流程分不出是排程還是手動明確選的。
   desktop-layer:
     name: macOS 桌面 App（程式碼層）
     needs: plan
     if: >-
       github.event.schedule != '47 22 * * 6' && needs.plan.outputs.mode != 'docs' &&
+      needs.plan.outputs.macos == 'true' &&
       (!inputs.systems || contains(inputs.systems, 'macos'))
     uses: ./.github/workflows/desktop.yml
     with:

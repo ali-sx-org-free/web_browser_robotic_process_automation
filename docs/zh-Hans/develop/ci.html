@@ -15,11 +15,32 @@
   <div class="heading">
     <div>
       <h1>CI 与流水线</h1>
-      <p>GitHub Actions 什么时候跑、跑哪些测试、大约多久；怎么手动触发，以及到哪里看历次的运行耗时。平常的 PR 只在每个系统上测它在生产环境的角色，其他组合交给每天凌晨的完整测试；同一组输入只验证一次，外壳没变的桌面 App 不重新打包。</p>
+      <p>GitHub Actions 什么时候跑、跑哪些测试、大约多久；怎么手动触发，以及到哪里看历次的运行耗时。平常的 PR 只在每个系统上测它在生产环境的角色，其他组合交给每天凌晨的完整测试；同一组输入只验证一次，外壳没变的桌面 App 不重新打包。macOS 目前暂停（仓库变量 <code>ENABLE_MACOS_CI</code>），发布照建。</p>
     </div>
   </div>
 
   <div class="stack">
+    <section class="panel" id="macos">
+      <div class="panel-header"><h2>macOS 暂停：仓库变量 <code>ENABLE_MACOS_CI</code></h2><span class="badge amber">2026-11-25 起暂停</span></div>
+      <div class="panel-body prose">
+        <p>仓库改成私有后，GitHub 代管的机器按分钟计费：macOS 每分钟 0.062 美元，是 Linux（0.006）的 10 倍、Windows（0.010）的 6 倍；公开仓库不计费（2026-11-25 查证 <a href="https://docs.github.com/en/billing/reference/actions-runner-pricing">GitHub 的价目表</a>）。用 2026-11-10～25 的<a href="#metrics">运行耗时记录</a>换算成 30 天，macOS 约 3,900 分、约 245 美元，比 Linux 与 Windows 加起来（约 70 美元）还多。用户因此决定先暂停 macOS，之后可能再开（2026-11-25）。</p>
+        <ul class="points">
+          <li><strong>暂停时不跑。</strong>PR、合并到 main 与调度上的全部 macOS 工作：桌面端建置的两个 macOS App、每晚完整测试的 macOS 与 macOS 代码层检查、每周完整建置的两个 macOS App、一键安装脚本的项目内运行与从零开始（macOS）、RPA Python 运行环境（macOS）。每个流程的「运行范围」写一则「macOS：暂停」的注记，运行摘要的表格把这些工作标成「暂停」。</li>
+          <li><strong>照跑。</strong>推版本标签（发布）一律建两个 macOS App：录制端只有 macOS 版，少了它的 DMG 发布会失败。手动触发时明确选了 macOS（桌面端建置的 <code>targets</code>、每晚完整测试的 <code>systems</code>）也照跑，不必改变量就能补测一次。</li>
+          <li><strong>代价。</strong>录制端 App 与 macOS 上的全部测试要到发布（或手动补测）时才验证，macOS 专属的问题可能到发布时才发现。改了录制端、本机闸道或 macOS 专属的程序时，发布前先手动补测一次。</li>
+        </ul>
+        <dl class="spec-list">
+          <dt>恢复</dt><dd>仓库的 Settings › Secrets and variables › Actions › Variables 分页 › New repository variable，名称填 <code>ENABLE_MACOS_CI</code>，值填 <code>true</code>；或运行 <code>gh variable set ENABLE_MACOS_CI --body true</code>。不必改程序、不必合并 PR，下一次运行就照常跑 macOS。</dd>
+          <dt>再暂停</dt><dd>把值改成 <code>true</code> 以外的值（例如 <code>false</code>），或删掉这个变量：<code>gh variable delete ENABLE_MACOS_CI</code>。</dd>
+          <dt>判断规则</dt><dd><code>tools/ci_changes.py</code> 的 <code>macos_enabled</code>。有 macOS 工作的流程（桌面端建置、每晚完整测试、一键安装脚本、RPA Python 运行环境）在「运行范围」那一步把 <code>vars.ENABLE_MACOS_CI</code> 传进去，并输出 <code>macos</code>（<code>true</code>／<code>false</code>）；不在矩阵里的 macOS 工作（一键安装脚本的从零开始、每晚的 macOS 代码层检查）看这个输出。开关不算进<a href="#layered">输入指纹</a>：恢复时，同一个指纹已经通过、记录还在（30 天）的工作照样沿用。</dd>
+        </dl>
+      </div>
+      <pre class="source"># 临时补测 macOS（不必改变量）：每晚完整测试只跑 macOS，加上两个 macOS App 的代码层检查
+gh workflow run nightly.yml --ref 分支名称 -f systems=macos -f extra=0
+# 只建两个 macOS App（外壳在缓存里就只换代码层）
+gh workflow run desktop.yml --ref 分支名称 -f targets=recorder-macos-arm64,worker-macos-arm64 -f build=auto</pre>
+    </section>
+
     <section class="panel" id="layered">
       <div class="panel-header"><h2>依层建置：同一组输入只验证一次</h2><span class="badge blue">2026-10-27 起</span></div>
       <div class="panel-body prose">
@@ -28,7 +49,7 @@
           <li><strong>同一组输入已经通过就不重跑。</strong>每个重的工作（三个桌面 App、服务器分发包、一键安装脚本、CI 的 Windows Worker 测试）有自己的输入清单；这些文件的内容算成输入指纹，同一个指纹已经在这个仓库通过，就略过、沿用那次的结果。只改服务器的 PR 不碰 macOS；合并到 main 时内容和 PR 测过的相同，也不再跑一次。</li>
           <li><strong>版本号不算改动。</strong><code>pyproject.toml</code> 的 <code>version</code> 与 <code>uv.lock</code> 里工作区包的版本不算进指纹：发布 PR 只改版本号，不必重建三个 App、四个安装脚本与 Windows 测试。</li>
           <li><strong>外壳没变就不重新打包。</strong>桌面 App 要跑时，先看外壳键：外壳和缓存里的相同，就从缓存取出上次建好的 DMG／zip，用这次的程序建更新档、装上去再测（代码层路径）。这正是设备在现场升级的方式：旧外壳加新程序。外壳变了才完整建置。</li>
-          <li><strong>macOS 只在需要时排队。</strong>录制端（macOS）只在录制、逐步调试、本机闸道、macOS 专属的程序或外壳改了时跑；Worker（macOS）只在外壳或它的 macOS 部分改了时跑。一般的程序改动由每晚的 macOS 代码层检查补上，最晚隔天看得到；发布一律完整建置。</li>
+          <li><strong>macOS 只在需要时排队。</strong>录制端（macOS）只在录制、逐步调试、本机闸道、macOS 专属的程序或外壳改了时跑；Worker（macOS）只在外壳或它的 macOS 部分改了时跑。一般的程序改动由每晚的 macOS 代码层检查补上，最晚隔天看得到；发布一律完整建置。2026-11-25 起 macOS 暂停，见 <a href="#macos">macOS 暂停</a>。</li>
         </ul>
       </div>
       <pre class="source">推送／PR → 运行范围（Linux，几秒；tools/ci_changes.py）：每个重的工作算输入指纹
@@ -93,7 +114,7 @@
           <tbody>
             <tr><td>Linux</td><td>网站（管理 Portal）</td><td>静态检查；全部不需浏览器的测试；网站、录制端协定的浏览器测试与冒烟测试，只用 Chromium（CI，4 个进程平行）</td><td>Firefox 的组合；Worker 的浏览器测试</td></tr>
             <tr><td>Windows</td><td>Worker</td><td>Worker 的浏览器测试（运行、登录、Firefox 模板、领取任务）与冒烟测试，两种浏览器；Worker App 的端到端（外壳没变时只换代码层，见<a href="#layered">依层建置</a>）</td><td>网站、录制端的浏览器测试</td></tr>
-            <tr><td>macOS</td><td>录制端</td><td>录制端 App 的端到端（配对、本机闸道、逐步调试）：只在录制、调试、闸道、macOS 专属的程序或外壳改了时</td><td>全部 pytest；每晚的 macOS 代码层检查</td></tr>
+            <tr><td>macOS</td><td>录制端</td><td>录制端 App 的端到端（配对、本机闸道、逐步调试）：只在录制、调试、闸道、macOS 专属的程序或外壳改了时。2026-11-25 起暂停，只在发布与手动补测时跑（<a href="#macos">macOS 暂停</a>）</td><td>全部 pytest；每晚的 macOS 代码层检查（同样暂停）</td></tr>
           </tbody>
         </table>
       </div>
@@ -111,10 +132,10 @@
             <tr><td>往 PR 推送、合并到 main</td><td>CI（Linux）每次都跑；其他重的工作只在它的输入指纹还没通过时跑（<a href="#layered">依层建置</a>）：Windows 的 Worker 测试、三个桌面 App（外壳没变时只换代码层）、服务器分发包（建置 x64、arm64，在 Rocky 8 容器里安装、启动、升级）、一键安装脚本（只验证脚本与冒烟测试）、RPA Python 运行环境（四个平台建置、自我测试，再用它跑 Python 节点的测试；Linux 另在 Rocky 8 容器解压）</td><td>约 2.5～3 分（CI 是下限）；要建桌面 App 时约 4 分</td></tr>
             <tr><td>只改 <code>handoff/</code>、<code>docs/</code> 的推送</td><td>见<a href="#docs-only">下一节</a></td><td>约 1 分</td></tr>
             <tr><td>推版本标签 <code>v*</code></td><td>发布：确认版本、建桌面 App 与服务器分发包、产生并签署更新档（<a href="#update-key">密钥</a>）、草稿 Release</td><td>约 4 分</td></tr>
-            <tr><td>每天 20:17 UTC</td><td>每晚完整测试：三个系统、两种浏览器、Python 3.12 与 3.13 的全部测试，浏览器测试连跑三遍</td><td>约 30 分</td></tr>
-            <tr><td>每天 20:17 UTC（同上）</td><td>macOS 代码层检查：每晚完整测试调用桌面端建置，两个 macOS App 走代码层路径（外壳不在缓存里时完整建置）</td><td>约 3 分</td></tr>
+            <tr><td>每天 20:17 UTC</td><td>每晚完整测试：三个系统、两种浏览器、Python 3.12 与 3.13 的全部测试，浏览器测试连跑三遍；macOS 暂停时只跑 Ubuntu 与 Windows</td><td>约 30 分</td></tr>
+            <tr><td>每天 20:17 UTC（同上）</td><td>macOS 代码层检查：每晚完整测试调用桌面端建置，两个 macOS App 走代码层路径（外壳不在缓存里时完整建置）；macOS 暂停时不跑</td><td>约 3 分</td></tr>
             <tr><td>每天 20:47 UTC</td><td>一键安装脚本的完整范围：项目内运行跑全部测试，加上从零开始</td><td>约 15 分</td></tr>
-            <tr><td>每周六 22:47 UTC</td><td>桌面 App 每周完整建置：三个 App 完整建置（不用缓存、不沿用），抓 GitHub 映像的变化；由每晚完整测试的流程运行，失败时开在同一个 issue</td><td>约 5 分</td></tr>
+            <tr><td>每周六 22:47 UTC</td><td>桌面 App 每周完整建置：三个 App 完整建置（不用缓存、不沿用），抓 GitHub 映像的变化；由每晚完整测试的流程运行，失败时开在同一个 issue；macOS 暂停时只建 Windows 的 Worker</td><td>约 5 分</td></tr>
             <tr><td>每周日 22:17 UTC</td><td>Python 依赖更新：有更新时开 PR 并触发 CI</td><td>不到 1 分；CI 另计</td></tr>
           </tbody>
         </table>
@@ -138,7 +159,7 @@
       <div class="panel-body prose">
         <p>在 GitHub 的 Actions 页面选流程，按「Run workflow」，选分支与选项。也可以用 <code>gh</code>：</p>
       </div>
-      <pre class="source"># 大全量：三个系统的全部测试，浏览器测试再跑两遍（约 30 分）
+      <pre class="source"># 大全量：三个系统的全部测试，浏览器测试再跑两遍（约 30 分；macOS 暂停时没有 macOS）
 gh workflow run nightly.yml --ref 分支名称
 # 只跑 Windows，不重跑
 gh workflow run nightly.yml --ref 分支名称 -f systems=windows -f extra=0
@@ -146,7 +167,8 @@ gh workflow run nightly.yml --ref 分支名称 -f systems=windows -f extra=0
 gh workflow run ci.yml --ref 分支名称 -f scope=full
 # 一键安装脚本：full（默认）＝全部测试加从零开始；role＝同 PR
 gh workflow run setup-scripts.yml --ref 分支名称
-# 桌面端建置：手动触发一律运行；默认完整建置（产生试用包）
+# 桌面端建置：手动触发一律运行；默认完整建置（产生试用包）。macOS 暂停时只建 Windows，
+# 要 macOS 的试用包就明确写 -f targets=recorder-macos-arm64,worker-macos-arm64
 gh workflow run desktop.yml --ref 分支名称
 # 只建录制端，外壳在缓存里就只换代码层（不产生试用包）
 gh workflow run desktop.yml --ref 分支名称 -f targets=recorder-macos-arm64 -f build=auto
