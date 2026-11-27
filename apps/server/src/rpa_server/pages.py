@@ -1162,6 +1162,7 @@ def page_router(services: Services) -> APIRouter:
             worker_port=port,
             api_url=api_url,
             fingerprint=services.workers.fingerprint,
+            package_states={item["id"]: item for item in package_devices(services)},
         )
 
     @router.get("/python-packages", include_in_schema=False)

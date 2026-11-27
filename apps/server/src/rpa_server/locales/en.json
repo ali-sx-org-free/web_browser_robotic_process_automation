@@ -2528,5 +2528,6 @@
   "run.missing_module": "The current Python packages do not include the \"{module}\" module; the suggested package is {package}.",
   "run.missing_module_add": "Add it on the Python packages page",
   "run.missing_module_ask": "Ask a system administrator to add it on the \"Python packages\" page, then run again after it is published.",
-  "scene.packages_changed": "Published v{revision} passed validation with packages #{validated}; the current version is packages #{number}. It still runs; open to see what changed."
+  "scene.packages_changed": "Published v{revision} passed validation with packages #{validated}; the current version is packages #{number}. It still runs; open to see what changed.",
+  "workers.packages": "Python packages: {state}"
 }

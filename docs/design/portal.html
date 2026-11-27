@@ -250,7 +250,7 @@
             <tr><td>場景運行（<code>/runs</code>）</td><td>運行報告（2026-10-25 前另有運行回看，已併進來）、批次執行（M7.3）</td><td>顯示</td><td>顯示</td></tr>
             <tr><td>專案空間（<code>/workspace</code>）</td><td>專案 ×N（依專案管理的順序）</td><td>顯示</td><td>顯示</td></tr>
             <tr><td>叢集管理（<code>/devices</code>）</td><td>裝置</td><td>顯示</td><td>預設不顯示</td></tr>
-            <tr><td>管理後台（<code>/domains</code>）</td><td>領域管理、專案管理</td><td>顯示</td><td>預設不顯示</td></tr>
+            <tr><td>管理後台（<code>/domains</code>）</td><td>領域管理、專案管理、Python 套件（系統管理員，ADR 0027）</td><td>顯示</td><td>預設不顯示</td></tr>
           </tbody>
         </table>
       </div>
@@ -292,6 +292,7 @@
             <tr><td><code>/workspace</code></td><td>專案空間：轉到第一個專案；還沒有專案時留在專案空間，說明到專案管理新增（選單標在專案空間）。屬於專案的組合場景，畫布與執行頁的選單也停在那個專案。舊網址 <code>/composites</code> 轉到這裡</td></tr>
             <tr><td><code>/projects/{代號}</code></td><td>專案頁：這個專案的組合場景卡片、DAG 縮圖、快捷執行、最近報告、開啟畫布、刪除；新增、匯入組合場景（放進這個專案）</td></tr>
             <tr><td><code>/projects</code></td><td>專案管理（管理後台）：新增、改名、刪除、調整順序；還沒分到專案的組合場景</td></tr>
+            <tr><td><code>/python-packages</code></td><td>Python 套件（管理後台，系統管理員，<a href="../adr/0027-python-packages.html">ADR 0027</a>）：運行環境模式的 Python 節點能 import 的套件。目前的版本「套件 #N」、草稿（新增、修改版本條件與系統、移除）、檢查的進度與結果（解析、每個平台的 wheel、下載、雜湊與冷卻期、在伺服器 import、和目前版本的差異與每個平台的下載量）、發布；找套件（套件名稱或 import 名稱查詢、到 PyPI 搜尋、場景用到但清單沒有的模組、常用套件）；裝置的準備狀態；發布紀錄與回到某一版；套件來源（自動測速、指定或公司的鏡像）、代理、根憑證、冷卻天數、同時下載數、保留幾版。網址帶 <code>?q=</code> 時打開就查詢（運行報告「缺模組」的連結）</td></tr>
             <tr><td><code>/playground</code></td><td>自由試驗場：建立、匯入組合場景與繼續編輯畫布</td></tr>
             <tr><td><code>/playground/{序列}</code></td><td>編輯組合場景：場景庫、DAG 畫布、入參與節點設定（固定版本、入參的來源）；儲存、執行、匯出</td></tr>
             <tr><td><code>/playground/runs/{序列執行}</code></td><td>組合運行的匯總報告（2026-10-27，見<a href="#composite-report">組合運行的匯總報告</a>）：結論、數字、摘要、流程與時間、每個節點的明細；取消、從頭再執行、從停下的節點繼續、下載報告</td></tr>
@@ -391,9 +392,10 @@
             <tr><td><code>GET /api/me</code>、<code>POST /api/me/password</code></td><td>目前的帳號與各領域的角色；改自己的密碼（<code>current</code>、<code>password</code>）</td></tr>
             <tr><td><code>GET</code>、<code>POST /api/users</code>；<code>PATCH /api/users/{編號}</code>；<code>POST …/password</code></td><td>帳號（系統管理員）：新增（<code>username</code>、<code>displayName</code>、<code>password</code>、<code>systemAdmin</code>）、改顯示名稱、系統管理員、停用（最後一個系統管理員不能拿掉，409 <code>last_admin</code>）、重設密碼</td></tr>
             <tr><td><code>GET /api/domains/{領域}/members</code>；<code>PUT …/members/{帳號}</code>；<code>DELETE …/members/{編號}</code></td><td>領域成員（管理員）：列出、加入或改角色（<code>role</code>：admin、editor、runner、viewer）、移除</td></tr>
+            <tr><td><code>GET /api/python-packages</code>；<code>POST …/draft/packages</code>、<code>POST …/draft/remove</code>、<code>POST …/draft/check</code>、<code>POST …/draft/publish</code>、<code>DELETE …/draft</code>；<code>POST …/revisions/{號碼}/restore</code>；<code>GET …/lookup?q=</code>、<code>GET …/impact?name=</code>；<code>PUT …/settings</code>、<code>POST …/speed-test</code></td><td>Python 套件（系統管理員，ADR 0027）：目前的版本、草稿與檢查的進度、裝置的準備狀態；草稿加入或修改（<code>name</code>、<code>spec</code>、<code>platforms</code>、<code>note</code>、<code>allowNew</code>）、移除（有已發布的場景用到時要 <code>reason</code>）、檢查（<code>upgrade</code> 是檢查更新）、發布（<code>note</code>）、放棄；回到某一版（建草稿並開始檢查）；查詢套件、用到它的場景；來源與下載的設定、測速</td></tr>
             <tr><td><code>GET /api/audit</code>、<code>GET /api/audit/verify</code></td><td>稽核紀錄（系統管理員）：<code>user</code>、<code>before</code>、<code>limit</code>；驗證雜湊鏈（<code>ok</code>、<code>checked</code>、<code>brokenAt</code>）</td></tr>
             <tr><td><code>POST /client-api/v1/pair</code></td><td>只在對外埠、不需要權杖（M10.1）：<code>code</code>、<code>app</code> 換權杖，回應裝置代號、名稱、<code>token</code> 與伺服器的協定、指紋、版本；代碼不對或已用過 401 <code>invite_invalid</code>、過期 401 <code>invite_expired</code>、App 種類不對 409 <code>invite_wrong_app</code>（代碼保留）、裝置停用 409；格式在 <code>rpa_worker.pairing</code></td></tr>
-            <tr><td><code>/worker-api/v1/…</code></td><td>只在對外埠、要權杖：<code>hello</code>、<code>claim</code>、<code>runs/{執行編號}/heartbeat</code>、<code>…/artifacts</code>（zip）、<code>…/role-state</code>、<code>…/finish</code>、<code>…/fail</code>、<code>…/files/{代號}</code>（下載任務用到的上傳檔，M7c）；格式在 <code>rpa_worker.protocol</code></td></tr>
+            <tr><td><code>/worker-api/v1/…</code></td><td>只在對外埠、要權杖：<code>hello</code>、<code>claim</code>、<code>runs/{執行編號}/heartbeat</code>、<code>…/artifacts</code>（zip）、<code>…/role-state</code>、<code>…/finish</code>、<code>…/fail</code>、<code>…/files/{代號}</code>（下載任務用到的上傳檔，M7c）、<code>python-packages/files/{sha256}</code>（下載套件的 wheel，支援 Range 續傳；同時下載的裝置太多時 503 加 <code>Retry-After</code>）、<code>python-packages/status</code>（回報套件版本的準備狀態，ADR 0027）；格式在 <code>rpa_worker.protocol</code></td></tr>
           </tbody>
         </table>
       </div>
@@ -438,6 +440,7 @@
             <dt>batches</dt><dd>批次執行（M7.3）：代號、場景與固定的版本、當時的名稱、狀態（draft、running、finished、stopped）、表格的標題、欄位對應、檔名、選項（一列沒通過時、同時幾列、瀏覽器、網址、視窗、執行位置）、第幾輪、停下的原因、時間、建立的 API 用戶端、冪等鍵</dd>
             <dt>batch_rows</dt><dd>批次的每一列：列號、儲存格（標題 → 文字）、最近一次的執行、第幾次、被選進哪一輪、排不進去的原因</dd>
             <dt>uploaded_files</dt><dd>上傳的檔案（M7c）：代號、sha256、檔名、大小、類型、上傳與最後使用的時間、上傳的 API 用戶端；內容刪除的時間與原因（沒用到、過期、超過總量）</dd>
+            <dt>python_package_sets</dt><dd>Python 套件的版本（ADR 0027）：運行環境主版本、號碼（草稿沒有）、狀態（draft、checking、checked、failed、published）、直接加的套件（名稱、版本條件、系統、說明、可不可以用冷卻期內的版本、誰在什麼時候加的）、鎖定檔與它的雜湊、每個平台的 wheel 清單與每個套件的資訊、檢查的結果、說明、從哪一版改、回到哪一版、建立與發布的人與時間。runs、batches、workflow_runs 另記執行用的套件版本（<code>python_packages</code>）</dd>
             <dt>settings</dt><dd>設定（預設執行位置、伺服器代號與名稱、資料夾的格式、錄影）</dd>
           </dl>
           <p class="muted">模型用 SQLAlchemy 2，結構變更走 Alembic 遷移（伺服器啟動時自動升級）；測試會比對遷移與模型是否一致。</p>

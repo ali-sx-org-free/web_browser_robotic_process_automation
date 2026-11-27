@@ -125,18 +125,20 @@ def validate(client: Client, target: str = "remote") -> JsonObject:
     return body(client.post("/api/scenes/py-sum/revisions/2/validate", json=payload), 202)
 
 
-def publish_copy(app: FastAPI) -> int:
-    """發布一個新的套件版本（內容和 #1 相同，只為了號碼不同）。"""
-    first = services(app).packages.current()
+def publish_copy(app: FastAPI, *, same: bool = False) -> int:
+    """發布一個新的套件版本（清單和 #1 相同，只為了號碼不同）；``same`` 時連鎖定檔的雜湊也相同
+    （像回到 #1），否則當成不同的套件。"""
+    first = services(app).packages.revision(1)
+    latest = services(app).packages.current()
     with services(app).sessions() as session:
         moment = now()
         row = PythonPackageSet(
             runtime=RUNTIME,
-            number=(first.number or 1) + 1,
+            number=(latest.number or 1) + 1,
             status="published",
             requirements=[item.to_json() for item in first.requirements],
             lock=first.lock,
-            lock_hash="c" * 64,
+            lock_hash=first.lock_hash if same else "c" * 64,
             manifests=dict(first.manifests),
             created_at=moment,
             updated_at=moment,
@@ -198,6 +200,13 @@ def test_old_apps_only_get_the_bundled_set(app: FastAPI, client: Client, remote:
     assert f"#{number}" in failed.error
     assert "太舊" in failed.error
 
+    # 回到 #1（套件完全相同）：舊的 App 照樣能跑
+    publish_copy(app, same=True)
+    third = validate(client)
+    job = claim(remote, old)
+    assert job is not None
+    assert job["runId"] == third["id"]
+
 
 def test_idle_workers_prepare_the_current_set(app: FastAPI, client: Client, remote: Client) -> None:
     token = register(client, "py-box")
@@ -217,6 +226,9 @@ def test_idle_workers_prepare_the_current_set(app: FastAPI, client: Client, remo
     )
     assert status.status_code == 204, status.text
     assert services(app).packages.is_ready("py-box", 1)
+    devices = client.get("/devices").text
+    state = devices.split('data-package-state="ready">')[1].split("</span>")[0]
+    assert state == '<a href="/python-packages#pkg-devices">Python 套件：已準備好</a>'
 
     # 發布新版：再叫一次
     number = publish_copy(app)

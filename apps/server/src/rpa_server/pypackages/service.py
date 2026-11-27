@@ -409,6 +409,7 @@ class PackageService:
         self._downloading: set[str] = set()
         self._fetch_locks: dict[str, threading.Lock] = {}
         self._tops: dict[tuple[str, str], set[str]] = {}
+        self._same_as_first: dict[int, bool] = {}
         self._closing = threading.Event()
         self._defaults_data: tuple[list[Requirement], str, dict[str, object]] | None = None
         self.on_published: Callable[[int], None] = lambda number: None
@@ -480,6 +481,20 @@ class PackageService:
                     "package_revision_not_found", t("pypackages.error_revision", number=number)
                 )
             return _revision(row)
+
+    def same_as_first(self, number: int) -> bool:
+        """這一版的套件和 #1（內附的運行環境）完全相同，例如回到 #1：舊的 App 也能執行。
+        發布的版本不會改變，結果可以一直沿用。"""
+        if number == 1:
+            return True
+        found = self._same_as_first.get(number)
+        if found is None:
+            try:
+                found = self.revision(number).lock_hash == self.revision(1).lock_hash
+            except ServiceError:
+                found = False
+            self._same_as_first[number] = found
+        return found
 
     def compare(self, before: int, after: int) -> dict[str, list[list[str]]] | None:
         """兩個發布的版本的差異（含依賴）；有一版找不到時是 None。"""

@@ -2528,5 +2528,6 @@
   "run.missing_module": "目前的 Python 套件沒有「{module}」模組，建議加入的套件是 {package}。",
   "run.missing_module_add": "到 Python 套件頁加入",
   "run.missing_module_ask": "請系統管理員在「Python 套件」頁加入它，發布後重新執行。",
-  "scene.packages_changed": "發布的 v{revision} 驗證通過時用套件 #{validated}，目前是套件 #{number}。照樣可以執行；點開看套件的差異。"
+  "scene.packages_changed": "發布的 v{revision} 驗證通過時用套件 #{validated}，目前是套件 #{number}。照樣可以執行；點開看套件的差異。",
+  "workers.packages": "Python 套件：{state}"
 }

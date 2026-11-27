@@ -181,7 +181,7 @@ Worker：內附運行環境（直譯器＋預設套件）＋ 缺的 wheel ─▶
           <ul class="points">
             <li><strong>不用完整的安裝包。</strong>程式都在程式碼層（rpa_server、rpa_worker、rpa_runner），用更新檔（ADR 0018）升級；內附的運行環境不變，環境代號不變；uv 由伺服器自己下載。</li>
             <li><strong>預設行為不變。</strong>#1 和內附的運行環境相同；升級後不改套件的話，執行結果一樣，Worker 也不用下載。</li>
-            <li><strong>舊的程式碼層。</strong>裝置回報新的能力 <code>pythonPackages</code>；目前的套件版本不是 #1 時，運行環境模式的任務只交給有這個能力的裝置（裝置跟著伺服器更新，一般很快就有）。</li>
+            <li><strong>舊的程式碼層。</strong>裝置回報新的能力 <code>pythonPackages</code>；目前的套件版本不是 #1 時，運行環境模式的任務只交給有這個能力的裝置（裝置跟著伺服器更新，一般很快就有）；和 #1 完全相同的版本（例如回到 #1）舊的 App 也能跑。</li>
             <li><strong>不受影響。</strong>錄製端（沒有運行環境）；相容模式的 Python 節點（照舊用 App 內附的 Python）。</li>
             <li><strong>倉庫的 <code>runtimes/python/</code>。</strong>照舊是新安裝的預設與 CI 建置內附運行環境的來源。之後內附的預設套件改版時，管理頁提示「App 內附的預設套件有新版本」，由管理員決定要不要套用，不自動改。</li>
             <li><strong>之後。</strong>換 Python 的次版本（運行環境 2）時每個主版本各一份清單。ADR 0020 的模型套件選用層（D4）之後可以用同一套機制（第二份清單、只派給選了它的 Worker），那時再設計。</li>
@@ -218,6 +218,23 @@ Worker：內附運行環境（直譯器＋預設套件）＋ 缺的 wheel ─▶
             <tr><td>D9</td><td>場景的編輯者能不能看到套件、申請加入</td><td><span class="badge">暫不做</span> 使用者 2026-11-27 04:00 America/Los_Angeles（PST，UTC−08:00）決定。這一版只有系統管理員看得到、加得了套件，需求在平台外溝通；之後要做時再提出。</td><td>原本的建議：第一期就做唯讀的套件清單與申請，由系統管理員處理。</td></tr>
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <section class="panel" id="implementation">
+      <div class="panel-header"><h2>第一期的實作</h2></div>
+      <div class="panel-body prose">
+        <p>2026-11-27 America/Los_Angeles（PST，UTC−08:00）在 PR #42 完成第一期（D1～D8 照建議，D9 不做）。和上面的設計不同或還沒做的地方：</p>
+        <ul>
+          <li><strong>程式在哪裡。</strong>伺服器 <code>rpa_server.pypackages</code>（<code>service</code> 草稿、檢查、發布與 wheel 庫；<code>resolve</code> 與 <code>uvtool</code> 用 uv 解析；<code>locks</code> 讀鎖定檔、選 wheel、差異；<code>sources</code> 來源、測速與續傳下載；<code>finder</code> 查詢與掃描場景；<code>routes</code> 管理頁的 API）；組套件環境在 <code>rpa_runner.pypackages</code>（Worker 與伺服器的檢查共用）；Worker 的下載與預先準備在 <code>rpa_worker.remote</code>。</li>
+          <li><strong>稽核。</strong>沿用 ADR 0025 對每個寫入請求的稽核（帳號、方法與路徑、結果），不另外記請求內容；誰在什麼時候加了哪個套件、移除的原因記在套件版本的清單與說明。</li>
+          <li><strong>驗證時的套件版本（D6）。</strong>記在這台伺服器的驗證執行（<code>runs.python_packages</code>）；運行報告與場景頁拿最近一次通過的驗證比。領域資料夾的驗證紀錄（<code>verifications/…</code>）還沒記，跨伺服器的比較（用鎖定檔的雜湊）和第二期的匯出、匯入一起做。</li>
+          <li><strong>檢查只下載有裝置的平台。</strong>伺服器自己的平台與已登記的 Worker 的平台；其他平台的 wheel 等那個平台的 Worker 第一次要時，伺服器才從來源下載。</li>
+          <li><strong>裝置的準備狀態。</strong>已準備好、準備中、準備失敗（原因）、還在舊的版本、還沒回報（舊的 App 或還沒上線）；Worker 只回報狀態，沒有下載的百分比。</li>
+          <li><strong>舊的 App。</strong>除了 #1，和 #1 的鎖定檔雜湊相同的版本（例如回到 #1）也交給沒有 <code>pythonPackages</code> 能力的 App。</li>
+          <li><strong>還沒做。</strong>「App 內附的預設套件有新版本」的提示（<a href="#compatibility">相容與升級</a>的「之後」）。</li>
+          <li><strong>驗證。</strong>自動測試不連網（假的套件來源、本機的 uv）；CI 的 RPA Python 運行環境工作用真的運行環境（含 Windows）組一個套件環境並執行 Python 節點。在雲端環境用真的 PyPI 走過一次管理頁：查詢 PIL、加入 python-pptx、檢查（解析、四個平台的 wheel、下載、雜湊與冷卻期，約 6 秒）、發布 #2、回到 #1、測速（國內鏡像在那個環境連不上，只測到 PyPI）。人工驗收照<a href="#phases">分期與驗證</a>。</li>
+        </ul>
       </div>
     </section>
 

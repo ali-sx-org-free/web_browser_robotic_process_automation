@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:f53412bf4dd86043">
+<meta name="translation-source" content="sha256:08e727156dd40fa0">
 <title>ADR 0027 · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -182,7 +182,7 @@ Worker: bundled runtime (interpreter + default packages) + missing wheels ─▶
           <ul class="points">
             <li><strong>No full installer.</strong> All code is in the code layer (rpa_server, rpa_worker, rpa_runner) and upgrades with the update file (ADR 0018); the bundled runtime and the runtime IDs don't change; the server downloads uv itself.</li>
             <li><strong>Default behavior unchanged.</strong> #1 equals the bundled runtime; without package changes after upgrading, runs give the same results and Workers download nothing.</li>
-            <li><strong>Older code layers.</strong> Devices report a new capability <code>pythonPackages</code>; when the current package version isn't #1, runtime-mode tasks go only to devices with it (devices follow the server's version, so they usually have it soon).</li>
+            <li><strong>Older code layers.</strong> Devices report a new capability <code>pythonPackages</code>; when the current package version isn't #1, runtime-mode tasks go only to devices with it (devices follow the server's version, so they usually have it soon); versions identical to #1 (such as going back to #1) still run on old apps.</li>
             <li><strong>Not affected.</strong> The recorder (it has no runtime); compatibility-mode Python nodes (they still use the App's own Python).</li>
             <li><strong>The repository's <code>runtimes/python/</code>.</strong> Still the defaults for new installations and the source CI builds the bundled runtime from. When the bundled defaults change later, the page says "The App's default packages have new versions" and the administrator decides whether to apply them; nothing changes automatically.</li>
             <li><strong>Later.</strong> A new Python minor version (runtime 2) gets its own list per major version. ADR 0020's optional layer for model packages (D4) can use the same mechanism later (a second list dispatched only to Workers that chose it), designed then.</li>
@@ -219,6 +219,23 @@ Worker: bundled runtime (interpreter + default packages) + missing wheels ─▶
             <tr><td>D9</td><td>Can scenario editors see packages and request new ones</td><td><span class="badge">Not now</span> Decided by the user on 2026-11-27 04:00 America/Los_Angeles (PST, UTC−08:00). In this version only system administrators see and add packages, and requests happen outside the platform; it can be raised again later.</td><td>The original recommendation: a read-only package list and requests in phase 1, handled by system administrators.</td></tr>
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <section class="panel" id="implementation">
+      <div class="panel-header"><h2>Phase 1 as implemented</h2></div>
+      <div class="panel-body prose">
+        <p>Phase 1 was completed in PR #42 on 2026-11-27 America/Los_Angeles (PST, UTC−08:00) (D1–D8 as recommended, D9 not done). Where it differs from the design above or is not done yet:</p>
+        <ul>
+          <li><strong>Where the code is.</strong> Server: <code>rpa_server.pypackages</code> (<code>service</code> drafts, checks, publishing and the wheel store; <code>resolve</code> and <code>uvtool</code> resolve with uv; <code>locks</code> reads lock files, picks wheels and computes differences; <code>sources</code> sources, speed tests and resumable downloads; <code>finder</code> lookups and scanning scenarios; <code>routes</code> the admin page's API). Building a package environment is in <code>rpa_runner.pypackages</code> (shared by Workers and the server's check); Worker downloads and preparing ahead are in <code>rpa_worker.remote</code>.</li>
+          <li><strong>Audit.</strong> It relies on ADR 0025's audit of every write request (account, method and path, result) and does not record request bodies; who added which package when, and reasons for removals, are kept in the package version's list and note.</li>
+          <li><strong>Package version at validation (D6).</strong> Recorded on this server's validation runs (<code>runs.python_packages</code>); run reports and scenario pages compare with the latest passing validation. The domain folder's verification records (<code>verifications/…</code>) don't record it yet; comparing across servers (by lock file hash) comes with phase 2's export and import.</li>
+          <li><strong>The check downloads only platforms with devices.</strong> The server's own platform and those of registered Workers; wheels for other platforms are downloaded from the source when a Worker of that platform first asks for them.</li>
+          <li><strong>Device readiness.</strong> Ready, preparing, preparation failed (with the reason), still on an older version, not reported yet (an old app or not online yet); Workers report only the state, not a download percentage.</li>
+          <li><strong>Old apps.</strong> Besides #1, versions whose lock file hash matches #1 (such as going back to #1) also go to apps without the <code>pythonPackages</code> capability.</li>
+          <li><strong>Not done yet.</strong> The "the app's bundled default packages have a new version" notice (the "later" item under <a href="#compatibility">Compatibility and upgrading</a>).</li>
+          <li><strong>Verification.</strong> Automated tests don't use the network (a fake package source, the local uv); the CI RPA Python runtime job builds a package environment with the real runtime (Windows included) and runs a Python node in it. The admin page was walked through once against the real PyPI in a cloud environment: look up PIL, add python-pptx, check (resolution, wheels for four platforms, downloads, hashes and cooldown, about 6 seconds), publish #2, go back to #1, speed test (the mainland China mirrors were unreachable from there, so only PyPI was measured). Manual acceptance follows <a href="#phases">Phases and verification</a>.</li>
+        </ul>
       </div>
     </section>
 

@@ -2528,5 +2528,6 @@
   "run.missing_module": "目前的 Python 包没有「{module}」模块，建议加入的包是 {package}。",
   "run.missing_module_add": "到 Python 包页加入",
   "run.missing_module_ask": "请系统管理员在「Python 包」页加入它，发布后重新运行。",
-  "scene.packages_changed": "发布的 v{revision} 验证通过时用包 #{validated}，目前是包 #{number}。照样可以运行；点开看包的差异。"
+  "scene.packages_changed": "发布的 v{revision} 验证通过时用包 #{validated}，目前是包 #{number}。照样可以运行；点开看包的差异。",
+  "workers.packages": "Python 包：{state}"
 }

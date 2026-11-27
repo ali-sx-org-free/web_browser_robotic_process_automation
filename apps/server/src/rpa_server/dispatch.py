@@ -665,10 +665,13 @@ class WorkerHub:
                 session.commit()
 
     def _packages_ok(self, run: Run, capabilities: "_Capabilities") -> bool:
-        """套件版本（ADR 0027）：#1 之外的版本要看得懂套件清單的 App；#1 和內附的運行環境相同，
-        舊的 App 也能執行。"""
+        """套件版本（ADR 0027）：#1 之外的版本要看得懂套件清單的 App；#1（以及回到 #1 的版本）
+        和內附的運行環境相同，舊的 App 也能執行。"""
         number = run.python_packages
-        return number is None or number == 1 or PYTHON_PACKAGES in capabilities.capabilities
+        if number is None or PYTHON_PACKAGES in capabilities.capabilities:
+            return True
+        packages = self.queue.packages
+        return number == 1 or (packages is not None and packages.same_as_first(number))
 
     def _package_hint(
         self, worker_id: str, capabilities: "_Capabilities"

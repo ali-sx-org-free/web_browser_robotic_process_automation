@@ -182,7 +182,7 @@ Worker：内附运行环境（解释器＋默认包）＋ 缺的 wheel ─▶ �
           <ul class="points">
             <li><strong>不用完整的安装包。</strong>程序都在代码层（rpa_server、rpa_worker、rpa_runner），用更新档（ADR 0018）升级；内附的运行环境不变，环境代号不变；uv 由服务器自己下载。</li>
             <li><strong>默认行为不变。</strong>#1 和内附的运行环境相同；升级后不改包的话，运行结果一样，Worker 也不用下载。</li>
-            <li><strong>旧的代码层。</strong>设备回报新的能力 <code>pythonPackages</code>；目前的包版本不是 #1 时，运行环境模式的任务只交给有这个能力的设备（设备跟着服务器更新，一般很快就有）。</li>
+            <li><strong>旧的代码层。</strong>设备回报新的能力 <code>pythonPackages</code>；目前的包版本不是 #1 时，运行环境模式的任务只交给有这个能力的设备（设备跟着服务器更新，一般很快就有）；和 #1 完全相同的版本（例如回到 #1）旧的 App 也能跑。</li>
             <li><strong>不受影响。</strong>录制端（没有运行环境）；兼容模式的 Python 节点（照旧用 App 内附的 Python）。</li>
             <li><strong>仓库的 <code>runtimes/python/</code>。</strong>照旧是新安装的默认与 CI 建置内附运行环境的来源。之后内附的默认包改版时，管理页提示「App 内附的默认包有新版本」，由管理员决定要不要应用，不自动改。</li>
             <li><strong>之后。</strong>换 Python 的次版本（运行环境 2）时每个主版本各一份清单。ADR 0020 的模型包选用层（D4）之后可以用同一套机制（第二份清单、只派给选了它的 Worker），那时再设计。</li>
@@ -219,6 +219,23 @@ Worker：内附运行环境（解释器＋默认包）＋ 缺的 wheel ─▶ �
             <tr><td>D9</td><td>场景的编辑者能不能看到包、申请加入</td><td><span class="badge">暂不做</span> 用户 2026-11-27 04:00 America/Los_Angeles（PST，UTC−08:00）决定。这一版只有系统管理员看得到、加得了包，需求在平台外沟通；之后要做时再提出。</td><td>原本的建议：第一期就做唯读的包清单与申请，由系统管理员处理。</td></tr>
           </tbody>
         </table>
+      </div>
+    </section>
+
+    <section class="panel" id="implementation">
+      <div class="panel-header"><h2>第一期的实现</h2></div>
+      <div class="panel-body prose">
+        <p>2026-11-27 America/Los_Angeles（PST，UTC−08:00）在 PR #42 完成第一期（D1～D8 照建议，D9 不做）。和上面的设计不同或还没做的地方：</p>
+        <ul>
+          <li><strong>程序在哪里。</strong>服务器 <code>rpa_server.pypackages</code>（<code>service</code> 草稿、检查、发布与 wheel 库；<code>resolve</code> 与 <code>uvtool</code> 用 uv 解析；<code>locks</code> 读锁定档、选 wheel、差异；<code>sources</code> 来源、测速与续传下载；<code>finder</code> 查询与扫描场景；<code>routes</code> 管理页的 API）；组包环境在 <code>rpa_runner.pypackages</code>（Worker 与服务器的检查共用）；Worker 的下载与预先准备在 <code>rpa_worker.remote</code>。</li>
+          <li><strong>审核。</strong>沿用 ADR 0025 对每个写入请求的审核（账号、方法与路径、结果），不另外记请求内容；谁在什么时候加了哪个包、移除的原因记在包版本的清单与说明。</li>
+          <li><strong>验证时的包版本（D6）。</strong>记在这台服务器的验证运行（<code>runs.python_packages</code>）；运行报告与场景页拿最近一次通过的验证比。领域文件夹的验证记录（<code>verifications/…</code>）还没记，跨服务器的比较（用锁定档的哈希）和第二期的导出、导入一起做。</li>
+          <li><strong>检查只下载有设备的平台。</strong>服务器自己的平台与已登记的 Worker 的平台；其他平台的 wheel 等那个平台的 Worker 第一次要时，服务器才从来源下载。</li>
+          <li><strong>设备的准备状态。</strong>已准备好、准备中、准备失败（原因）、还在旧的版本、还没回报（旧的 App 或还没上线）；Worker 只回报状态，没有下载的百分比。</li>
+          <li><strong>旧的 App。</strong>除了 #1，和 #1 的锁定档哈希相同的版本（例如回到 #1）也交给没有 <code>pythonPackages</code> 能力的 App。</li>
+          <li><strong>还没做。</strong>「App 内附的默认包有新版本」的提示（<a href="#compatibility">兼容与升级</a>的「之后」）。</li>
+          <li><strong>验证。</strong>自动测试不连网（假的包来源、本机的 uv）；CI 的 RPA Python 运行环境工作用真的运行环境（含 Windows）组一个包环境并运行 Python 节点。在云端环境用真的 PyPI 走过一次管理页：查询 PIL、加入 python-pptx、检查（解析、四个平台的 wheel、下载、哈希与冷却期，约 6 秒）、发布 #2、回到 #1、测速（国内镜像在那个环境连不上，只测到 PyPI）。人工验收照<a href="#phases">分期与验证</a>。</li>
+        </ul>
       </div>
     </section>
 
