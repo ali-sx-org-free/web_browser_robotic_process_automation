@@ -21,7 +21,7 @@
         <dt>主責／審閱／接收方</dt><dd>Claude 準備版本差異與本紀錄、開版本 PR；使用者合併 PR、在自己的電腦推標籤（Claude 的雲端環境推不了標籤）、驗收草稿、按「發布」。本任務不代表線上環境已升級。</dd>
         <dt>修改檔案／整合者</dt><dd>九個套件的 <code>pyproject.toml</code>、<code>uv.lock</code>（只有工作區套件的版本）；本紀錄、任務索引、<a href="20261127-release-0-10-2.html">v0.10.2</a> 與 <a href="20261126-gitsync-sql.html">gitsync-sql</a> 任務紀錄。Claude 整合。</dd>
         <dt>狀態</dt><dd>待審閱：等使用者合併版本 PR、推標籤。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-g6e2z3</code>（雲端工作階段指定的分支名稱；從 origin/main@<span class="mono">c75c557</span> 開始，對遠端的舊分支是快轉）；PR 見追加紀錄。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-g6e2z3</code>（雲端工作階段指定的分支名稱；從 origin/main@<span class="mono">c75c557</span> 開始，對遠端的舊分支是快轉）；PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/40">#40</a>。</dd>
         <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Linux 雲端容器，Python 3.13.18、uv 0.11.32，<code>uv sync --locked</code>（Playwright 1.65.2）。跨平台安裝包由 GitHub Actions 建置。</dd>
       </dl></div>
@@ -55,10 +55,10 @@
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
         <tbody>
           <tr><td>c75c557＋本分支差異；Linux、Python 3.13.18</td><td><code>python3 tools/release_version.py check v0.11.0</code></td><td>版本一致：v0.11.0</td><td>無</td></tr>
-          <tr><td>同上</td><td>見追加紀錄</td><td>見追加紀錄</td><td>見追加紀錄</td></tr>
+          <tr><td>同上</td><td><code>pytest -q tests/ci/test_release_version.py tests/docs tests/i18n</code>、<code>ruff check</code>、<code>git diff --check</code></td><td>429 passed；通過</td><td>程式碼沒有改動，main 上同樣內容的 CI（<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45966968689">運行 45966968689</a>）已通過</td></tr><tr><td><span class="mono">9874e3f</span>；GitHub Actions 手動觸發</td><td>伺服器分發包（<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45973997810">運行 45973997810</a>）</td><td>通過；x64「和 v0.10.0 不同（<span class="mono">0a5321eaf37eb169</span> → <span class="mono">7f0262edff709b01</span>）」、arm64「不同（<span class="mono">5ff31b790149ddb4</span> → <span class="mono">9e1a2aed5cbb45b2</span>）」：已經裝好的伺服器要用完整的安裝包更新；Rocky 8 安裝、沿用設定、冒煙、更新檔升級與自動退回通過</td><td>Worker、錄製端的環境代號由發布流程比較</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：見追加紀錄；發布流程：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI（PR #40，head <span class="mono">9874e3f</span>）：靜態檢查、測試（Python 3.12、3.13）通過；Worker 測試（Windows）、桌面端建置、RPA Python 運行環境、一鍵安裝腳本依輸入指紋沿用之前的通過（版本號不算改動）；macOS 暫停。發布流程：未執行；人工驗收：未執行；審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -66,7 +66,7 @@
     </section>
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
-      <div class="panel-body"><ul class="points"><li>2026-11-27 01:27 America/Los_Angeles（PST，UTC−08:00），Claude：從 origin/main@c75c557 開始，bump 0.11.0，寫本紀錄，回填相關紀錄。</li></ul></div>
+      <div class="panel-body"><ul class="points"><li>2026-11-27 01:27 America/Los_Angeles（PST，UTC−08:00），Claude：從 origin/main@c75c557 開始，bump 0.11.0，寫本紀錄，回填相關紀錄。</li><li>2026-11-27 01:37 America/Los_Angeles（PST，UTC−08:00），Claude：推送 <span class="mono">9874e3f</span>，開 PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/40">#40</a>；手動觸發的伺服器分發包確認環境代號和 v0.10.0 不同（要完整安裝），PR 的 CI 通過（見驗證）。等使用者合併、推標籤。</li></ul></div>
     </section>
   </div>
 </main>
