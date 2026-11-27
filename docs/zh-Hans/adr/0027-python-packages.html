@@ -1,0 +1,243 @@
+<!doctype html>
+<!-- 本页由 tools/i18n.py 从 docs/adr/0027-python-packages.html 自动生成，请勿直接修改；请修改繁体中文原文后执行 uv run python tools/i18n.py sync。 -->
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0027 · 浏览器 RPA 工程文档</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0027" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0027：RPA Python 运行环境的包由服务器管理，Worker 从服务器取得</h1>
+      <p>系统管理员在管理后台添加、移除 Python 节点能用的包；服务器解析出一份锁定档、从最快的来源下载一次 wheel，Worker 从区网取得缺的文件，用 App 内附的解释器组成同一个包环境。不用重装任何 App。</p>
+    </div>
+    <span class="badge amber">提议中</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-11-27</dd>
+        <dt>状态</dt><dd>提议中。用户 2026-11-27 03:02 America/Los_Angeles（PST，UTC−08:00）在 Claude 项目对话提出：「<span translate="no">伺服器管理後臺支持管理固定套件、支持新增、移除功能……在新增固定套件時候要考慮下載速度，默認的固定套件就是現狀這些。先設計方案，方案沒問題后再動手開發。</span>」本页是设计；<a href="#open-questions">待确认事项</a>由用户决定后才开始写程序。</dd>
+        <dt>影响范围</dt><dd>rpa-server（数据表与迁移、包管理页、解析与下载、Worker API）、rpa-worker（回报、下载、预先准备）、rpa-runner（包环境的组装与运行，<code>pyruntime.py</code>）、文档。rpa-core 的 DSL、录制端、兼容模式的 Python 节点不改；内附的运行环境压缩档与 <code>runtimes/python/</code> 不改。</dd>
+        <dt>相关</dt><dd><a href="0020-python-nodes.html">ADR 0020</a>（Python 节点与 RPA Python 运行环境）、<a href="0018-layered-updates.html">ADR 0018</a>（分层更新、环境代号）、<a href="0012-remote-workers.html">ADR 0012</a>（远程 Worker）、<a href="0025-multi-user.html">ADR 0025</a>（系统管理员、审核记录）。</dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>RPA Python 运行环境 1.0.0 是 Python 3.13.14 加上 9 个包（连依赖 18 个：openpyxl、xlsxwriter、xlrd、pandas、python-dateutil、python-docx、pypdf、charset-normalizer、requests）。清单在仓库的 <code>runtimes/python/requirements.in</code>，CI 为四个平台建置、自我测试，附在 Worker App 与 Linux 服务器分发包；Worker 上拿掉了 pip、放了 <code>EXTERNALLY-MANAGED</code>，不能另外安装。</p>
+          <p>要多一个包，现在只能改仓库、升运行环境的次版本、发新版。压缩档的文件名算进环境代号（ADR 0018），所以每台 Worker 与服务器都要用完整的安装包重装。</p>
+          <p>下载速度是实际的问题。公司的网络连 PyPI 慢：2026-10-20 服务器的 <code>uv sync</code> 太慢而加了镜像测速（<code>scripts/setup-linux.sh</code>）；2026-10-21 浏览器下载实测官方来源约 0.8～1.7 MiB/s、国内镜像约 5 MiB/s。现在的默认包每个平台的 wheel 合计约 30～36 MB（2026-11-27 查 PyPI：Windows 约 30、macOS 约 34、Linux x64 约 36 MB）；加 scikit-learn 每个平台多约 23～45 MB（numpy 已经有）。</p>
+        </div>
+      </section>
+      <section class="panel" id="goals">
+        <div class="panel-header"><h2>目标</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>系统管理员在管理后台添加、移除包，发布后所有 Worker 自动用新的包。</li>
+            <li>默认就是现在的 9 个包，和内附的运行环境完全相同；不改的话行为与下载量都不变。</li>
+            <li>添加包快：互联网只下载一次、从最快的来源、只下载多出来的；Worker 从区网取得、在空闲时预先准备。</li>
+            <li>每台 Worker 的包与版本相同，可以回到之前的版本。</li>
+            <li>Worker 不连互联网；不用重装任何 App 或分发包。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="decision">
+      <div class="panel-header"><h2>决策</h2></div>
+      <div class="panel-body prose">
+<pre class="source">管理后台（系统管理员）
+  添加／移除 ─▶ 草稿 ─▶ 检查：uv 解析出 pylock.toml → 每个平台都有 wheel → 从最快的来源下载 → 在服务器 import
+                                                                                  │
+                                                                         发布：包 #N（之后不再改变）
+                                                                                  │
+服务器的 wheel 库（依 sha256 存放，各版本共用）◀── 每个文件只从外网下载一次 ──────────┘
+  │  Worker API：这一版、这个平台的清单与文件（区网、可续传、同时最多 4 台）
+  ▼
+Worker：内附运行环境（解释器＋默认包）＋ 缺的 wheel ─▶ 包环境 venv（#N）─▶ Python 节点</pre>
+          <ul>
+            <li><strong>解释器与包分开。</strong>App 与分发包内附的 <code>RPA-Python-1.0.0-&lt;平台&gt;.tar.gz</code> 照旧，第一次照旧解压到缓存；但它只当成解释器与默认包的来源。Python 节点实际在「包环境」运行：用内附的解释器创建的标准 venv（不含 pip、不看内附的 site-packages），里面只有这个包版本列的包。脚本用 <code>sys.executable</code> 开的子进程也在同一个环境。</li>
+            <li><strong>包清单在服务器。</strong>每个运行环境主版本一份（目前只有 1），存在服务器的数据库，所有 Worker 共用（<a href="#open-questions">D1</a>）。第一次启动时用程序内附的默认清单与锁定档创建「包 #1」，和内附的运行环境相同。添加、移除先改草稿，检查通过后发布成 #2、#3……；发布的版本不再改变。</li>
+            <li><strong>解析在服务器做一次。</strong><code>uv pip compile --universal --only-binary :all: --python-version 3.13</code> 输出 PEP 751 的 <code>pylock.toml</code>：每个包的确切版本，每个 wheel 的网址、大小、上架时间与 sha256。以上一版的锁定档为起点，添加包时其他包的版本不变（2026-11-27 用 uv 0.11.32 实测：加 tabulate 后 numpy、pandas、xlsxwriter 维持锁定的版本）；按「检查更新」才升级。uv 由服务器第一次用到时从包来源下载固定的版本（版本与 sha256 写在程序里，<a href="#open-questions">D7</a>）。</li>
+            <li><strong>只收 wheel，每个平台都要有。</strong>不收源代码包：服务器与 Worker 都不编译、不运行安装程序。服务器依四个平台（windows-x86_64、macos-arm64、linux-x86_64 glibc 2.28、linux-aarch64）的条件逐一确认每个包有能用的 wheel；缺的时候说明缺哪个平台，可以改成「只在这些平台安装」（加上平台条件，例如 pywin32 只在 Windows），用到它的场景要写 <code>platforms</code>，校验时提醒（2026-11-27 实测：没有条件的 pywin32 会被锁进所有平台，所以要另外确认）。</li>
+            <li><strong>文件集中在服务器。</strong>wheel 依 sha256 存在服务器数据目录的 <code>python-packages/</code>，各版本共用；Worker 只向服务器取（Worker API），不连互联网。</li>
+            <li><strong>派工与报告。</strong>任务带着包版本；同样能运行的 Worker 中，已经准备好这一版的优先。还没准备好的在运行的「运行环境」阶段准备（照 ADR 0020 不算进总期限）。<code>result.json</code> 的 <code>python</code> 多 <code>packages</code>：包版本、锁定档哈希、沿用或这次准备、下载了多少。</li>
+          </ul>
+        </div>
+    </section>
+
+    <section class="panel" id="download-speed">
+      <div class="panel-header"><h2>下载速度</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>做法</th><th>效果</th></tr></thead>
+          <tbody>
+            <tr><td>互联网只下载一次</td><td>服务器是唯一对外下载的地方，每个文件（以 sha256 认）只下载一次，所有 Worker 从区网取。50 台 Worker 加一个 40 MB 的包，外网只下载「40 MB × 用到的平台数」，不是 2 GB。</td></tr>
+            <tr><td>选最快的来源</td><td>包来源默认「自动」：PyPI、清华、中科大、阿里云、腾讯云、华为云（和 <code>scripts/setup-linux.sh</code> 相同）各下载同一个已知 sha256 的文件，内容相符而且最快的优先，其他依速度排成备援；结果显示在页面，24 小时内沿用。也可以指定其中一个、公司的 Nexus／Artifactory／devpi 网址，或设置 HTTP 代理与公司的根凭证（<a href="#open-questions">D3</a>）。</td></tr>
+            <tr><td>换来源不影响内容</td><td>锁定档记的是 sha256。用镜像时把文件网址的 <code>files.pythonhosted.org</code> 换成镜像的同一路径；下载后核对，不符就丢掉、换下一个来源，最后才用原始网址。</td></tr>
+            <tr><td>只下载用得到的平台</td><td>服务器只下载「有设备的平台」（服务器自己与已配对 Worker 回报的平台）；新平台的设备第一次上线时才补。</td></tr>
+            <tr><td>只下载多出来的</td><td>添加一个包只下载它和新的依赖，版本没变的不重新下载。内附运行环境里同名同版的包，Worker 直接从内附的运行环境拷贝：默认的 #1 在 Worker 上不用下载任何文件；加 scikit-learn 时 numpy 不用再下载。</td></tr>
+            <tr><td>并行与续传</td><td>服务器同时下载 4 个文件（可调）；大档中断后用 HTTP Range 从断点续传；页面显示每个文件的进度、速度与来源。Worker 从服务器下载也能续传。</td></tr>
+            <tr><td>发布后预先准备</td><td>闲置的 Worker 收到新版本后在背景下载、组装，不占任务时间；服务器限制同时下载的 Worker 数（默认 4 台，可调），不会一起塞满服务器的网络。</td></tr>
+            <tr><td>大包先提醒</td><td>加入前显示每个平台要下载的大小，以及用目前来源的速度估计的时间；单一包超过 100 MB（例如 PyTorch）要再确认，并说明每台 Worker 的磁盘会多用多少。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="admin-page">
+        <div class="panel-header"><h2>管理后台「Python 包」</h2></div>
+        <div class="panel-body prose">
+          <p>新的页面放在管理后台，只有系统管理员看得到（和用户、审核记录相同）。</p>
+          <ul>
+            <li><strong>目前的包。</strong>直接加的包：名称、要求的版本、实际版本、平台、每个平台的大小、授权、简介、谁在什么时候加的；默认的标「默认」。依赖收合显示，标出被谁需要。</li>
+            <li><strong>添加。</strong>输入名称，可以加版本条件（例如 <code>tabulate</code>、<code>pandas&gt;=3,&lt;4</code>），可以限定平台。先显示最新版本、简介、授权、首页、上架时间、四个平台有没有 wheel 与大小，再加进草稿。</li>
+            <li><strong>移除。</strong>从草稿拿掉；不再被需要的依赖一起拿掉，还被其他包需要的留着并说明。用 <code>ast</code> 扫描所有领域运行环境模式的场景（已发布与草稿）的 .py 档，列出 import 了这个包的场景；有已发布的场景用到时默认不能移除，写了原因才能强制移除（<a href="#open-questions">D2</a>）。</li>
+            <li><strong>检查。</strong>解析、平台确认、下载（显示进度）、在服务器自己的平台组装并 import 每个直接加的包；列出和目前版本的差异（添加、移除、改版本，含依赖）与每个平台的下载量。</li>
+            <li><strong>发布、历史、回到某一版。</strong>回到某一版是用那一版的锁定档发布一个新版本，文件都还在，所以很快。</li>
+            <li><strong>设备的准备状态。</strong>每台 Worker 对目前版本是「已准备」「下载中 N%」「失败（原因）」或「App 太旧」；集群管理的设备页也显示。</li>
+            <li><strong>设置。</strong>包来源与测速结果、代理、冷却天数（<a href="#open-questions">D4</a>）、Worker 同时下载的台数、保留几个版本。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="worker">
+        <div class="panel-header"><h2>Worker 上的包环境</h2></div>
+        <div class="panel-body prose">
+<pre class="source">&lt;缓存&gt;/python/
+  1.0.0-windows-x86_64/   内附的运行环境
+  wheels/&lt;sha256&gt;.whl     下载的 wheel
+  envs/&lt;哈希&gt;-&lt;平台&gt;/     包环境（venv）</pre>
+          <p>内附的运行环境照旧解压（解释器＋默认包）；<code>wheels/</code> 是从服务器下载的 wheel，依内容命名、各版本共用；<code>envs/</code> 是每个包版本的标准 venv，以锁定档的哈希命名，<code>.ready</code> 记同一个哈希。</p>
+          <ol>
+            <li>向服务器取这一版、这个平台的清单：包、版本、wheel 文件名、sha256、大小。</li>
+            <li>内附运行环境里同名同版的包，依 dist-info 的 RECORD 拷贝（同一个磁盘用硬链接）；其他从服务器下载到 <code>wheels/</code> 并核对 sha256。</li>
+            <li>用内附的解释器以标准函数库的 venv 创建环境（不装 pip、不含内附的 site-packages）。Windows 用 python-build-standalone 附的 <code>venvlauncher.exe</code>（2026-11-27 确认 3.13.14 的 Windows 版有）。</li>
+            <li>用标准函数库解开 wheel（照 wheel 格式放 purelib、platlib、data，不产生命令行程序），用 compileall 编译，再用新的环境 import 每个直接加的包。</li>
+            <li>写 <code>.ready</code>、改名成正式的文件夹。同一版同时只有一个进程在做（沿用现有的锁文件）；失败就丢掉，下次重来。</li>
+          </ol>
+          <p>保留最近 3 版与正在用的环境，其他删除；<code>wheels/</code> 里不再被保留的版本用到的文件一起删。Runner 用 <code>envs/…</code> 的解释器运行，参数照旧（<code>-E -s -B -X utf8</code>）。</p>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="versions">
+        <div class="panel-header"><h2>版本与一致性</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>一个包版本是一份锁定档。</strong>确切版本加每个文件的 sha256；所有 Worker 组出来的包与版本相同，只有平台的二进位档不同。画面显示服务器内递增的「包 #N」，跨服务器比较用锁定档的哈希。</li>
+            <li><strong>场景文件不变。</strong>照旧写 <code>runtime: "1"</code>，不写包版本。</li>
+            <li><strong>一次运行用同一版。</strong>组合运行与批量在开始时固定包版本，中途发布新版也不会混用。</li>
+            <li><strong>验证时与运行时。</strong>验证记录记下包版本；运行时的版本不同时，运行报告与场景页显示「验证时 #3、这次 #5」和差异（例如 pandas 3.1.0 → 3.2.0），不挡运行、不自动重新验证（<a href="#open-questions">D6</a>）。</li>
+            <li><strong>回退。</strong>历史版本不删。服务器保留最近 10 个版本用到的文件（可调），Worker 保留最近 3 版的环境，回到前一版几乎不用下载。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="security">
+        <div class="panel-header"><h2>安全</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>谁能改。</strong>只有系统管理员；添加、移除、发布、回退、改来源都记进审核记录（ADR 0025）。</li>
+            <li><strong>只收 wheel、锁定 sha256。</strong>安装时不运行包的程序；Worker 只接受清单里哈希相符的文件。</li>
+            <li><strong>冷却期。</strong>默认不选上架未满 7 天的版本（uv 的 <code>--exclude-newer</code>），降低装到刚被入侵的版本的机会；明确指定较新的版本时要再确认。</li>
+            <li><strong>哈希另外核对。</strong>从镜像解析时，新加入的文件另外向 pypi.org 的 JSON API 核对 sha256（都是小请求）；连不上时标示「只用某来源的哈希」。</li>
+            <li><strong>加入前看清楚。</strong>显示项目首页、授权、第一次与这一版的上架时间；wheel 里有 <code>.pth</code>（Python 启动时会运行的文件）的要特别确认。</li>
+            <li><strong>不能加。</strong>pip、setuptools、uv 之类的安装工具；playwright（运行环境模式不开浏览器，ADR 0020）；和 rpa_script、rpa_* 或标准函数库同名的模块。</li>
+            <li><strong>仍然不是沙箱。</strong>Python 节点本来就以 Worker 那位用户的身分运行任意程序（ADR 0020）。包和场景的脚本是同一个信任等级，经同一个已认证的 Worker API 发送。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="compatibility">
+        <div class="panel-header"><h2>兼容与升级</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>不用完整的安装包。</strong>程序都在代码层（rpa_server、rpa_worker、rpa_runner），用更新档（ADR 0018）升级；内附的运行环境不变，环境代号不变；uv 由服务器自己下载。</li>
+            <li><strong>默认行为不变。</strong>#1 和内附的运行环境相同；升级后不改包的话，运行结果一样，Worker 也不用下载。</li>
+            <li><strong>旧的代码层。</strong>设备回报新的能力 <code>pythonPackages</code>；目前的包版本不是 #1 时，运行环境模式的任务只交给有这个能力的设备（设备跟着服务器更新，一般很快就有）。</li>
+            <li><strong>不受影响。</strong>录制端（没有运行环境）；兼容模式的 Python 节点（照旧用 App 内附的 Python）。</li>
+            <li><strong>仓库的 <code>runtimes/python/</code>。</strong>照旧是新安装的默认与 CI 建置内附运行环境的来源。之后内附的默认包改版时，管理页提示「App 内附的默认包有新版本」，由管理员决定要不要应用，不自动改。</li>
+            <li><strong>之后。</strong>换 Python 的次版本（运行环境 2）时每个主版本各一份清单。ADR 0020 的模型包选用层（D4）之后可以用同一套机制（第二份清单、只派给选了它的 Worker），那时再设计。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="phases">
+        <div class="panel-header"><h2>分期与验证</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>第一期。</strong>数据表与迁移、uv 的取得、解析与平台确认、来源测速与下载器、wheel 库、管理页（添加、移除与受影响的场景、差异、检查、发布、历史、回退、设置）、审核；Worker API 的清单与文件、Worker 的组装与预先准备、派工与报告；文档（本 ADR、管理 Portal、Python 节点、远程 Worker，三种语言）。</li>
+            <li><strong>第二期。</strong>脱机环境上传 wheel、导出与导入锁定档（测试与正式服务器用同一份）、发布前先在指定的设备试用、查询 OSV 的已知漏洞（<a href="#open-questions">D8</a>）。</li>
+            <li><strong>自动测试。</strong>假的包来源用本机的 wheel 文件夹，不连网；解析、平台确认、换来源与续传、组装、清理、派工、权限与审核。CI 的 RPA Python 运行环境工作在各平台实际创建包环境并运行 Python 节点。</li>
+            <li><strong>人工验收。</strong>在管理页添加 tabulate 与 scikit-learn、移除一个、回到前一版；Windows Worker 与 Linux 服务器各运行一次用到它们的 Python 节点；看下载量与时间。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="open-questions">
+      <div class="panel-header"><h2>待确认事项</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>#</th><th>问题</th><th>建议</th><th>其他选择</th></tr></thead>
+          <tbody>
+            <tr><td>D1</td><td>包清单管到哪一层</td><td>每台服务器（每个运行环境主版本）一份，所有 Worker 一致。</td><td>每个领域各一份：同一台 Worker 要好几套环境，组合场景跨领域时会冲突。</td></tr>
+            <tr><td>D2</td><td>默认的包能不能移除</td><td>可以；有已发布的场景用到时要写原因才能强制移除。</td><td>默认的固定，只能移除之后加的。</td></tr>
+            <tr><td>D3</td><td>包来源</td><td>默认自动测速（PyPI 与五个国内镜像），可以改成指定或公司的镜像。</td><td>公司只允许核准的来源时改成指定，不用自动。</td></tr>
+            <tr><td>D4</td><td>冷却期</td><td>7 天。</td><td>0（不限）或其他天数。</td></tr>
+            <tr><td>D5</td><td>发布前要通过哪些检查</td><td>服务器的检查（解析、平台、下载、在服务器的平台 import）一定要通过；其他平台在 Worker 准备时检查，失败时页面提醒并可以马上回退。</td><td>每个平台都要有在线的设备检查通过才能发布；没有那个平台的设备时发布不了。</td></tr>
+            <tr><td>D6</td><td>验证后包版本变了</td><td>只显示差异，不挡运行，不自动重新验证。</td><td>包改变后，受影响的场景要重新验证才能运行。</td></tr>
+            <tr><td>D7</td><td>服务器的 uv 从哪里来</td><td>第一次用到时从包来源下载固定的版本，不用重装服务器。</td><td>放进服务器分发包：下次要用完整的分发包装一次。</td></tr>
+            <tr><td>D8</td><td>分期</td><td>先做第一期；第二期之后再排。</td><td>两期一起做。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="stack">
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>后果</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>加包从「改仓库、发新版、每台用完整的安装包重装」变成「管理页加一笔、发布，Worker 自动从区网取得」。小包几秒；scikit-learn 这样每个平台几十 MB 的，也只从外网下载一次。</li>
+            <li>服务器多一个 uv（约 20 MB）与 wheel 库（每个用到的平台约 30～40 MB 起，依包增加）。Worker 每个包环境解开后数百 MB，保留 3 版。</li>
+            <li>每台服务器的包可以不同。场景搬到另一台服务器时，要确认那台有需要的包（第二期的导出与导入解决）。</li>
+            <li>管理员可以装 PyPI 上任何有 wheel 的包；安全靠只有系统管理员能改、审核、冷却期与哈希，不是技术上的隔离。</li>
+            <li>Python 节点的运行从「内附的解释器」改成「包环境的 venv」，CI 的运行环境测试多一条路径；Windows 的 venv 要在第一期实际验证。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>没有选的方案</h2></div>
+        <div class="panel-body">
+          <table class="table">
+            <thead><tr><th>方案</th><th>没有选的原因</th></tr></thead>
+            <tbody>
+              <tr><td>照旧在仓库改清单、CI 建置、发新版</td><td>每次都要完整的安装包，也不能在管理后台改；这次就是要改掉这点。</td></tr>
+              <tr><td>服务器每个版本重新打包整个运行环境（解释器＋包）再分发</td><td>每次都下载整包 60～75 MB；服务器只能测自己的平台；解释器跟着重复下载。</td></tr>
+              <tr><td>Worker 直接从 PyPI 或镜像安装</td><td>每台都要连得到外网、各自下载，时间与结果因台而异；Worker 上要有 pip 或 uv。</td></tr>
+              <tr><td>在内附的 site-packages 上叠一个文件夹（加进 <code>sys.path</code>）</td><td>拿不掉默认包，同一个包会有两个版本并存；脚本开的子进程看不到叠上去的包。</td></tr>
+              <tr><td>每个场景自己声明、锁定包</td><td>每台 Worker 要很多套环境，正是 ADR 0020 要避免的版本与依赖问题。</td></tr>
+              <tr><td>收源代码包（sdist）</td><td>要在服务器或 Worker 上编译、运行安装程序，每个平台要有编译器；不安全也不能重现。</td></tr>
+              <tr><td>Conda</td><td>另一套生态系、下载量更大，和现在的 python-build-standalone 不兼容。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

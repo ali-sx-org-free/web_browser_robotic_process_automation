@@ -227,6 +227,11 @@ window.DOCS_NAV = {
           "id": "adr-0026",
           "href": "adr/0026-credential-grants.html",
           "name": {"zh-Hant": "0026 登入角色的使用權限", "zh-Hans": "0026 登录角色的使用权限", "en": "0026 Credential grants"}
+        },
+        {
+          "id": "adr-0027",
+          "href": "adr/0027-python-packages.html",
+          "name": {"zh-Hant": "0027 Python 套件管理", "zh-Hans": "0027 Python 包管理", "en": "0027 Python packages"}
         }
       ]
     },

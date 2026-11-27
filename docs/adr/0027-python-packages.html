@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ADR 0027 · 瀏覽器 RPA 工程文檔</title>
+<link rel="stylesheet" href="../design-system/assets/portal.css">
+<link rel="stylesheet" href="../assets/docs.css">
+<script defer src="../assets/nav.js"></script>
+<script defer src="../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0027" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0027：RPA Python 運行環境的套件由伺服器管理，Worker 從伺服器取得</h1>
+      <p>系統管理員在管理後台新增、移除 Python 節點能用的套件；伺服器解析出一份鎖定檔、從最快的來源下載一次 wheel，Worker 從區網取得缺的檔案，用 App 內附的直譯器組成同一個套件環境。不用重裝任何 App。</p>
+    </div>
+    <span class="badge amber">提議中</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>日期</dt><dd class="mono">2026-11-27</dd>
+        <dt>狀態</dt><dd>提議中。使用者 2026-11-27 03:02 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話提出：「<span translate="no">伺服器管理後臺支持管理固定套件、支持新增、移除功能……在新增固定套件時候要考慮下載速度，默認的固定套件就是現狀這些。先設計方案，方案沒問題后再動手開發。</span>」本頁是設計；<a href="#open-questions">待確認事項</a>由使用者決定後才開始寫程式。</dd>
+        <dt>影響範圍</dt><dd>rpa-server（資料表與遷移、套件管理頁、解析與下載、Worker API）、rpa-worker（回報、下載、預先準備）、rpa-runner（套件環境的組裝與執行，<code>pyruntime.py</code>）、文件。rpa-core 的 DSL、錄製端、相容模式的 Python 節點不改；內附的運行環境壓縮檔與 <code>runtimes/python/</code> 不改。</dd>
+        <dt>相關</dt><dd><a href="0020-python-nodes.html">ADR 0020</a>（Python 節點與 RPA Python 運行環境）、<a href="0018-layered-updates.html">ADR 0018</a>（分層更新、環境代號）、<a href="0012-remote-workers.html">ADR 0012</a>（遠端 Worker）、<a href="0025-multi-user.html">ADR 0025</a>（系統管理員、稽核紀錄）。</dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>背景</h2></div>
+        <div class="panel-body prose">
+          <p>RPA Python 運行環境 1.0.0 是 Python 3.13.14 加上 9 個套件（連依賴 18 個：openpyxl、xlsxwriter、xlrd、pandas、python-dateutil、python-docx、pypdf、charset-normalizer、requests）。清單在倉庫的 <code>runtimes/python/requirements.in</code>，CI 為四個平台建置、自我測試，附在 Worker App 與 Linux 伺服器分發包；Worker 上拿掉了 pip、放了 <code>EXTERNALLY-MANAGED</code>，不能另外安裝。</p>
+          <p>要多一個套件，現在只能改倉庫、升運行環境的次版本、發新版。壓縮檔的檔名算進環境代號（ADR 0018），所以每台 Worker 與伺服器都要用完整的安裝包重裝。</p>
+          <p>下載速度是實際的問題。公司的網路連 PyPI 慢：2026-10-20 伺服器的 <code>uv sync</code> 太慢而加了鏡像測速（<code>scripts/setup-linux.sh</code>）；2026-10-21 瀏覽器下載實測官方來源約 0.8～1.7 MiB/s、國內鏡像約 5 MiB/s。現在的預設套件每個平台的 wheel 合計約 30～36 MB（2026-11-27 查 PyPI：Windows 約 30、macOS 約 34、Linux x64 約 36 MB）；加 scikit-learn 每個平台多約 23～45 MB（numpy 已經有）。</p>
+        </div>
+      </section>
+      <section class="panel" id="goals">
+        <div class="panel-header"><h2>目標</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>系統管理員在管理後台新增、移除套件，發布後所有 Worker 自動用新的套件。</li>
+            <li>預設就是現在的 9 個套件，和內附的運行環境完全相同；不改的話行為與下載量都不變。</li>
+            <li>新增套件快：網際網路只下載一次、從最快的來源、只下載多出來的；Worker 從區網取得、在空閒時預先準備。</li>
+            <li>每台 Worker 的套件與版本相同，可以回到之前的版本。</li>
+            <li>Worker 不連網際網路；不用重裝任何 App 或分發包。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="decision">
+      <div class="panel-header"><h2>決策</h2></div>
+      <div class="panel-body prose">
+<pre class="source">管理後台（系統管理員）
+  新增／移除 ─▶ 草稿 ─▶ 檢查：uv 解析出 pylock.toml → 每個平台都有 wheel → 從最快的來源下載 → 在伺服器 import
+                                                                                  │
+                                                                         發布：套件 #N（之後不再改變）
+                                                                                  │
+伺服器的 wheel 庫（依 sha256 存放，各版本共用）◀── 每個檔案只從外網下載一次 ──────────┘
+  │  Worker API：這一版、這個平台的清單與檔案（區網、可續傳、同時最多 4 台）
+  ▼
+Worker：內附運行環境（直譯器＋預設套件）＋ 缺的 wheel ─▶ 套件環境 venv（#N）─▶ Python 節點</pre>
+          <ul>
+            <li><strong>直譯器與套件分開。</strong>App 與分發包內附的 <code>RPA-Python-1.0.0-&lt;平台&gt;.tar.gz</code> 照舊，第一次照舊解壓到快取；但它只當成直譯器與預設套件的來源。Python 節點實際在「套件環境」執行：用內附的直譯器建立的標準 venv（不含 pip、不看內附的 site-packages），裡面只有這個套件版本列的套件。腳本用 <code>sys.executable</code> 開的子程序也在同一個環境。</li>
+            <li><strong>套件清單在伺服器。</strong>每個運行環境主版本一份（目前只有 1），存在伺服器的資料庫，所有 Worker 共用（<a href="#open-questions">D1</a>）。第一次啟動時用程式內附的預設清單與鎖定檔建立「套件 #1」，和內附的運行環境相同。新增、移除先改草稿，檢查通過後發布成 #2、#3……；發布的版本不再改變。</li>
+            <li><strong>解析在伺服器做一次。</strong><code>uv pip compile --universal --only-binary :all: --python-version 3.13</code> 輸出 PEP 751 的 <code>pylock.toml</code>：每個套件的確切版本，每個 wheel 的網址、大小、上架時間與 sha256。以上一版的鎖定檔為起點，新增套件時其他套件的版本不變（2026-11-27 用 uv 0.11.32 實測：加 tabulate 後 numpy、pandas、xlsxwriter 維持鎖定的版本）；按「檢查更新」才升級。uv 由伺服器第一次用到時從套件來源下載固定的版本（版本與 sha256 寫在程式裡，<a href="#open-questions">D7</a>）。</li>
+            <li><strong>只收 wheel，每個平台都要有。</strong>不收原始碼包：伺服器與 Worker 都不編譯、不執行安裝程式。伺服器依四個平台（windows-x86_64、macos-arm64、linux-x86_64 glibc 2.28、linux-aarch64）的條件逐一確認每個套件有能用的 wheel；缺的時候說明缺哪個平台，可以改成「只在這些平台安裝」（加上平台條件，例如 pywin32 只在 Windows），用到它的場景要寫 <code>platforms</code>，校驗時提醒（2026-11-27 實測：沒有條件的 pywin32 會被鎖進所有平台，所以要另外確認）。</li>
+            <li><strong>檔案集中在伺服器。</strong>wheel 依 sha256 存在伺服器資料目錄的 <code>python-packages/</code>，各版本共用；Worker 只向伺服器取（Worker API），不連網際網路。</li>
+            <li><strong>派工與報告。</strong>任務帶著套件版本；同樣能執行的 Worker 中，已經準備好這一版的優先。還沒準備好的在執行的「運行環境」階段準備（照 ADR 0020 不算進總期限）。<code>result.json</code> 的 <code>python</code> 多 <code>packages</code>：套件版本、鎖定檔雜湊、沿用或這次準備、下載了多少。</li>
+          </ul>
+        </div>
+    </section>
+
+    <section class="panel" id="download-speed">
+      <div class="panel-header"><h2>下載速度</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>做法</th><th>效果</th></tr></thead>
+          <tbody>
+            <tr><td>網際網路只下載一次</td><td>伺服器是唯一對外下載的地方，每個檔案（以 sha256 認）只下載一次，所有 Worker 從區網取。50 台 Worker 加一個 40 MB 的套件，外網只下載「40 MB × 用到的平台數」，不是 2 GB。</td></tr>
+            <tr><td>選最快的來源</td><td>套件來源預設「自動」：PyPI、清華、中科大、阿里雲、騰訊雲、華為雲（和 <code>scripts/setup-linux.sh</code> 相同）各下載同一個已知 sha256 的檔案，內容相符而且最快的優先，其他依速度排成備援；結果顯示在頁面，24 小時內沿用。也可以指定其中一個、公司的 Nexus／Artifactory／devpi 網址，或設定 HTTP 代理與公司的根憑證（<a href="#open-questions">D3</a>）。</td></tr>
+            <tr><td>換來源不影響內容</td><td>鎖定檔記的是 sha256。用鏡像時把檔案網址的 <code>files.pythonhosted.org</code> 換成鏡像的同一路徑；下載後核對，不符就丟掉、換下一個來源，最後才用原始網址。</td></tr>
+            <tr><td>只下載用得到的平台</td><td>伺服器只下載「有裝置的平台」（伺服器自己與已配對 Worker 回報的平台）；新平台的裝置第一次上線時才補。</td></tr>
+            <tr><td>只下載多出來的</td><td>新增一個套件只下載它和新的依賴，版本沒變的不重新下載。內附運行環境裡同名同版的套件，Worker 直接從內附的運行環境複製：預設的 #1 在 Worker 上不用下載任何檔案；加 scikit-learn 時 numpy 不用再下載。</td></tr>
+            <tr><td>並行與續傳</td><td>伺服器同時下載 4 個檔案（可調）；大檔中斷後用 HTTP Range 從斷點續傳；頁面顯示每個檔案的進度、速度與來源。Worker 從伺服器下載也能續傳。</td></tr>
+            <tr><td>發布後預先準備</td><td>閒置的 Worker 收到新版本後在背景下載、組裝，不佔任務時間；伺服器限制同時下載的 Worker 數（預設 4 台，可調），不會一起塞滿伺服器的網路。</td></tr>
+            <tr><td>大套件先提醒</td><td>加入前顯示每個平台要下載的大小，以及用目前來源的速度估計的時間；單一套件超過 100 MB（例如 PyTorch）要再確認，並說明每台 Worker 的磁碟會多用多少。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="admin-page">
+        <div class="panel-header"><h2>管理後台「Python 套件」</h2></div>
+        <div class="panel-body prose">
+          <p>新的頁面放在管理後台，只有系統管理員看得到（和使用者、稽核紀錄相同）。</p>
+          <ul>
+            <li><strong>目前的套件。</strong>直接加的套件：名稱、要求的版本、實際版本、平台、每個平台的大小、授權、簡介、誰在什麼時候加的；預設的標「預設」。依賴收合顯示，標出被誰需要。</li>
+            <li><strong>新增。</strong>輸入名稱，可以加版本條件（例如 <code>tabulate</code>、<code>pandas&gt;=3,&lt;4</code>），可以限定平台。先顯示最新版本、簡介、授權、首頁、上架時間、四個平台有沒有 wheel 與大小，再加進草稿。</li>
+            <li><strong>移除。</strong>從草稿拿掉；不再被需要的依賴一起拿掉，還被其他套件需要的留著並說明。用 <code>ast</code> 掃描所有領域運行環境模式的場景（已發布與草稿）的 .py 檔，列出 import 了這個套件的場景；有已發布的場景用到時預設不能移除，寫了原因才能強制移除（<a href="#open-questions">D2</a>）。</li>
+            <li><strong>檢查。</strong>解析、平台確認、下載（顯示進度）、在伺服器自己的平台組裝並 import 每個直接加的套件；列出和目前版本的差異（新增、移除、改版本，含依賴）與每個平台的下載量。</li>
+            <li><strong>發布、歷史、回到某一版。</strong>回到某一版是用那一版的鎖定檔發布一個新版本，檔案都還在，所以很快。</li>
+            <li><strong>裝置的準備狀態。</strong>每台 Worker 對目前版本是「已準備」「下載中 N%」「失敗（原因）」或「App 太舊」；叢集管理的裝置頁也顯示。</li>
+            <li><strong>設定。</strong>套件來源與測速結果、代理、冷卻天數（<a href="#open-questions">D4</a>）、Worker 同時下載的台數、保留幾個版本。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="worker">
+        <div class="panel-header"><h2>Worker 上的套件環境</h2></div>
+        <div class="panel-body prose">
+<pre class="source">&lt;快取&gt;/python/
+  1.0.0-windows-x86_64/   內附的運行環境
+  wheels/&lt;sha256&gt;.whl     下載的 wheel
+  envs/&lt;雜湊&gt;-&lt;平台&gt;/     套件環境（venv）</pre>
+          <p>內附的運行環境照舊解壓（直譯器＋預設套件）；<code>wheels/</code> 是從伺服器下載的 wheel，依內容命名、各版本共用；<code>envs/</code> 是每個套件版本的標準 venv，以鎖定檔的雜湊命名，<code>.ready</code> 記同一個雜湊。</p>
+          <ol>
+            <li>向伺服器取這一版、這個平台的清單：套件、版本、wheel 檔名、sha256、大小。</li>
+            <li>內附運行環境裡同名同版的套件，依 dist-info 的 RECORD 複製（同一個磁碟用硬連結）；其他從伺服器下載到 <code>wheels/</code> 並核對 sha256。</li>
+            <li>用內附的直譯器以標準函式庫的 venv 建立環境（不裝 pip、不含內附的 site-packages）。Windows 用 python-build-standalone 附的 <code>venvlauncher.exe</code>（2026-11-27 確認 3.13.14 的 Windows 版有）。</li>
+            <li>用標準函式庫解開 wheel（照 wheel 格式放 purelib、platlib、data，不產生命令列程式），用 compileall 編譯，再用新的環境 import 每個直接加的套件。</li>
+            <li>寫 <code>.ready</code>、改名成正式的資料夾。同一版同時只有一個程序在做（沿用現有的鎖檔）；失敗就丟掉，下次重來。</li>
+          </ol>
+          <p>保留最近 3 版與正在用的環境，其他刪除；<code>wheels/</code> 裡不再被保留的版本用到的檔案一起刪。Runner 用 <code>envs/…</code> 的直譯器執行，參數照舊（<code>-E -s -B -X utf8</code>）。</p>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="versions">
+        <div class="panel-header"><h2>版本與一致性</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>一個套件版本是一份鎖定檔。</strong>確切版本加每個檔案的 sha256；所有 Worker 組出來的套件與版本相同，只有平台的二進位檔不同。畫面顯示伺服器內遞增的「套件 #N」，跨伺服器比較用鎖定檔的雜湊。</li>
+            <li><strong>場景檔不變。</strong>照舊寫 <code>runtime: "1"</code>，不寫套件版本。</li>
+            <li><strong>一次運行用同一版。</strong>組合運行與批次在開始時固定套件版本，中途發布新版也不會混用。</li>
+            <li><strong>驗證時與執行時。</strong>驗證紀錄記下套件版本；執行時的版本不同時，運行報告與場景頁顯示「驗證時 #3、這次 #5」和差異（例如 pandas 3.1.0 → 3.2.0），不擋執行、不自動重新驗證（<a href="#open-questions">D6</a>）。</li>
+            <li><strong>回退。</strong>歷史版本不刪。伺服器保留最近 10 個版本用到的檔案（可調），Worker 保留最近 3 版的環境，回到前一版幾乎不用下載。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="security">
+        <div class="panel-header"><h2>安全</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>誰能改。</strong>只有系統管理員；新增、移除、發布、回退、改來源都記進稽核紀錄（ADR 0025）。</li>
+            <li><strong>只收 wheel、鎖定 sha256。</strong>安裝時不執行套件的程式；Worker 只接受清單裡雜湊相符的檔案。</li>
+            <li><strong>冷卻期。</strong>預設不選上架未滿 7 天的版本（uv 的 <code>--exclude-newer</code>），降低裝到剛被入侵的版本的機會；明確指定較新的版本時要再確認。</li>
+            <li><strong>雜湊另外核對。</strong>從鏡像解析時，新加入的檔案另外向 pypi.org 的 JSON API 核對 sha256（都是小請求）；連不上時標示「只用某來源的雜湊」。</li>
+            <li><strong>加入前看清楚。</strong>顯示專案首頁、授權、第一次與這一版的上架時間；wheel 裡有 <code>.pth</code>（Python 啟動時會執行的檔案）的要特別確認。</li>
+            <li><strong>不能加。</strong>pip、setuptools、uv 之類的安裝工具；playwright（運行環境模式不開瀏覽器，ADR 0020）；和 rpa_script、rpa_* 或標準函式庫同名的模組。</li>
+            <li><strong>仍然不是沙箱。</strong>Python 節點本來就以 Worker 那位使用者的身分執行任意程式（ADR 0020）。套件和場景的腳本是同一個信任等級，經同一個已認證的 Worker API 傳送。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="compatibility">
+        <div class="panel-header"><h2>相容與升級</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>不用完整的安裝包。</strong>程式都在程式碼層（rpa_server、rpa_worker、rpa_runner），用更新檔（ADR 0018）升級；內附的運行環境不變，環境代號不變；uv 由伺服器自己下載。</li>
+            <li><strong>預設行為不變。</strong>#1 和內附的運行環境相同；升級後不改套件的話，執行結果一樣，Worker 也不用下載。</li>
+            <li><strong>舊的程式碼層。</strong>裝置回報新的能力 <code>pythonPackages</code>；目前的套件版本不是 #1 時，運行環境模式的任務只交給有這個能力的裝置（裝置跟著伺服器更新，一般很快就有）。</li>
+            <li><strong>不受影響。</strong>錄製端（沒有運行環境）；相容模式的 Python 節點（照舊用 App 內附的 Python）。</li>
+            <li><strong>倉庫的 <code>runtimes/python/</code>。</strong>照舊是新安裝的預設與 CI 建置內附運行環境的來源。之後內附的預設套件改版時，管理頁提示「App 內附的預設套件有新版本」，由管理員決定要不要套用，不自動改。</li>
+            <li><strong>之後。</strong>換 Python 的次版本（運行環境 2）時每個主版本各一份清單。ADR 0020 的模型套件選用層（D4）之後可以用同一套機制（第二份清單、只派給選了它的 Worker），那時再設計。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="phases">
+        <div class="panel-header"><h2>分期與驗證</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>第一期。</strong>資料表與遷移、uv 的取得、解析與平台確認、來源測速與下載器、wheel 庫、管理頁（新增、移除與受影響的場景、差異、檢查、發布、歷史、回退、設定）、稽核；Worker API 的清單與檔案、Worker 的組裝與預先準備、派工與報告；文件（本 ADR、管理 Portal、Python 節點、遠端 Worker，三種語言）。</li>
+            <li><strong>第二期。</strong>離線環境上傳 wheel、匯出與匯入鎖定檔（測試與正式伺服器用同一份）、發布前先在指定的裝置試用、查詢 OSV 的已知漏洞（<a href="#open-questions">D8</a>）。</li>
+            <li><strong>自動測試。</strong>假的套件來源用本機的 wheel 資料夾，不連網；解析、平台確認、換來源與續傳、組裝、清理、派工、權限與稽核。CI 的 RPA Python 運行環境工作在各平台實際建立套件環境並執行 Python 節點。</li>
+            <li><strong>人工驗收。</strong>在管理頁新增 tabulate 與 scikit-learn、移除一個、回到前一版；Windows Worker 與 Linux 伺服器各執行一次用到它們的 Python 節點；看下載量與時間。</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="open-questions">
+      <div class="panel-header"><h2>待確認事項</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>#</th><th>問題</th><th>建議</th><th>其他選擇</th></tr></thead>
+          <tbody>
+            <tr><td>D1</td><td>套件清單管到哪一層</td><td>每台伺服器（每個運行環境主版本）一份，所有 Worker 一致。</td><td>每個領域各一份：同一台 Worker 要好幾套環境，組合場景跨領域時會衝突。</td></tr>
+            <tr><td>D2</td><td>預設的套件能不能移除</td><td>可以；有已發布的場景用到時要寫原因才能強制移除。</td><td>預設的固定，只能移除之後加的。</td></tr>
+            <tr><td>D3</td><td>套件來源</td><td>預設自動測速（PyPI 與五個國內鏡像），可以改成指定或公司的鏡像。</td><td>公司只允許核准的來源時改成指定，不用自動。</td></tr>
+            <tr><td>D4</td><td>冷卻期</td><td>7 天。</td><td>0（不限）或其他天數。</td></tr>
+            <tr><td>D5</td><td>發布前要通過哪些檢查</td><td>伺服器的檢查（解析、平台、下載、在伺服器的平台 import）一定要通過；其他平台在 Worker 準備時檢查，失敗時頁面提醒並可以馬上回退。</td><td>每個平台都要有線上的裝置檢查通過才能發布；沒有那個平台的裝置時發布不了。</td></tr>
+            <tr><td>D6</td><td>驗證後套件版本變了</td><td>只顯示差異，不擋執行，不自動重新驗證。</td><td>套件改變後，受影響的場景要重新驗證才能執行。</td></tr>
+            <tr><td>D7</td><td>伺服器的 uv 從哪裡來</td><td>第一次用到時從套件來源下載固定的版本，不用重裝伺服器。</td><td>放進伺服器分發包：下次要用完整的分發包裝一次。</td></tr>
+            <tr><td>D8</td><td>分期</td><td>先做第一期；第二期之後再排。</td><td>兩期一起做。</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="stack">
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>後果</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>加套件從「改倉庫、發新版、每台用完整的安裝包重裝」變成「管理頁加一筆、發布，Worker 自動從區網取得」。小套件幾秒；scikit-learn 這樣每個平台幾十 MB 的，也只從外網下載一次。</li>
+            <li>伺服器多一個 uv（約 20 MB）與 wheel 庫（每個用到的平台約 30～40 MB 起，依套件增加）。Worker 每個套件環境解開後數百 MB，保留 3 版。</li>
+            <li>每台伺服器的套件可以不同。場景搬到另一台伺服器時，要確認那台有需要的套件（第二期的匯出與匯入解決）。</li>
+            <li>管理員可以裝 PyPI 上任何有 wheel 的套件；安全靠只有系統管理員能改、稽核、冷卻期與雜湊，不是技術上的隔離。</li>
+            <li>Python 節點的執行從「內附的直譯器」改成「套件環境的 venv」，CI 的運行環境測試多一條路徑；Windows 的 venv 要在第一期實際驗證。</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>沒有選的方案</h2></div>
+        <div class="panel-body">
+          <table class="table">
+            <thead><tr><th>方案</th><th>沒有選的原因</th></tr></thead>
+            <tbody>
+              <tr><td>照舊在倉庫改清單、CI 建置、發新版</td><td>每次都要完整的安裝包，也不能在管理後台改；這次就是要改掉這點。</td></tr>
+              <tr><td>伺服器每個版本重新打包整個運行環境（直譯器＋套件）再分發</td><td>每次都下載整包 60～75 MB；伺服器只能測自己的平台；直譯器跟著重複下載。</td></tr>
+              <tr><td>Worker 直接從 PyPI 或鏡像安裝</td><td>每台都要連得到外網、各自下載，時間與結果因台而異；Worker 上要有 pip 或 uv。</td></tr>
+              <tr><td>在內附的 site-packages 上疊一個資料夾（加進 <code>sys.path</code>）</td><td>拿不掉預設套件，同一個套件會有兩個版本並存；腳本開的子程序看不到疊上去的套件。</td></tr>
+              <tr><td>每個場景自己宣告、鎖定套件</td><td>每台 Worker 要很多套環境，正是 ADR 0020 要避免的版本與依賴問題。</td></tr>
+              <tr><td>收原始碼包（sdist）</td><td>要在伺服器或 Worker 上編譯、執行安裝程式，每個平台要有編譯器；不安全也不能重現。</td></tr>
+              <tr><td>Conda</td><td>另一套生態系、下載量更大，和現在的 python-build-standalone 不相容。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

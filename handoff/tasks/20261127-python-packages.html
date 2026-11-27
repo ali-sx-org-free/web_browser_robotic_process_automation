@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>管理後台管理 Python 運行環境的套件 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>管理後台管理 Python 運行環境的套件</h1><p>伺服器管理後台新增、移除 RPA Python 運行環境的固定套件，新增時考慮下載速度；預設就是現在的套件。先設計，使用者確認後才開發。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261127-python-packages；2026-11-27 03:45 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-27 03:02 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話（原文）：「對的，現在要對獨立環境python環境提一個需求，伺服器管理後臺支持管理固定套件、支持新增、移除功能。設計一下方案，在新增固定套件時候要考慮下載速度，默認的固定套件就是現狀這些。先設計方案，方案沒問題后再動手開發。」這一步的驗收：設計寫進倉庫（<a href="../../docs/adr/0027-python-packages.html">ADR 0027，提議中</a>），使用者確認待確認事項 D1～D8。開發的驗收條件見 ADR 0027「分期與驗證」。</dd>
+        <dt>範圍／不包含</dt><dd>這一步只有設計文件：ADR 0027（繁中、英文，簡中由工具產生）、ADR 索引、導航、本頁與任務索引。不包含任何程式；開發等使用者確認後在同一個任務接續。</dd>
+        <dt>主責／審閱／接收方</dt><dd>設計：Claude（Claude 專案對話的雲端 session）。審閱與決定：使用者。接收方：未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd>docs/adr/0027-python-packages.html、docs/en/adr/0027-python-packages.html、docs/zh-Hans/adr/0027-python-packages.html（產生）、docs/adr/index.html 與英文、簡中版、docs/assets/nav.js、handoff/tasks/index.html、本頁。ADR 編號 0027：開工時沒有開著的 PR，最新的是 0026。</dd>
+        <dt>狀態</dt><dd>設計待確認（ADR 0027 提議中）。</dd>
+        <dt>分支／PR／base SHA</dt><dd>claude/project-thread-70yx5u（雲端 session 指定的分支名稱），從 origin/main c6958b1（#41）開。PR 見追加紀錄。</dd>
+        <dt>交接版本／同步狀態</dt><dd>推送到上述分支；SHA 以 PR 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux x86_64、uv 0.11.32；這次連得到 PyPI，<code>uv sync --locked</code> 成功）。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>讀現有實作（<code>packages/rpa_runner/src/rpa_runner/pyruntime.py</code>、<code>tools/build_python_runtime.py</code>、<code>tools/build_desktop.py</code>、<code>tools/build_server.py</code>、<code>runtimes/python/</code>、派工的 <code>runs_on</code>、ADR 0018／0020、<code>scripts/setup-linux.sh</code> 的鏡像測速）；查證（2026-11-27）：預設套件每個平台的 wheel 合計約 30～36 MB、scikit-learn 每個平台多約 23～45 MB（PyPI JSON API）；uv 0.11.32 的 <code>uv pip compile --universal</code> 能輸出含 wheel 網址、大小、上架時間與 sha256 的 pylock.toml，新增套件時保留既有的版本，<code>--exclude-newer</code> 可用；沒有平台條件的 pywin32 會被鎖進所有平台（所以要另外確認每個平台有 wheel）；python-build-standalone 3.13.14 的 Windows 版有 <code>Lib/venv/scripts/nt/venvlauncher.exe</code>（只確認檔案存在，沒有在 Windows 上執行）。寫成 ADR 0027。</li>
+        <li><strong>未完成／阻礙：</strong>等使用者確認 D1～D8；沒有程式。</li>
+        <li><strong>決定：</strong>D1～D8 都是建議、待定，見 <a href="../../docs/adr/0027-python-packages.html#open-questions">ADR 0027 待確認事項</a>。</li>
+        <li><strong>下一個具體動作：</strong>使用者回覆後，把決定寫進 ADR 0027 與 <a href="../decisions.html">決定紀錄</a>，ADR 改成已接受，開始第一期。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。查證用的暫存檔在 session 的 scratchpad，不屬於倉庫。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody><tr><td>c6958b1＋本任務的文件差異／Claude 雲端環境</td><td><code>uv run python tools/i18n.py stamp</code>、<code>sync</code>、<code>check</code>；<code>uv run pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code></td><td>見追加紀錄</td><td>handoff/ 的連結另外人工確認；只有文件，沒有程式測試</td></tr></tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：見 PR；人工驗收：不適用（設計）；審閱：使用者未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-11-27 03:03～03:45 America/Los_Angeles（PST，UTC−08:00），Claude：建立本頁，查證並寫 ADR 0027（提議中）。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
