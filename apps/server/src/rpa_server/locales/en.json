@@ -2272,5 +2272,8 @@
   "pypackages.error_ca_file": "This root certificate file was not found on the server. Enter its full path on the server.",
   "pypackages.error_not_found": "The package source has no package named {name}. Check the name (search on PyPI) or switch to another source.",
   "pypackages.error_unreachable": "Can’t reach the package source. Check the server’s network and proxy settings, or switch to another source.",
-  "pypackages.error_no_wheels": "{name} has no wheels (prebuilt install files), only source code, so it can’t be added."
+  "pypackages.error_no_wheels": "{name} has no wheels (prebuilt install files), only source code, so it can’t be added.",
+  "run.worker_packages_outdated": "The app on Worker “{name}” is too old to use server-managed package set #{number}. Update RPA Worker and run again",
+  "error.packages_busy": "Too many devices are downloading packages at the same time. Try again shortly",
+  "error.package_file_not_found": "The server doesn’t have this package file (it isn’t in any published package set)"
 }

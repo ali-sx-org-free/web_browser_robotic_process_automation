@@ -2272,5 +2272,8 @@
   "pypackages.error_ca_file": "服务器上找不到这个根凭证文件。请填服务器上的完整路径。",
   "pypackages.error_not_found": "包来源找不到 {name}。请确认名称（到 PyPI 搜索），或换一个包来源。",
   "pypackages.error_unreachable": "连不上包来源。请确认服务器的网络、代理设置，或换一个包来源。",
-  "pypackages.error_no_wheels": "{name} 没有 wheel（已经编译好的安装档），只有源代码，不能加入。"
+  "pypackages.error_no_wheels": "{name} 没有 wheel（已经编译好的安装档），只有源代码，不能加入。",
+  "run.worker_packages_outdated": "Worker「{name}」的 App 版本太旧，不能用服务器管理的包 #{number}；请更新 RPA Worker 后重新运行",
+  "error.packages_busy": "同时下载包的设备太多，请稍后再试",
+  "error.package_file_not_found": "服务器没有这个包档（不在任何发布的包版本里）"
 }

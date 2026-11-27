@@ -9,6 +9,9 @@
   不檢查協定版本（:mod:`rpa_server.device_updates`）。
 - ``GET /runs/<執行>/files/<代號>``（M7c）：下載任務用到的上傳檔；只能是派給這台、執行中的
   執行用到的檔案，worker 下載後比對 sha256。
+- ``GET /python-packages/files/<sha256>``（ADR 0027）：套件環境的 wheel，支援 Range（續傳）；
+  同時下載的 worker 超過管理頁的設定時回 503 與 ``Retry-After``。
+  ``POST /python-packages/status``：回報套件環境的準備狀態（管理頁的裝置清單顯示）。
 """
 
 import uuid
@@ -17,8 +20,9 @@ from typing import Annotated, Final
 
 import anyio
 from fastapi import APIRouter, Depends, Header, Request, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.background import BackgroundTask
 
 from rpa_server.device_updates import DeviceUpdates
 from rpa_server.dispatch import WorkerHub
@@ -50,6 +54,16 @@ class FinishBody(_Body):
 class FailBody(_Body):
     kind: str = Field(max_length=40)
     detail: str = Field(default="", max_length=10_000)
+
+
+class PackageStatusBody(_Body):
+    revision: int | None = Field(default=None, ge=1)
+    state: str = Field(max_length=20)
+    error: str = Field(default="", max_length=2000)
+    progress: float | None = Field(default=None, ge=0, le=1)
+
+
+PACKAGE_RETRY_SECONDS: Final = 5
 
 
 def _too_large() -> ServiceError:
@@ -170,6 +184,31 @@ def worker_api_router(hub: WorkerHub, updates: DeviceUpdates) -> APIRouter:
         worker: Annotated[str, Depends(current_worker)], run_id: str, body: FailBody
     ) -> Response:
         hub.fail(worker, run_id, body.kind, body.detail)
+        return Response(status_code=204)
+
+    @router.get("/python-packages/files/{sha256}", response_model=None)
+    def package_file(
+        worker: Annotated[str, Depends(current_worker)], sha256: str
+    ) -> FileResponse | JSONResponse:
+        path = hub.package_file(worker, sha256)
+        if path is None:
+            busy = ServiceError(503, "packages_busy", t("error.packages_busy"))
+            return JSONResponse(
+                busy.to_json(),
+                status_code=503,
+                headers={"Retry-After": str(PACKAGE_RETRY_SECONDS)},
+            )
+        return FileResponse(
+            path,
+            media_type="application/octet-stream",
+            background=BackgroundTask(hub.package_downloaded, worker),
+        )
+
+    @router.post("/python-packages/status", status_code=204)
+    def package_status(
+        worker: Annotated[str, Depends(current_worker)], body: PackageStatusBody
+    ) -> Response:
+        hub.package_status(worker, body.model_dump())
         return Response(status_code=204)
 
     return router

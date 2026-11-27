@@ -411,6 +411,8 @@ class PackageService:
         self._tops: dict[tuple[str, str], set[str]] = {}
         self._closing = threading.Event()
         self._defaults_data: tuple[list[Requirement], str, dict[str, object]] | None = None
+        self.on_published: Callable[[int], None] = lambda number: None
+        """發布了新的版本（叫醒等待中的 worker，讓閒置的先準備）。"""
 
     # ------------------------------------------------------------ 版本
 
@@ -1018,6 +1020,7 @@ class PackageService:
             session.commit()
             revision = _revision(row)
         self.sweep()
+        self.on_published(revision.number or 0)
         return revision
 
     # ------------------------------------------------------------ 給 Worker

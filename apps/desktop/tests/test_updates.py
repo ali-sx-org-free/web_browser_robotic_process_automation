@@ -91,7 +91,14 @@ class FakeClient(WorkerClient):
         return dict(self.reply)
 
     def download(
-        self, path: str, destination: Path, *, limit: int, timeout: float | None = None
+        self,
+        path: str,
+        destination: Path,
+        *,
+        limit: int,
+        timeout: float | None = None,
+        resume: bool = False,
+        progress: Callable[[int], None] | None = None,
     ) -> int:
         assert path == "/update/file"
         assert self.file is not None

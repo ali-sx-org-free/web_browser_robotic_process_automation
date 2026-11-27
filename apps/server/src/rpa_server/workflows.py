@@ -1027,6 +1027,9 @@ class WorkflowService:
                         user_id=principal.user_id if principal is not None else None,
                         batch_id=batch[0] if batch is not None else None,
                         batch_row=batch[1] if batch is not None else None,
+                        python_packages=self.services.pinned_packages(
+                            session, batch_id=batch[0] if batch is not None else None
+                        ),
                         inputs={node: dict(values) for node, values in inputs.items()}
                         if inputs
                         else None,

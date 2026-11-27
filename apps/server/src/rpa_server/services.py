@@ -50,7 +50,8 @@ from rpa_core.i18n import DEFAULT_LOCALE, Locale
 from rpa_core.pack import PackSource, PublishedRef, SceneManifest, parse_timestamp, timestamp
 from rpa_runner.contract import prepare_inputs
 from rpa_runner.files import RESULT, SCREENSHOT
-from rpa_runner.pyruntime import platform_tag
+from rpa_runner.pyruntime import PreparedRuntime, platform_tag
+from rpa_runner.pyruntime import prepare as prepare_runtime
 from rpa_runner.run import new_run_id
 from rpa_server.access import CURRENT, Actor, Principal, current_principal, resolve_actor
 from rpa_server.addresses import PortalAddress
@@ -96,6 +97,9 @@ from rpa_server.models import Workflow as WorkflowRow
 from rpa_server.models import WorkflowRun as WorkflowRunRow
 from rpa_server.packs import COMPOSITES_DOMAIN, UNASSIGNED_DOMAIN, LoadReport, PackStore
 from rpa_server.projects import ProjectService
+from rpa_server.pypackages.finder import SceneSource
+from rpa_server.pypackages.service import RUNTIME as PACKAGES_RUNTIME
+from rpa_server.pypackages.service import PackageService
 from rpa_server.recordings import RecordingService
 from rpa_server.replay import build_replay
 from rpa_server.roles import RoleService
@@ -354,6 +358,11 @@ def run_record(run: Run) -> RunRecord:
     )
 
 
+def _server_runtime() -> PreparedRuntime:
+    """伺服器自己的 RPA Python 運行環境（ADR 0027 的檢查：在這台組成套件環境並 import）。"""
+    return prepare_runtime(PACKAGES_RUNTIME)
+
+
 def _check_base_url(value: str | None) -> str | None:
     if value is None or not value.strip():
         return None
@@ -410,6 +419,8 @@ class Services:
         self.portal_port = portal_port
         """管理頁面聽的埠（rpa serve 填入；測試是 None）：錄製的起始網址不能指向 Portal 自己。"""
         self._scene_cache: dict[tuple[str, int], tuple[str | None, tuple[str, ...]]] = {}
+        self._python_cache: dict[tuple[str, int], dict[str, str] | None] = {}
+        """運行環境模式的場景版本的 .py 檔（ADR 0027 的移除影響與缺的模組；不是的版本是 None）。"""
         self.packs = PackStore(sessions, storage)
         """領域資料夾：伺服器代號、寫入、載入、驗證紀錄、遷移（M11）。"""
         self.recorders = RecorderHub(sessions, locale=locale)
@@ -460,6 +471,14 @@ class Services:
         self.uploads.pinned = self._pinned_uploads
         self.videos = VideoService(sessions, storage)
         """錄影的設定、釘選與保留規則（M12）。"""
+        self.packages = PackageService(
+            sessions,
+            storage.root,
+            scenes=self.python_scenes,
+            devices=self._device_platforms,
+            runtime=_server_runtime,
+        )
+        """RPA Python 運行環境的套件版本（ADR 0027）：管理頁的新增、移除、檢查、發布。"""
         self.queue = RunQueue(
             sessions,
             storage,
@@ -469,11 +488,13 @@ class Services:
             input_folders=tuple(input_folders),
         )
         """執行佇列：本機 worker 的任務來源；遠端 worker 經由 workers 領取（M9a）。"""
+        self.queue.packages = self.packages
         self.queue.on_finished = self.run_finished  # 試驗場序列：一個節點結束就排下一個（M6）
         self.workers = WorkerHub(
             sessions, storage, self.queue, self.roles, locale=locale, local_worker=local_worker
         )
         """遠端 worker 的登記與分派（M9a）。"""
+        self.packages.on_published = lambda number: self.workers.notify()
         self.agents = AgentService(sessions)
         """對外 Agent API 的用戶端、金鑰、限額與稽核（M14）。"""
         self.on_queued: Callable[[], None] = lambda: None
@@ -496,7 +517,9 @@ class Services:
         )
         reports = self.packs.load_all()
         self._scene_cache.clear()
+        self._python_cache.clear()
         self._seed_grants()
+        self.packages.ensure_defaults()  # ADR 0027：第一次啟動時建立套件 #1（內附的預設套件）
         return reports
 
     def _seed_grants(self) -> None:
@@ -513,6 +536,7 @@ class Services:
         self.get_domain(domain_id)
         report = self.packs.load_domain(domain_id)
         self._scene_cache.clear()
+        self._python_cache.clear()
         return report
 
     def session_cookie(self) -> str:
@@ -1034,6 +1058,67 @@ class Services:
             return None
         script = scenario.script
         return script if script is not None and script.uses_runtime else None
+
+    def python_scenes(self) -> list[SceneSource]:
+        """運行環境模式的場景（ADR 0027）：已發布的版本與最新的版本的 Python 檔。
+
+        版本的檔案不會改變，依場景與版本快取（重新載入領域資料夾時清掉）。
+        """
+        with self.sessions() as session:
+            rows = session.execute(
+                select(
+                    Scene.id,
+                    Scene.name,
+                    Scene.domain_id,
+                    Scene.published_number,
+                    Scene.latest_number,
+                ).where(Scene.archived.is_(False), Scene.missing.is_(False))
+            ).all()
+        found: list[SceneSource] = []
+        for scene_id, name, domain_id, published, latest in rows:
+            for number in dict.fromkeys(item for item in (published, latest) if item):
+                files = self._python_files(scene_id, number)
+                if files is not None:
+                    found.append(
+                        SceneSource(scene_id, name, domain_id, number, number == published, files)
+                    )
+        return found
+
+    def _python_files(self, scene_id: str, number: int) -> dict[str, str] | None:
+        key = (scene_id, number)
+        if key in self._python_cache:
+            return self._python_cache[key]
+        files: dict[str, str] | None = None
+        if self._runtime_script(scene_id, number) is not None:
+            try:
+                loaded = self.storage.load(scene_id, number)
+            except OSError:
+                loaded = {}
+            files = {path: text for path, text in loaded.items() if path.endswith(".py")}
+        self._python_cache[key] = files
+        return files
+
+    def _device_platforms(self) -> dict[str, str]:
+        """已登記、沒停用的 worker 的平台（ADR 0027：檢查時只下載有裝置的平台）。"""
+        return {
+            record.id: record.platform
+            for record in self.workers.list_workers()
+            if record.platform and not record.disabled
+        }
+
+    def pinned_packages(
+        self, session: Session, *, batch_id: str | None = None, workflow_run_id: str | None = None
+    ) -> int:
+        """這次執行用的套件版本（ADR 0027）：批次與組合運行用整次開始時的版本，其他用目前的。"""
+        if batch_id is not None:
+            batch = session.get(Batch, batch_id)
+            if batch is not None and batch.python_packages is not None:
+                return batch.python_packages
+        if workflow_run_id is not None:
+            row = session.get(WorkflowRunRow, workflow_run_id)
+            if row is not None and row.python_packages is not None:
+                return row.python_packages
+        return self.packages.current_number()
 
     def run_locations(self) -> list[tuple[str, str]]:
         """執行報告「執行位置」篩選的選項：本機、登記的 worker，以及執行過但已刪除的 worker。
@@ -1690,6 +1775,13 @@ class Services:
                 client_id=client_id,
                 batch_id=batch[0] if batch is not None else None,
                 batch_row=batch[1] if batch is not None else None,
+                python_packages=self.pinned_packages(
+                    session,
+                    batch_id=batch[0] if batch is not None else None,
+                    workflow_run_id=workflow_run_id,
+                )
+                if scenario.script is not None and scenario.script.uses_runtime
+                else None,
             )
             session.add(run)
             if purpose == "validation":

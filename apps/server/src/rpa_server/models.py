@@ -686,7 +686,8 @@ class PythonPackageSet(Base):
     lock: Mapped[str | None] = mapped_column(Text)
     lock_hash: Mapped[str | None] = mapped_column(String(64))
     manifests: Mapped[dict[str, object] | None] = mapped_column(JsonType)
-    """平台代號 → wheel 清單（名稱、版本、檔名、網址、大小、sha256），與套件的資訊（被誰需要、上架時間）。"""
+    """``platforms``：平台代號 → wheel 清單（名稱、版本、檔名、網址、大小、sha256）；
+    ``packages``：套件的資訊（被誰需要、上架時間）。"""
     check: Mapped[dict[str, object] | None] = mapped_column(JsonType)
     """最近一次檢查：步驟、錯誤、提醒、差異、下載量。"""
     note: Mapped[str | None] = mapped_column(Text)

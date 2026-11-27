@@ -2272,5 +2272,8 @@
   "pypackages.error_ca_file": "伺服器上找不到這個根憑證檔案。請填伺服器上的完整路徑。",
   "pypackages.error_not_found": "套件來源找不到 {name}。請確認名稱（到 PyPI 搜尋），或換一個套件來源。",
   "pypackages.error_unreachable": "連不上套件來源。請確認伺服器的網路、代理設定，或換一個套件來源。",
-  "pypackages.error_no_wheels": "{name} 沒有 wheel（已經編譯好的安裝檔），只有原始碼，不能加入。"
+  "pypackages.error_no_wheels": "{name} 沒有 wheel（已經編譯好的安裝檔），只有原始碼，不能加入。",
+  "run.worker_packages_outdated": "Worker「{name}」的 App 版本太舊，不能用伺服器管理的套件 #{number}；請更新 RPA Worker 後重新執行",
+  "error.packages_busy": "同時下載套件的裝置太多，請稍後再試",
+  "error.package_file_not_found": "伺服器沒有這個套件檔（不在任何發布的套件版本裡）"
 }

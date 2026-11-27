@@ -157,6 +157,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             yield
         finally:
             hub.close()
+            services.packages.close()
             services.videos.close()
             services.uploads.close()
             services.recorders.close()
