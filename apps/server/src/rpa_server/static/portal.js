@@ -5,6 +5,7 @@
 // M10.2：裝置頁也登記錄製端（/api/recorders），邀請的用法依裝置種類不同。
 // 三段分工：領域管理的上移、下移；裝置頁替錄製端打開叢集管理、管理後台的選單。
 // M14：管理後台的 API 用戶端（金鑰只顯示一次）；裝置頁的「允許 Agent 調試」「只允許無頭」。
+// ADR 0027：管理後台的 Python 套件（草稿、找套件、檢查與發布、回到某一版、來源與測速）。
 // 共用的外殼、對話框 modal()、提示 toast()、跳脫 esc() 來自設計系統的 shell.js。
 (() => {
   const messages = JSON.parse(document.getElementById('messages').textContent);
@@ -4406,6 +4407,273 @@
     });
   }
 
+  // ---------------------------------------------------------------- RPA Python 套件（ADR 0027）
+
+  // 改的都是草稿：加入、修改、移除之後按「檢查」，檢查在伺服器背景執行（輪詢進度，做完重新載入），
+  // 通過才能發布。找套件：名稱或 import 名稱查詢版本、上架時間、每個平台有沒有 wheel。
+  function bindPythonPackages() {
+    const root = qs('#python-packages');
+    if (!root) return;
+    const base = '/api/python-packages';
+    const families = ['windows', 'macos', 'linux'];
+    const sizeText = bytes => {
+      if (bytes === null || bytes === undefined) return '—';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let value = bytes;
+      let unit = 0;
+      while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit += 1;
+      }
+      return (unit === 0 ? String(value) : value.toFixed(1)) + ' ' + units[unit];
+    };
+    const dateText = stamp => (stamp ? new Date(stamp).toLocaleDateString(document.documentElement.lang) : '—');
+    const reload = text => {
+      if (text) flash(text);
+      location.reload();
+    };
+
+    // 加入或修改：found 是查詢的結果（加入時），item 是清單裡的一項（修改時）
+    function packageDialog(item, found) {
+      const name = item ? item.name : found.name;
+      const title = fill(item ? messages.pkg_edit_title : messages.pkg_add_title, {name});
+      modal(title, qs('#pkg-form').innerHTML, {label: item ? messages.save : messages.pkg_add_action, run: async () => {
+        const dialog = qs('#dialog-content');
+        const value = key => qs('[name="' + key + '"]', dialog).value.trim();
+        const platforms = qsa('[name="platform"]:checked', dialog).map(input => input.value);
+        const body = {
+          name: value('name'),
+          spec: value('spec'),
+          platforms: platforms.length === families.length ? [] : platforms,
+          note: value('note'),
+          allowNew: qs('[name="allow-new"]', dialog).checked,
+        };
+        if (!platforms.length) return void (qs('.form-error', dialog).textContent = messages.pkg_platforms_required);
+        const result = await api('POST', base + '/draft/packages', body);
+        if (!result.ok) return dialogError(dialog, result);
+        reload(item ? messages.pkg_saved : fill(messages.pkg_added, {name: body.name}));
+      }});
+      const dialog = qs('#dialog-content');
+      const field = key => qs('[name="' + key + '"]', dialog);
+      field('name').value = name;
+      field('name').readOnly = true;
+      field('spec').value = item ? item.spec : '';
+      field('note').value = item ? item.note || '' : '';
+      field('allow-new').checked = Boolean(item ? item.allowNew : found && found.cooldown && !found.allowed);
+      let allowed = item && item.platforms.length ? item.platforms : families;
+      if (found) {
+        // 沒有 wheel 的系統預設不勾（那個系統的裝置沒有這個套件）
+        const missing = families.filter(family => Object.entries(found.platforms).some(([tag, wheel]) => tag.startsWith(family + '-') && !wheel));
+        allowed = families.filter(family => !missing.includes(family));
+        if (missing.length) qs('[data-platform-hint]', dialog).textContent = fill(messages.pkg_platforms_missing, {platforms: missing.map(family => messages['pkg_family_' + family]).join(messages.list_separator)});
+        if (found.cooldown) field('spec').placeholder = found.allowed ? '==' + found.allowed : '';
+      }
+      qsa('[name="platform"]', dialog).forEach(input => { input.checked = allowed.includes(input.value); });
+      field('spec').focus();
+    }
+
+    const rowItem = button => JSON.parse(button.closest('tr[data-package]').dataset.package);
+    qsa('[data-action="pkg-edit"]').forEach(button => button.addEventListener('click', () => packageDialog(rowItem(button), null)));
+
+    qsa('[data-action="pkg-remove"]').forEach(button => {
+      button.addEventListener('click', async () => {
+        const item = rowItem(button);
+        busy(button, true);
+        const impact = await api('GET', base + '/impact?name=' + path(item.name));
+        busy(button, false);
+        if (!impact.ok) return toast(errorMessage(impact));
+        const used = impact.data.scenes.filter(scene => scene.published);
+        modal(fill(messages.pkg_remove_title, {name: item.name}), qs('#pkg-remove-form').innerHTML, {label: messages.pkg_remove_action, run: async () => {
+          const dialog = qs('#dialog-content');
+          const reason = used.length ? qs('[name="reason"]', dialog).value.trim() : '';
+          if (used.length && !reason) return void (qs('.form-error', dialog).textContent = messages.pkg_reason_required);
+          const result = await api('POST', base + '/draft/remove', {name: item.name, reason});
+          if (!result.ok) return dialogError(dialog, result);
+          reload(fill(messages.pkg_removed, {name: item.name}));
+        }});
+        const dialog = qs('#dialog-content');
+        qs('[data-remove-body]', dialog).textContent = fill(messages.pkg_remove_body, {name: item.name});
+        if (impact.data.scenes.length) {
+          qs('[data-remove-used]', dialog).hidden = false;
+          qs('[data-remove-warning]', dialog).textContent = fill(used.length ? messages.pkg_remove_used : messages.pkg_remove_drafts, {name: item.name, count: used.length});
+          qs('[data-remove-scenes]', dialog).innerHTML = impact.data.scenes.map(scene =>
+            '<li><a href="/scenes/' + path(scene.sceneId) + '">' + esc(scene.name) + '</a> v' + esc(scene.number) +
+            (scene.published ? '' : ' <span class="tag">' + esc(messages.pkg_unpublished) + '</span>') +
+            ' <span class="muted mono">import ' + esc(scene.modules.join(', ')) + '</span></li>').join('');
+          qs('[name="reason"]', dialog).closest('label').hidden = !used.length;
+        }
+      });
+    });
+
+    // ---- 找套件
+    const form = qs('[data-pkg-lookup]');
+    const output = qs('#pkg-lookup-result');
+    const lookupError = qs('[data-pkg-lookup-error]');
+    const pypi = qs('[data-pypi-search]');
+    const query = form.elements.q;
+    query.addEventListener('input', () => {
+      const words = query.value.trim();
+      pypi.href = 'https://pypi.org/search/' + (words ? '?q=' + encodeURIComponent(words) : '');
+    });
+
+    function showFound(found) {
+      const lines = [];
+      const title = '<h3>' + esc(found.name) + ' <span class="mono">' + esc(found.latest) + '</span>' +
+        (found.inList ? ' <span class="badge green">' + esc(messages.pkg_in_list) + '</span>' : '') + '</h3>';
+      if (found.import) lines.push(fill(messages.pkg_import_name, {module: found.import, name: found.name}));
+      const meta = found.metadata || {};
+      if (meta.summary) lines.push(meta.summary);
+      lines.push(fill(messages.pkg_latest, {version: found.latest, date: dateText(found.uploaded)}));
+      if (found.cooldown) {
+        lines.push(found.allowed ? fill(messages.pkg_cooldown, {version: found.latest, allowed: found.allowed}) : messages.pkg_cooldown_none);
+      }
+      if (found.installed) lines.push(fill(messages.pkg_installed, {version: found.installed}));
+      if (!found.uploadTimes) lines.push(messages.pkg_no_upload_times);
+      if (meta.license) lines.push(fill(messages.pkg_license, {license: meta.license}));
+      if (meta.requires && meta.requires.length) lines.push(fill(messages.pkg_requires, {names: meta.requires.join(', ')}));
+      const wheels = Object.entries(found.platforms).map(([tag, wheel]) =>
+        '<li>' + esc(tag) + '：' + (wheel ? esc(sizeText(wheel.size)) : '<span class="badge red">' + esc(messages.pkg_no_wheel) + '</span>') + '</li>').join('');
+      const links = '<a class="external-link" href="https://pypi.org/project/' + path(found.name) + '/" target="_blank" rel="noopener noreferrer">PyPI</a>' +
+        (meta.homepage ? ' · <a class="external-link" href="' + esc(meta.homepage) + '" target="_blank" rel="noopener noreferrer">' + esc(messages.pkg_homepage) + '</a>' : '');
+      const blocked = found.blocked ? '<div class="notice warn">' + esc(messages['pkg_' + found.blocked] || found.blocked) + '</div>' : '';
+      const action = found.blocked ? '' : '<div class="actions"><button class="button primary" type="button" data-action="pkg-add">' +
+        esc(found.inList ? messages.pkg_edit_action : messages.pkg_add_button) + '</button></div>';
+      output.innerHTML = '<div class="notice">' + title + lines.map(line => '<p>' + esc(line) + '</p>').join('') +
+        '<p class="cell-sub">' + esc(messages.pkg_wheels) + '</p><ul>' + wheels + '</ul><p>' + links + '</p>' + blocked + action + '</div>';
+      output.hidden = false;
+      const add = qs('[data-action="pkg-add"]', output);
+      if (add) {
+        add.addEventListener('click', () => {
+          const row = qsa('tr[data-package]').map(tr => JSON.parse(tr.dataset.package)).find(item => item.name.toLowerCase().replace(/[-_.]+/g, '-') === found.key);
+          packageDialog(row || null, row ? null : found);
+        });
+      }
+    }
+
+    async function lookup(text) {
+      query.value = text;
+      query.dispatchEvent(new Event('input'));
+      lookupError.textContent = '';
+      output.hidden = true;
+      const button = qs('button[type="submit"]', form);
+      busy(button, true);
+      const result = await api('GET', base + '/lookup?q=' + encodeURIComponent(text.trim()));
+      busy(button, false);
+      if (!result.ok) return void (lookupError.textContent = errorMessage(result));
+      showFound(result.data);
+      output.scrollIntoView({block: 'nearest'});
+    }
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      if (query.value.trim()) lookup(query.value);
+    });
+    qsa('[data-lookup]').forEach(button => button.addEventListener('click', () => lookup(button.dataset.lookup)));
+    // 運行報告「缺模組」的連結帶著 ?q=模組：打開就查詢
+    const initial = new URLSearchParams(location.search).get('q');
+    if (initial && initial.trim()) {
+      form.scrollIntoView({block: 'start'});
+      lookup(initial.trim().slice(0, 100));
+    }
+
+    // ---- 檢查、發布、放棄、回到某一版、檢查更新
+    const post = async (button, url, body, text) => {
+      busy(button, true);
+      const result = await api('POST', url, body);
+      if (!result.ok) {
+        busy(button, false);
+        return toast(errorMessage(result));
+      }
+      reload(text);
+    };
+    const check = qs('[data-action="pkg-check"]');
+    if (check) check.addEventListener('click', () => post(check, base + '/draft/check', {upgrade: false}, messages.pkg_check_started));
+    const upgrade = qs('[data-action="pkg-upgrade"]');
+    if (upgrade) {
+      upgrade.addEventListener('click', () => confirmDialog(messages.pkg_upgrade_title, messages.pkg_upgrade_body, messages.pkg_upgrade_action, () => {
+        $('#dialog').close();
+        post(upgrade, base + '/draft/check', {upgrade: true}, messages.pkg_check_started);
+      }));
+    }
+    const discard = qs('[data-action="pkg-discard"]');
+    if (discard) {
+      discard.addEventListener('click', () => confirmDialog(messages.pkg_discard_title, messages.pkg_discard_body, messages.pkg_discard_action, async () => {
+        const result = await api('DELETE', base + '/draft');
+        $('#dialog').close();
+        if (!result.ok) return toast(errorMessage(result));
+        reload(messages.pkg_discarded);
+      }));
+    }
+    const publish = qs('[data-action="pkg-publish"]');
+    if (publish) {
+      publish.addEventListener('click', () => {
+        const number = publish.dataset.number;
+        modal(fill(messages.pkg_publish_title, {number}), qs('#pkg-publish-form').innerHTML, {label: messages.pkg_publish_action, run: async () => {
+          const dialog = qs('#dialog-content');
+          const result = await api('POST', base + '/draft/publish', {note: qs('[name="note"]', dialog).value.trim()});
+          if (!result.ok) return dialogError(dialog, result);
+          reload(fill(messages.pkg_published, {number: result.data.number}));
+        }});
+      });
+    }
+    qsa('[data-action="pkg-restore"]').forEach(button => {
+      const number = button.dataset.number;
+      button.addEventListener('click', () => confirmDialog(fill(messages.pkg_restore_title, {number}), fill(messages.pkg_restore_body, {number}), messages.pkg_restore_action, () => {
+        $('#dialog').close();
+        post(button, base + '/revisions/' + path(number) + '/restore', undefined, messages.pkg_check_started);
+      }));
+    });
+
+    // 檢查中：輪詢進度，做完重新載入
+    if (root.dataset.state === 'checking') {
+      const line = qs('[data-pkg-progress]');
+      const poll = async () => {
+        const result = await api('GET', base);
+        if (result.ok) {
+          const draft = result.data.draft;
+          if (!draft || draft.status !== 'checking') return reload();
+          const progress = result.data.progress;
+          if (progress && line) {
+            line.textContent = progress.step === 'download'
+              ? fill(messages.pkg_progress_download, {done: progress.doneFiles, files: progress.files, size: sizeText(progress.doneBytes), total: sizeText(progress.bytes), speed: sizeText(progress.speed)})
+              : messages['pkg_progress_' + progress.step] || messages.pkg_progress_resolve;
+          }
+        }
+        setTimeout(poll, 2000);
+      };
+      setTimeout(poll, 1000);
+    }
+
+    // ---- 設定與測速
+    const settings = qs('[data-pkg-settings]');
+    settings.addEventListener('submit', async event => {
+      event.preventDefault();
+      const error = qs('.form-error', settings);
+      error.textContent = '';
+      const field = key => settings.elements[key];
+      const body = {
+        source: field('source').value,
+        customUrl: field('customUrl').value.trim(),
+        proxy: field('proxy').value.trim(),
+        caFile: field('caFile').value.trim(),
+        cooldownDays: Number(field('cooldownDays').value),
+        parallel: Number(field('parallel').value),
+        workerDownloads: Number(field('workerDownloads').value),
+        keepVersions: Number(field('keepVersions').value),
+      };
+      const result = await api('PUT', base + '/settings', body);
+      if (!result.ok) return void (error.textContent = errorMessage(result));
+      reload(messages.saved);
+    });
+    const speed = qs('[data-action="pkg-speed-test"]');
+    speed.addEventListener('click', async () => {
+      busy(speed, true);
+      const result = await api('POST', base + '/speed-test');
+      busy(speed, false);
+      if (!result.ok) return toast(errorMessage(result));
+      reload(messages.pkg_speed_done);
+    });
+  }
+
   // 錄製端（macOS 的 WKWebView）會依系統的「自動將字首大寫」把輸入框的第一個字母改成大寫
   // （demo-001 變成 Demo-001）。代號、網址、定位器、入參都不該被改：所有文字輸入框關掉自動大寫、
   // 自動校正與拼字檢查；對話框之類之後才加進來的輸入框也一樣。
@@ -4459,6 +4727,7 @@
   bindWorkflowRun();
   bindWorkers();
   bindAgents();
+  bindPythonPackages();
   bindVideoSettings();
   showFlash();
 })();

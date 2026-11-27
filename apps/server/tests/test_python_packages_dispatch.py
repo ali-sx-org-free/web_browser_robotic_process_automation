@@ -5,6 +5,7 @@
 新的套件版本直接寫進資料庫（複製 #1），不經過 uv 的檢查（那部分在 test_python_packages.py）。
 """
 
+import json
 from collections.abc import Iterator
 from dataclasses import replace
 from typing import cast
@@ -17,7 +18,7 @@ from httpx2 import Client, Response
 from rpa_core.dsl.features import FEATURES
 from rpa_server.config import Settings
 from rpa_server.domain import now
-from rpa_server.models import PythonPackageSet, Run
+from rpa_server.models import PythonPackageSet, Run, Scene
 from rpa_server.pypackages.service import RUNTIME
 from rpa_server.services import Services
 from rpa_worker.environment import CAPABILITIES, PROTOCOL
@@ -271,3 +272,60 @@ def test_workers_download_wheels(app: FastAPI, client: Client, remote: Client) -
     packages.end_download("someone-else")
     assert remote.get(url, headers=auth(token)).status_code == 200
     assert packages.begin_download("someone-else")  # 下載完就讓出位置
+
+
+def test_run_report_shows_packages(app: FastAPI, client: Client, remote: Client) -> None:
+    """運行報告：套件 #N；驗證時用的不同時列差異（D6，只提醒）；缺模組時建議套件。"""
+    create_node(client)
+    hello(remote, register(client, "py-box"), **NEW_APP)
+    validation = validate(client)
+    number = publish_copy(app)
+    with services(app).sessions() as session:
+        run = session.get(Run, str(validation["id"]))
+        assert run is not None
+        run.status = "passed"
+        run.finished_at = now()
+        scene = session.get(Scene, "py-sum")
+        assert scene is not None
+        scene.published_number = 2
+        execution = Run(
+            id="py-exec",
+            scene_id=run.scene_id,
+            revision_id=run.revision_id,
+            revision_number=2,
+            scene_name=run.scene_name,
+            category=None,
+            purpose="execution",
+            status="failed",
+            input={},
+            error="ModuleNotFoundError",
+            created_at=now(),
+            finished_at=now(),
+            python_packages=number,
+        )
+        session.add(execution)
+        session.commit()
+    folder = services(app).storage.run_dir("py-exec")
+    folder.mkdir(parents=True)
+    python = {"mode": "runtime", "runtime": "1.0.0", "missingModule": "pptx"}
+    result: JsonObject = {
+        "status": "failed",
+        "stages": [],
+        "checks": [],
+        "problems": [],
+        "input": {},
+    }
+    (folder / "result.json").write_text(json.dumps({**result, "python": python}))
+
+    page = client.get("/runs/py-exec").text
+    assert f'<a href="/python-packages">套件 #{number}</a>' in page
+    assert f"這個版本驗證通過時用套件 #1，這次用套件 #{number}" in page
+    assert "版本都相同" in page  # 內容和 #1 相同
+    assert "目前的 Python 套件沒有「pptx」模組，建議加入的套件是 python-pptx" in page
+    assert 'href="/python-packages?q=pptx"' in page
+    # 驗證本身不比
+    assert "這個版本驗證通過時" not in client.get(f"/runs/{validation['id']}").text
+    # 場景頁：發布的版本驗證時用 #1，目前是新的版本
+    scene_page = client.get("/scenes/py-sum").text
+    assert f"發布的 v2 驗證通過時用套件 #1，目前是套件 #{number}" in scene_page
+    assert body(client.get("/api/runs/py-exec"))["pythonPackages"] == number

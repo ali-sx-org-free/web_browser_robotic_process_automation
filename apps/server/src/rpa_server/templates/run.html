@@ -44,6 +44,20 @@
   {% if run.purpose == "validation" and run.status == "passed" and not can_publish and revision and not revision.published %}
   <div class="notice">{{ t("run.newer_validation") }}</div>
   {% endif %}
+  {#- ADR 0027：Python 節點缺模組；目前的套件與驗證時不同（D6，只提醒） #}
+  {% set missing_module = missing_module | default(none) %}
+  {% set packages = packages | default(none) %}
+  {% if missing_module %}
+  <div class="notice warn" data-missing-module="{{ missing_module.module }}">{{ t("run.missing_module", module=missing_module.module, package=missing_module.package) }}
+    {% if page_allowed("python_packages") %}<span class="actions"><a class="button" href="/python-packages?q={{ missing_module.module | urlencode }}">{{ t("run.missing_module_add") }}</a></span>
+    {% else %}<span class="cell-sub">{{ t("run.missing_module_ask") }}</span>{% endif %}
+  </div>
+  {% endif %}
+  {% if packages and packages.diff is not none %}
+  <div class="notice" data-packages-changed>{{ t("run.packages_changed", validated=packages.validated, number=packages.number) }}
+    {{ m.package_diff(packages.diff) }}
+  </div>
+  {% endif %}
 
   <section class="panel">
     <div class="panel-header"><h2>{{ t("run.summary") }}</h2>{{ m.run_badge(run.status) }}</div>
@@ -56,6 +70,7 @@
       {% set py = result.get("python") if result else none %}
       {% if py %}
       <div><dt>{{ t("run.python") }}</dt><dd>{% if py.get("mode") == "runtime" and py.get("runtime") %}{{ t("run.python_runtime", version=py.get("runtime"), platform=py.get("platform") or "") }}<span class="cell-sub">{{ t("run.python_reused") if py.get("reused") else t("run.python_prepared", ms=py.get("preparedMs") or 0) }}</span>{% elif py.get("mode") == "runtime" %}{{ t("run.python_runtime_missing") }}{% else %}{{ t("run.python_compatible") }}{% endif %}</dd></div>
+      {% if packages %}<div><dt>{{ t("run.python_packages") }}</dt><dd>{% if page_allowed("python_packages") %}<a href="/python-packages">{{ t("run.python_packages_number", number=packages.number) }}</a>{% else %}{{ t("run.python_packages_number", number=packages.number) }}{% endif %}</dd></div>{% endif %}
       {% else %}
       <div><dt>{{ t("run.engine") }}</dt><dd>{{ (result.engine if result else none) or run.engine or t("run.engine_scenario") }}</dd></div>
       {% endif %}

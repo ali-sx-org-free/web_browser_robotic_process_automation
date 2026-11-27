@@ -289,7 +289,9 @@ def speed_test(
                 retries=0,
             )
         except DownloadError as error:
-            return SpeedResult(source.id, False, error=str(error)[:300])
+            # 只有一個網址：原因前面的網址拿掉，管理頁比較好讀
+            reason = str(error).removeprefix(f"{source.files}{probe_path}: ")
+            return SpeedResult(source.id, False, error=reason[:300])
         finally:
             elapsed = max(time.monotonic() - started, 0.001)
         size = target.stat().st_size

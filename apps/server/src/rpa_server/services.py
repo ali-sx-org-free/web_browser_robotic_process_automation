@@ -355,6 +355,7 @@ def run_record(run: Run) -> RunRecord:
         client_id=run.client_id,
         batch_id=run.batch_id,
         batch_row=run.batch_row,
+        python_packages=run.python_packages,
     )
 
 
@@ -1119,6 +1120,51 @@ class Services:
             if row is not None and row.python_packages is not None:
                 return row.python_packages
         return self.packages.current_number()
+
+    def run_packages(self, record: RunRecord) -> dict[str, object] | None:
+        """運行報告的套件版本（ADR 0027 D6）：這次用的「套件 #N」，以及這個場景版本最近一次
+        通過驗證時用的；兩者不同時附上差異。只提醒，不擋執行、不要求重新驗證。"""
+        number = record.python_packages
+        if number is None:
+            return None
+        validated: int | None = None
+        if record.purpose != "validation":
+            validated = self.validated_packages(record.scene_id, record.revision_number)
+        diff = None
+        if validated is not None and validated != number:
+            diff = self.packages.compare(validated, number)
+        return {"number": number, "validated": validated, "diff": diff}
+
+    def scene_packages(self, record: SceneRecord) -> dict[str, object] | None:
+        """場景頁（ADR 0027 D6）：發布的版本通過驗證時用的套件版本和目前的不同時，附上差異。"""
+        if record.published_number is None:
+            return None
+        validated = self.validated_packages(record.id, record.published_number)
+        number = self.packages.current_number()
+        if validated is None or validated == number:
+            return None
+        return {
+            "number": number,
+            "validated": validated,
+            "revision": record.published_number,
+            "diff": self.packages.compare(validated, number),
+        }
+
+    def validated_packages(self, scene_id: str, number: int) -> int | None:
+        """這個場景版本最近一次通過的驗證（這台伺服器的）用的套件版本；沒有時是 None。"""
+        with self.sessions() as session:
+            return session.scalars(
+                select(Run.python_packages)
+                .where(
+                    Run.scene_id == scene_id,
+                    Run.revision_number == number,
+                    Run.purpose == "validation",
+                    Run.status == "passed",
+                    Run.python_packages.is_not(None),
+                )
+                .order_by(Run.finished_at.desc())
+                .limit(1)
+            ).first()
 
     def run_locations(self) -> list[tuple[str, str]]:
         """執行報告「執行位置」篩選的選項：本機、登記的 worker，以及執行過但已刪除的 worker。

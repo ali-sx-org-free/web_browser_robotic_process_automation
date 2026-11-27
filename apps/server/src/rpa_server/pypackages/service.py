@@ -481,6 +481,14 @@ class PackageService:
                 )
             return _revision(row)
 
+    def compare(self, before: int, after: int) -> dict[str, list[list[str]]] | None:
+        """兩個發布的版本的差異（含依賴）；有一版找不到時是 None。"""
+        try:
+            old, new = self.revision(before), self.revision(after)
+        except ServiceError:
+            return None
+        return diff_versions(old.versions(), new.versions())
+
     def history(self) -> list[Revision]:
         self.ensure_defaults()
         with self.sessions() as session:

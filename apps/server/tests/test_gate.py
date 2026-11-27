@@ -119,6 +119,11 @@ def test_system_pages_and_defaults() -> None:
         ("GET", "/api/audit/verify"),
         ("POST", "/api/users"),
         ("GET", "/devices"),
+        # ADR 0027：套件管理頁與它的 API（連讀取也是），只有系統管理員
+        ("GET", "/python-packages"),
+        ("GET", "/api/python-packages"),
+        ("GET", "/api/python-packages/lookup"),
+        ("POST", "/api/python-packages/draft/packages"),
         ("PUT", "/api/secrets/ERP_PASSWORD"),
         ("PUT", "/api/settings/video"),
         ("POST", "/api/domains"),

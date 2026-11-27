@@ -1205,6 +1205,7 @@ def test_top_menu_has_six_groups_on_the_server() -> None:
     assert _menu(pages["domains"], "sidenav") == [
         "/domains",
         "/projects",
+        "/python-packages",
         "/agents",
         "/users",
         "/audit",
@@ -1212,6 +1213,7 @@ def test_top_menu_has_six_groups_on_the_server() -> None:
     assert _menu(pages["projects"], "sidenav") == [
         "/domains",
         "/projects",
+        "/python-packages",
         "/agents",
         "/users",
         "/audit",

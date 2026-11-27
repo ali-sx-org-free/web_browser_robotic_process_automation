@@ -351,6 +351,8 @@ class RunRecord:
     """屬於哪個批次（M7.3）。"""
     batch_row: int | None = None
     """批次的第幾列。"""
+    python_packages: int | None = None
+    """運行環境模式的 Python 節點用的套件版本（ADR 0027 的「套件 #N」）；其他是 None。"""
 
     @property
     def finished(self) -> bool:
@@ -388,6 +390,7 @@ class RunRecord:
             "clientId": self.client_id,
             "batchId": self.batch_id,
             "batchRow": self.batch_row,
+            "pythonPackages": self.python_packages,
         }
 
 
