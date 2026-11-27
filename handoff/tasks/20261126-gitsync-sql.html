@@ -20,7 +20,7 @@
         <dt>範圍／不包含</dt><dd>範圍：<code>gitsync.ALLOWED_SUFFIXES</code> 加 <code>.sql</code>、<code>sync.block_suffix</code> 三語訊息、回歸測試。前端只顯示伺服器回傳的擋下原因、拉取與套用沒有副檔名限制，不需要改。不包含：其他副檔名（DSL 允許 <code>files</code> 列任何副檔名的文字檔）與場景附件 <code>files/</code> 的二進位檔（例如 Excel 範本，也受 1 MB 上限），兩者推送仍會被擋，需要時另開任務。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責 Claude；審閱與合併：使用者；接收方未指定。</dd>
         <dt>修改檔案／整合者</dt><dd><code>apps/server/src/rpa_server/gitsync.py</code>、<code>apps/server/src/rpa_server/locales/*.json</code>（簡中由 <code>tools/i18n.py sync</code> 產生）、<code>apps/server/tests/test_gitsync.py</code>、本任務卡、任務索引。沒有遷移、<code>uv.lock</code> 或文檔頁變更（正式文檔只寫「非定義檔」，沒有列副檔名）。</dd>
-        <dt>狀態</dt><dd>已合併：使用者於 2026-11-27 00:12 America/Los_Angeles（PST，UTC−08:00）合併 PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/37">#37</a>（main <span class="mono">fc999be</span>）。同一個修正另外 cherry-pick 到 v0.10.1 上，發 <a href="20261127-release-0-10-2.html">v0.10.2</a>（可以用更新檔升級）。人工驗收待執行。</dd>
+        <dt>狀態</dt><dd>已合併：使用者於 2026-11-27 00:12 America/Los_Angeles（PST，UTC−08:00）合併 PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/37">#37</a>（main <span class="mono">fc999be</span>）。同一個修正另外 cherry-pick 到 v0.10.1 上準備了 <a href="20261127-release-0-10-2.html">v0.10.2</a>，但沒有推標籤；發布版本是 <a href="20261127-release-0-11-0.html">v0.11.0</a>。人工驗收待執行。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-g6e2z3</code>（雲端工作階段指定的分支名稱）；PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/37">#37</a>；base <span class="mono">a125120</span>（main）</dd>
         <dt>交接版本／同步狀態</dt><dd>已合併到 main（<span class="mono">fc999be</span>）。</dd>
         <dt>工作區／環境</dt><dd>Linux 雲端容器，Python 3.13.18、uv 0.11.32，<code>uv sync --locked</code>，git 可用、沒有 ssh-keygen。</dd>
@@ -32,7 +32,7 @@
         <li><strong>已完成：</strong>白名單加入 <code>.sql</code>；訊息改為「只能推送 yaml、json、py、sql、md、txt」（英文、簡中同步）。測試 <code>test_sql_files_of_a_scene_are_pushed_and_pulled</code>：存一個 Python 節點版本（<code>files: [query.sql]</code>），推送前檢查沒有擋下、遠端有 <code>revisions/2/query.sql</code>、第二台從 git 新增領域後 <code>query.sql</code> 內容相同；修改前這個測試失敗（擋下原因不是空的）。既有的擋下測試加一個 <code>tool.exe</code>，確認其他副檔名照舊擋下。</li>
         <li><strong>未完成／阻礙：</strong>無。</li>
         <li><strong>決定：</strong>實作選擇：只加 <code>.sql</code>，不改成「放行版本 <code>files</code> 列出的任何檔案」，保持推送白名單簡單、可預期。建議（未做）：如果之後場景常用其他文字檔（csv、toml、html 範本）或附件（xlsx），再決定要擴大白名單或依版本內容放行。</li>
-        <li><strong>下一個具體動作：</strong>伺服器升級到 v0.10.2（或之後的版本）後，在含 <code>query.sql</code> 的領域重新開「同步推送」對話框，確認不再列出 SQL、可以推送。</li>
+        <li><strong>下一個具體動作：</strong>伺服器升級到 v0.11.0 後，在含 <code>query.sql</code> 的領域重新開「同步推送」對話框，確認不再列出 SQL、可以推送。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
