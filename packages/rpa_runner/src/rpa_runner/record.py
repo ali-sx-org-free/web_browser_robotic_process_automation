@@ -17,8 +17,9 @@
 - 用到子場景（M7.2）的場景：``--calls`` 是伺服器把版本的 ``calls/`` 包成的 JSON，放回場景檔旁邊
   再校驗，既有的 ``call`` 照樣在同一個分頁執行整個子場景。
 
-Playwright 沒有公開「在已經開好的瀏覽器上開始錄製」的 API，這裡用 codegen 自己用的通訊命令
-``enableRecorder``（1.56～1.63 相同）；Playwright 改版時由測試發現。
+Playwright 沒有公開「在已經開好的瀏覽器上開始錄製」的 API，這裡用 codegen 自己用的通訊命令：
+1.64 以前是 ``enableRecorder``，1.65 起改名 ``showRecorder``，由 ``BrowserContext._show_recorder``
+送出。Playwright 改版時由 ``tests/test_record_browser.py`` 的真實瀏覽器測試發現。
 
 標準輸出一行一個 JSON 事件：``replaying``、``recording``、``error``（含 step、message）。
 結束碼：0 正常結束、3 既有步驟執行失敗、1 其他錯誤。
@@ -66,12 +67,9 @@ def enable_recorder(context: BrowserContext, output: Path) -> None:
         "outputFile": str(output.absolute()),
         "handleSIGINT": False,
     }
-    context._sync(  # pyright: ignore[reportPrivateUsage]
-        # 內部 API：Playwright 1.64 起 send 的 params 型別是 Dict[Unknown, Unknown]
-        impl._channel.send(  # pyright: ignore[reportPrivateUsage, reportUnknownMemberType]
-            "enableRecorder", None, params
-        )
-    )
+    # 內部 API：Playwright 1.65 起 Channel 沒有 send，enableRecorder 改名 showRecorder，
+    # 由 BrowserContext._show_recorder 送出（codegen 也是這樣開始錄製）
+    context._sync(impl._show_recorder(params))  # pyright: ignore[reportPrivateUsage]
 
 
 def _wait_closed(context: BrowserContext) -> None:

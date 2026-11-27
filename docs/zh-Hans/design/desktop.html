@@ -549,7 +549,7 @@
             <li><strong>WebView2。</strong>Windows 11 内置，Windows 10 大多已随 Edge 更新装好；安装档侦测不到时先安装。</li>
             <li><strong>macOS 本地网络权限。</strong>确认 Playwright 开的 Chromium 连内网网站时，权限算在 App 身上。</li>
             <li><strong>杀毒误判。</strong>PyInstaller 的启动器偶尔被误判；文件夹模式较少，必要时回报给杀毒厂商。</li>
-            <li><strong>Playwright 私有命令。</strong>「接著录制」用 codegen 内部的 <code>enableRecorder</code>；打包后要用同一个 driver，升级 Playwright 时由自我测试发现。</li>
+            <li><strong>Playwright 私有命令。</strong>「接著录制」用 codegen 内部的录制器命令（Playwright 1.65 起是 <code>showRecorder</code>，之前是 <code>enableRecorder</code>）；打包后要用同一个 driver。升级 Playwright 时由 Runner 的真实浏览器测试（<code>test_record_browser.py</code>，CI 的 Linux 每个 PR 都跑）发现；打包版的自我测试没有涵盖。</li>
             <li><strong>pywebview 的新窗口与下载。</strong>WKWebView 与 WebView2 的行为不同，两边都要手动确认。</li>
           </ul>
         </div>

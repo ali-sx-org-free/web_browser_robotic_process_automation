@@ -12,6 +12,8 @@
 # 所有平台的完整驗證，產物（壓縮檔與 .sha256）掛在這次建置上 3 天。
 # 依層建置（docs/develop/ci.html#layered）：同一組輸入（tools/ci_changes.py 的 PYTHON_RUNTIME_CI）
 # 已經通過就略過。
+# macOS 暫停（2026-11-25 起，docs/develop/ci.html#macos）：倉庫變數 ENABLE_MACOS_CI 不是 true 時
+# 不建 macOS 那一份（Worker App 發布時的建置自己會建一份）。
 name: RPA Python 運行環境
 
 on:
@@ -43,6 +45,8 @@ jobs:
       - id: decide
         env:
           GH_TOKEN: ${{ github.token }}
+          # macOS 的開關（docs/develop/ci.html#macos）：倉庫變數不是 true 時不跑 macOS（發布照建）
+          ENABLE_MACOS_CI: ${{ vars.ENABLE_MACOS_CI }}
         run: python3 tools/ci_changes.py --workflow python-runtime.yml
 
   build:
@@ -63,7 +67,7 @@ jobs:
       PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: astral-sh/setup-uv@v10.4.0
       - name: 安裝依賴
         # 工作層級的 env 不能用 runner 這個 context：快取資料夾在這裡設定
         run: |

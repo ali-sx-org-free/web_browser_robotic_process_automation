@@ -45,6 +45,9 @@
 # 推 v版本 標籤時 release.yml 呼叫這個流程（workflow_call），一律完整建置；每晚完整測試也呼叫它：
 # 每天在 macOS 跑一次程式碼層路徑（macOS 程式碼層檢查），每週六完整建置三個 App（抓 GitHub 映像的
 # 變化）。排程的失敗由 nightly.yml 開 issue：被呼叫的流程不能要求比呼叫者多的權限（issues: write）。
+# macOS 暫停（2026-11-25 起，docs/develop/ci.html#macos）：倉庫變數 ENABLE_MACOS_CI 不是 true 時，
+#   PR、main、排程都不建兩個 macOS App（執行範圍標成「暫停」）；推版本標籤（發布）照建，手動觸發時
+#   targets 明確寫了 macOS 的目標也照建。
 name: 桌面端建置
 
 on:
@@ -97,6 +100,8 @@ jobs:
       - id: decide
         env:
           GH_TOKEN: ${{ github.token }}
+          # macOS 的開關（docs/develop/ci.html#macos）：倉庫變數不是 true 時不跑 macOS（發布照建）
+          ENABLE_MACOS_CI: ${{ vars.ENABLE_MACOS_CI }}
           TARGETS: ${{ inputs.targets }}
           BUILD: ${{ inputs.build }}
         run: python3 tools/ci_changes.py --workflow desktop.yml --targets "$TARGETS" --build "$BUILD"
@@ -121,7 +126,7 @@ jobs:
       PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: astral-sh/setup-uv@v10.4.0
       - name: 安裝依賴（含打包工具）
         run: uv sync --locked --group desktop-build
       - name: 單元測試（Worker：自動啟動、單一執行、認證管理員或鑰匙圈用真的）

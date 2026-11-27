@@ -134,7 +134,11 @@ def test_repeat_while_reads_every_page(
 
 
 def test_retry_waits_for_the_report(site: str, engine: str, tmp_path: Path) -> None:
-    result = run_example("wait-report.yaml", site, engine, tmp_path)
+    # 報表在按下之後 delay 毫秒完成，第一次 expect 最多等 1000 毫秒：按下到第一次 expect 開始的
+    # 間隔超過 delay − 1000，第一次就看到「已完成」，不會重試。範例的預設 1500 只留 500 毫秒，
+    # Windows 上 4 個程序平行時不一定夠（2026-11-25 PR #36 的 Worker 測試：attempts＝1）。
+    # 測試用 3000，留 2 秒；重試的四次（4×1000＋3×500 毫秒）仍然等得到。
+    result = run_example("wait-report.yaml", site, engine, tmp_path, {"delay": 3000})
 
     assert result.status == "passed", (result.error, result.problems)
     wait = by_id(result)["wait-done"][0]

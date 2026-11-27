@@ -15,14 +15,14 @@
     <section class="panel" id="identity">
       <div class="panel-header"><h2>任務與責任</h2></div>
       <div class="panel-body"><dl class="spec-list">
-        <dt>任務 ID／更新時間</dt><dd>20261120-agent-expected-revision；2026-11-20 05:46 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>任務 ID／更新時間</dt><dd>20261120-agent-expected-revision；2026-11-20 06:20 America/Los_Angeles（PST，UTC−08:00）</dd>
         <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-20 05:33 America/Los_Angeles（PST，UTC−08:00）在知識庫專案（<code>ali-sx-org-free/knowledge_setup</code>）的設計討論中選擇「開工，RPA 也加版本參數」。設計見知識庫 PR <a href="https://github.com/ali-sx-org-free/knowledge_setup/pull/6">#6</a> 的 <code>docs/design/rpa-integration.md</code> §11。驗收：帶 <code>expectedRevision</code> 且與這次要用的版本相同時照常排入；不同時 409 <code>revision_mismatch</code>（帶 <code>revision</code>、<code>expected</code>），不建立運行；冪等鍵用過時照舊回傳原運行；不帶時行為不變。</dd>
         <dt>範圍／不包含</dt><dd>範圍：<code>POST /agent-api/v1/scenes/{id}/runs</code> 與 <code>/revisions/{n}/validate</code>（共用 <code>RunBody</code>）、服務層 <code>request_run</code>、錯誤訊息、Agent API 設計頁與使用指南。不包含：批次、組合場景、重跑、Portal 的 <code>/api</code>；資料庫不變，沒有遷移。</dd>
         <dt>主責／審閱／接收方</dt><dd>主責 Claude；審閱與合併：使用者；接收方未指定。</dd>
         <dt>修改檔案／整合者</dt><dd><code>apps/server/src/rpa_server/agent_api.py</code>、<code>services.py</code>、<code>locales/*.json</code>（簡中由工具產生）、<code>apps/server/tests/test_agent_api.py</code>、<code>docs/design/agent-api.html</code>、<code>docs/develop/agent-api-guide.html</code> 與其英文、簡中版本、本任務卡、任務索引。沒有共用的遷移或 <code>uv.lock</code> 變更。</dd>
-        <dt>狀態</dt><dd>待審閱</dd>
+        <dt>狀態</dt><dd>已合併：使用者於 2026-11-20 05:50 America/Los_Angeles（PST，UTC−08:00）合併 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/32">PR #32</a>（main <span class="mono">3cf228d</span>，合併的 head <span class="mono">7df13af</span>），收入 <a href="20261120-release-0-10-1.html">v0.10.1</a>。人工驗收待執行（需要知識庫第一期一起驗）。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>m14/expected-revision</code>；PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/32">#32</a>；base <code>dd7aa43</code>（main，v0.10.0）</dd>
-        <dt>交接版本／同步狀態</dt><dd>以分支最新提交為準，已推送。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已合併到 main（<span class="mono">3cf228d</span>）。</dd>
         <dt>工作區／環境</dt><dd>Linux 雲端容器，Python 3.13.18、uv 0.11.32，<code>uv sync --locked</code>。</dd>
       </dl></div>
     </section>
@@ -32,7 +32,7 @@
         <li><strong>已完成：</strong><code>RunBody.expected_revision</code>（<code>ge=1</code>）；<code>request_run(expected_revision=…)</code> 在決定版本後、檢查可用性之前比對，不符時 409 <code>revision_mismatch</code>。版本與運行在同一個工作階段決定，排入的運行就是比對過的版本，發布同時切換也不會跑到非預期的版本。測試 <code>test_expected_revision_locks_the_revision_that_runs</code>；設計頁、使用指南（繁中、英文；簡中由工具產生）。</li>
         <li><strong>未完成／阻礙：</strong>無。</li>
         <li><strong>決定：</strong>實作選擇：冪等鍵用過時先回傳原運行，不再比對（重送不因發布切換而失敗，與既有冪等語意一致）；驗證帶 <code>expectedRevision</code> 時比對路徑上的版本。建議（未做）：批次與組合場景之後有需要再加同樣的參數。</li>
-        <li><strong>下一個具體動作：</strong>使用者審閱並合併；知識庫第一期實作會帶上這個參數。</li>
+        <li><strong>下一個具體動作：</strong>知識庫第一期（知識庫 PR <a href="https://github.com/ali-sx-org-free/knowledge_setup/pull/6">#6</a>）合併後，在真實環境一起做人工驗收：登記一個只讀場景，發布新版本後確認知識庫的校驗收到 409 <code>revision_mismatch</code>、不建立運行。知識庫遇到沒有這個參數的舊版 RPA 會自動改用預檢與事後比對，兩邊不互相阻塞。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
       </ul></div>
     </section>
@@ -46,7 +46,7 @@
           <tr><td>同上</td><td><code>uv run pytest -q -m "not browser"</code></td><td>2547 passed、7 skipped、228 deselected（8 分 7 秒）</td><td>瀏覽器測試未執行（不涉及 Runner、Worker）</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI：見 PR；人工驗收：未執行（需要知識庫第一期一起驗）；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI：PR #32 的檢查全部通過；合併：使用者已合併；人工驗收：未執行（需要知識庫第一期一起驗）。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -54,7 +54,7 @@
     </section>
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
-      <div class="panel-body"><ul class="points"><li>2026-11-20 05:46 America/Los_Angeles（PST，UTC−08:00），Claude：建立任務、實作與測試；全量非瀏覽器測試通過，提交並推送 <code>m14/expected-revision</code>，開 PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/32">#32</a> 給使用者審閱。</li></ul></div>
+      <div class="panel-body"><ul class="points"><li>2026-11-20 05:46 America/Los_Angeles（PST，UTC−08:00），Claude：建立任務、實作與測試；全量非瀏覽器測試通過，提交並推送 <code>m14/expected-revision</code>，開 PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/32">#32</a> 給使用者審閱。</li><li>2026-11-20 06:20 America/Los_Angeles（PST，UTC−08:00），Claude：PR #32 已在 2026-11-20 05:50 合併（<span class="mono">3cf228d</span>），隨後收入 v0.10.1；狀態改為已合併。人工驗收還沒做，沒有寫成通過。</li></ul></div>
     </section>
   </div>
 </main>

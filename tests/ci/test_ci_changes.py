@@ -130,6 +130,153 @@ def test_nightly_matrix_filters_systems_and_repeats() -> None:
         ("ubuntu-latest", "3.12", 0),
     ]
     assert nightly_matrix("windows", 0) == [{"os": "windows-latest", "python": "3.13", "extra": 0}]
+    # macOS 暫停：拿掉 macOS，其餘不變
+    paused = nightly_matrix("", 2, macos=False)
+    assert [row["os"] for row in paused] == ["ubuntu-latest", "windows-latest", "ubuntu-latest"]
+    assert nightly_matrix("macos", 2, macos=False) == []
+
+
+# ------------------------------------------------------------------- macOS 的開關（2026-11-25 起）
+
+TAG = {"ref": "refs/tags/v0.10.2"}
+
+
+@pytest.mark.parametrize(
+    ("event_name", "event", "setting", "targets", "systems", "enabled"),
+    [
+        # 預設（變數沒設）：PR、合併到 main、排程都不跑
+        ("pull_request", {}, "", (), "", False),
+        ("push", {"ref": "refs/heads/main"}, "", (), "", False),
+        ("schedule", {}, "", (), "", False),
+        ("schedule", {}, "false", (), "", False),
+        # 每晚的程式碼層檢查呼叫桌面端建置時固定帶 macOS 的目標：排程時不算「明確選了」
+        ("schedule", {}, "", ("recorder-macos-arm64", "worker-macos-arm64"), "", False),
+        # 變數是 true（不分大小寫、前後空白）：照常跑
+        ("pull_request", {}, "true", (), "", True),
+        ("schedule", {}, " TRUE ", (), "", True),
+        # 發布一律跑
+        ("push", TAG, "", (), "", True),
+        # 手動觸發明確選了 macOS
+        ("workflow_dispatch", {}, "", ("recorder-macos-arm64",), "", True),
+        ("workflow_dispatch", {}, "", (), "windows,macos", True),
+        ("workflow_dispatch", {}, "", ("worker-windows-x64",), "windows", False),
+        ("workflow_dispatch", {}, "", (), "", False),
+    ],
+)
+def test_macos_switch(
+    event_name: str,
+    event: Json,
+    setting: str,
+    targets: tuple[str, ...],
+    systems: str,
+    enabled: bool,
+) -> None:
+    decision = ci_changes.macos_enabled(
+        event_name, event, setting, targets=targets, systems=systems
+    )
+    assert decision.enabled is enabled
+    assert decision.reason
+
+
+def test_paused_macos_jobs_stay_visible_but_do_not_run() -> None:
+    calls: list[str] = []
+
+    def runner(command: Sequence[str]) -> str | None:
+        calls.append(command[2])
+        return json.dumps({"artifacts": []})
+
+    tree = files()
+    planned = ci_changes.plan(
+        "desktop.yml",
+        tree,
+        reuse=True,
+        build="auto",
+        repo=REPO,
+        repository_id=1,
+        runner=runner,
+        macos=False,
+    )
+    items = planned["matrix"]
+    assert [(item.job.id, item.paused, item.runs) for item in items] == [
+        ("desktop-recorder-macos", True, False),
+        ("desktop-worker-windows", False, True),
+        ("desktop-worker-macos", True, False),
+    ]
+    # 暫停的工作不查通過紀錄
+    assert len(calls) == 1
+    assert "desktop-worker-windows" in calls[0]
+    table = ci_changes.summary(planned)
+    assert table.count("暫停：macOS") == 2
+    assert not any("desktop-recorder-macos" in line for line in ci_changes.notices(planned))
+    # 其他 workflow 的 macOS 工作也一樣
+    for workflow, group, paused_id in (
+        ("setup-scripts.yml", "inrepo", "setup-in-repo-macos"),
+        ("python-runtime.yml", "matrix", "python-runtime-macos-arm64"),
+    ):
+        rows = ci_changes.plan(workflow, tree, reuse=False, build="", macos=False)[group]
+        assert [item.job.id for item in rows if item.paused] == [paused_id]
+        assert not any(ci_changes.is_macos(item.job.fields["os"]) for item in rows if item.runs)
+
+
+def outputs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, args: Sequence[str], setting: str | None
+) -> dict[str, str]:
+    """在這個倉庫執行 main（pull_request、不查 GitHub），回傳寫進 GITHUB_OUTPUT 的值。"""
+    event = tmp_path / "event.json"
+    event.write_text("{}", encoding="utf-8")
+    target = tmp_path / "output.txt"
+    monkeypatch.chdir(ROOT)
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(target))
+    monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    if setting is None:
+        monkeypatch.delenv(ci_changes.MACOS_SWITCH, raising=False)
+    else:
+        monkeypatch.setenv(ci_changes.MACOS_SWITCH, setting)
+    assert ci_changes.main(list(args)) == 0
+    lines = target.read_text(encoding="utf-8").splitlines()
+    return dict(line.split("=", 1) for line in lines)
+
+
+@pytest.mark.parametrize("setting", [None, "", "false"])
+def test_main_pauses_macos_unless_the_variable_is_true(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, setting: str | None
+) -> None:
+    desktop = outputs(monkeypatch, tmp_path, ["--workflow", "desktop.yml"], setting)
+    assert desktop["macos"] == "false"
+    assert [row["os"] for row in json.loads(desktop["matrix"])] == ["windows-latest"]
+    nightly = outputs(monkeypatch, tmp_path, ["--workflow", "nightly.yml", "--nightly"], setting)
+    assert nightly["macos"] == "false"
+    assert not [row for row in json.loads(nightly["matrix"]) if "macos" in row["os"]]
+
+
+def test_main_runs_macos_when_the_variable_is_true(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    desktop = outputs(monkeypatch, tmp_path, ["--workflow", "desktop.yml"], "true")
+    assert desktop["macos"] == "true"
+    assert [row["os"] for row in json.loads(desktop["matrix"])] == [
+        "macos-15",
+        "windows-latest",
+        "macos-15",
+    ]
+    setup = outputs(monkeypatch, tmp_path, ["--workflow", "setup-scripts.yml"], "true")
+    assert "macos-latest" in [row["os"] for row in json.loads(setup["inrepo"])]
+
+
+def test_every_workflow_with_macos_reads_the_switch() -> None:
+    """有 macOS 工作的 workflow 都要把倉庫變數傳給執行範圍，否則開了變數也不會恢復。"""
+    line = f"{ci_changes.MACOS_SWITCH}: ${{{{ vars.{ci_changes.MACOS_SWITCH} }}}}"
+    for name in ("desktop.yml", "nightly.yml", "python-runtime.yml", "setup-scripts.yml"):
+        text = (ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
+        assert line in text, name
+    # 不經過執行範圍矩陣的 macOS 工作看 macos 輸出
+    nightly = (ROOT / ".github/workflows/nightly.yml").read_text(encoding="utf-8")
+    assert "needs.plan.outputs.macos == 'true'" in nightly
+    setup = (ROOT / ".github/workflows/setup-scripts.yml").read_text(encoding="utf-8")
+    assert "needs.changes.outputs.macos == 'true'" in setup
 
 
 # ---------------------------------------------------- 依層建置：輸入指紋、外殼鍵、通過紀錄

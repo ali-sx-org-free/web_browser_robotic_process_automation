@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:df695bc48eb938b4">
+<meta name="translation-source" content="sha256:598bc7ded40f29da">
 <title>CI &amp; pipelines · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -15,11 +15,32 @@
   <div class="heading">
     <div>
       <h1>CI &amp; pipelines</h1>
-      <p>When GitHub Actions runs, which tests it runs and roughly how long it takes; how to trigger runs by hand, and where to look up the duration of past runs. Regular PRs only test each system in its production role; every other combination is left to the full run early every morning. The same inputs are verified only once, and desktop apps whose shell did not change are not repackaged.</p>
+      <p>When GitHub Actions runs, which tests it runs and roughly how long it takes; how to trigger runs by hand, and where to look up the duration of past runs. Regular PRs only test each system in its production role; every other combination is left to the full run early every morning. The same inputs are verified only once, and desktop apps whose shell did not change are not repackaged. macOS is currently paused (repository variable <code>ENABLE_MACOS_CI</code>); releases still build it.</p>
     </div>
   </div>
 
   <div class="stack">
+    <section class="panel" id="macos">
+      <div class="panel-header"><h2>macOS paused: repository variable <code>ENABLE_MACOS_CI</code></h2><span class="badge amber">Paused since 2026-11-25</span></div>
+      <div class="panel-body prose">
+        <p>Once the repository is private, GitHub-hosted runners are billed per minute: macOS costs USD 0.062 a minute, 10 times Linux (0.006) and 6 times Windows (0.010); public repositories are not billed (checked against <a href="https://docs.github.com/en/billing/reference/actions-runner-pricing">GitHub's price list</a> on 2026-11-25). Scaled to 30 days, the <a href="#metrics">run duration records</a> for 2026-11-10 to 25 show about 3,900 macOS minutes, about USD 245, more than Linux and Windows together (about USD 70). The user therefore decided to pause macOS for now and may turn it back on later (2026-11-25).</p>
+        <ul class="points">
+          <li><strong>Not run while paused.</strong> Every macOS job on PRs, merges to main and schedules: the two macOS apps in desktop builds, macOS in the nightly full tests and the macOS code-layer check, the two macOS apps in the weekly full build, the in-repo and from-scratch setup-script runs on macOS, and the RPA Python runtime on macOS. Each workflow's scope job (“執行範圍”) writes a “macOS：暫停” annotation, and the table in the run summary marks those jobs as paused.</li>
+          <li><strong>Still run.</strong> Pushing a version tag (a release) always builds both macOS apps: the recorder only exists for macOS, and a release without its DMG fails. A manual run that names macOS explicitly (the desktop build's <code>targets</code>, the nightly run's <code>systems</code>) also runs it, so you can test macOS once without touching the variable.</li>
+          <li><strong>The cost.</strong> The recorder app and all tests on macOS are only verified at release time (or when run by hand), so a macOS-only problem may not show up until a release. After changing the recorder, the local gateway or macOS-only code, run the macOS check by hand before releasing.</li>
+        </ul>
+        <dl class="spec-list">
+          <dt>Turn back on</dt><dd>In the repository's Settings › Secrets and variables › Actions, on the Variables tab › New repository variable, set the name to <code>ENABLE_MACOS_CI</code> and the value to <code>true</code>; or run <code>gh variable set ENABLE_MACOS_CI --body true</code>. No code change or PR is needed: the next run includes macOS again.</dd>
+          <dt>Pause again</dt><dd>Change the value to anything other than <code>true</code> (for example <code>false</code>), or delete the variable: <code>gh variable delete ENABLE_MACOS_CI</code>.</dd>
+          <dt>Rule</dt><dd><code>macos_enabled</code> in <code>tools/ci_changes.py</code>. The workflows with macOS jobs (desktop build, nightly full tests, setup scripts, RPA Python runtime) pass <code>vars.ENABLE_MACOS_CI</code> to it in their scope job, and it outputs <code>macos</code> (<code>true</code>/<code>false</code>); macOS jobs outside the matrix (the from-scratch setup-script run, the nightly macOS code-layer check) read that output. The switch is not part of the <a href="#layered">input fingerprint</a>: when macOS is turned back on, jobs whose fingerprint already passed and whose record is still there (30 days) are still reused.</dd>
+        </dl>
+      </div>
+      <pre class="source"># Test macOS once (no variable change): the nightly run on macOS only, plus the code-layer check of both macOS apps
+gh workflow run nightly.yml --ref branch-name -f systems=macos -f extra=0
+# Build only the two macOS apps (only the code layer when the shell is cached)
+gh workflow run desktop.yml --ref branch-name -f targets=recorder-macos-arm64,worker-macos-arm64 -f build=auto</pre>
+    </section>
+
     <section class="panel" id="layered">
       <div class="panel-header"><h2>Layered builds: verify the same inputs only once</h2><span class="badge blue">Since 2026-10-27</span></div>
       <div class="panel-body prose">
@@ -28,7 +49,7 @@
           <li><strong>Inputs that already passed are not run again.</strong> Each heavy job (the three desktop apps, the server packages, the setup scripts and the Windows worker tests in CI) has its own list of inputs; their content becomes an input fingerprint. When the same fingerprint has already passed in this repository, the job is skipped and reuses that result. A PR that only touches the server does not touch macOS, and a merge to main whose content matches what the PR tested does not run again.</li>
           <li><strong>Version numbers are not changes.</strong> The <code>version</code> in <code>pyproject.toml</code> files and the workspace package versions in <code>uv.lock</code> are left out of the fingerprint, so a release PR that only bumps versions no longer rebuilds three apps, four setup-script runs and the Windows tests.</li>
           <li><strong>An unchanged shell is not repackaged.</strong> When a desktop app has to run, its shell key is checked first. If the shell matches the cache, the DMG or zip built last time is taken from the cache, an update file is built from this commit's code and installed, and then the tests run (the code-layer path). That is exactly how devices upgrade in the field: an old shell with new code. Only a changed shell triggers a full build.</li>
-          <li><strong>macOS queues only when needed.</strong> The recorder (macOS) runs only when recording, step debugging, the local gateway, macOS-only code or the shell changes; the worker (macOS) only when the shell or its macOS parts change. Other code changes are covered by the nightly macOS code-layer check, visible by the next day at the latest, and every release is a full build.</li>
+          <li><strong>macOS queues only when needed.</strong> The recorder (macOS) runs only when recording, step debugging, the local gateway, macOS-only code or the shell changes; the worker (macOS) only when the shell or its macOS parts change. Other code changes are covered by the nightly macOS code-layer check, visible by the next day at the latest, and every release is a full build. macOS has been paused since 2026-11-25; see <a href="#macos">macOS paused</a>.</li>
         </ul>
       </div>
       <pre class="source">Push / PR → scope job (Linux, seconds; tools/ci_changes.py): one input fingerprint per heavy job
@@ -93,7 +114,7 @@ Releases (v* tags) and the Saturday full build: always a full build, nothing reu
           <tbody>
             <tr><td>Linux</td><td>Website (management portal)</td><td>Static checks; every test that needs no browser; browser and smoke tests of the website and the recorder protocol, Chromium only (CI, 4 parallel processes)</td><td>Firefox combinations; worker browser tests</td></tr>
             <tr><td>Windows</td><td>Worker</td><td>Worker browser tests (runs, sign-in, Firefox templates, claiming jobs) and smoke tests in both browsers; end-to-end tests of the worker app (only the code layer changes when the shell did not, see <a href="#layered">layered builds</a>)</td><td>Website and recorder browser tests</td></tr>
-            <tr><td>macOS</td><td>Recorder</td><td>End-to-end tests of the recorder app (pairing, local gateway, step debugging): only when recording, debugging, gateway, macOS-only code or the shell changes</td><td>All of pytest; the nightly macOS code-layer check</td></tr>
+            <tr><td>macOS</td><td>Recorder</td><td>End-to-end tests of the recorder app (pairing, local gateway, step debugging): only when recording, debugging, gateway, macOS-only code or the shell changes. Paused since 2026-11-25: runs only for releases and manual runs (<a href="#macos">macOS paused</a>)</td><td>All of pytest; the nightly macOS code-layer check (also paused)</td></tr>
           </tbody>
         </table>
       </div>
@@ -111,10 +132,10 @@ Releases (v* tags) and the Saturday full build: always a full build, nothing reu
             <tr><td>Push to a PR, merge to main</td><td>CI (Linux) every time; the other heavy jobs only when their input fingerprint has not passed yet (<a href="#layered">layered builds</a>): the Windows worker tests, the three desktop apps (only the code layer when the shell did not change), the server packages (x64 and arm64 builds, installed, started and upgraded in a Rocky 8 container), the setup scripts (the scripts and smoke tests only), the RPA Python runtime (built and self-tested on four platforms, then used to run the Python node tests; on Linux also unpacked in a Rocky 8 container)</td><td>About 2.5–3 min (CI is the floor); about 4 min when a desktop app is built</td></tr>
             <tr><td>Pushes that only change <code>handoff/</code> or <code>docs/</code></td><td>See <a href="#docs-only">the next section</a></td><td>About 1 min</td></tr>
             <tr><td>Version tag <code>v*</code></td><td>Release: check the version, build the desktop apps and server bundles, build and sign the update file (<a href="#update-key">key</a>), draft release</td><td>About 4 min</td></tr>
-            <tr><td>Daily 20:17 UTC</td><td>Nightly full tests: all tests on three systems, both browsers, Python 3.12 and 3.13, with the browser tests run three times</td><td>About 30 min</td></tr>
-            <tr><td>Daily 20:17 UTC (same run)</td><td>macOS code-layer check: the nightly workflow calls the desktop build, and both macOS apps take the code-layer path (a full build when the shell is not cached)</td><td>About 3 min</td></tr>
+            <tr><td>Daily 20:17 UTC</td><td>Nightly full tests: all tests on three systems, both browsers, Python 3.12 and 3.13, with the browser tests run three times; only Ubuntu and Windows while macOS is paused</td><td>About 30 min</td></tr>
+            <tr><td>Daily 20:17 UTC (same run)</td><td>macOS code-layer check: the nightly workflow calls the desktop build, and both macOS apps take the code-layer path (a full build when the shell is not cached); not run while macOS is paused</td><td>About 3 min</td></tr>
             <tr><td>Daily 20:47 UTC</td><td>Full setup-script run: all tests in the in-repo run, plus from scratch</td><td>About 15 min</td></tr>
-            <tr><td>Saturdays 22:47 UTC</td><td>Weekly desktop full build: all three apps built in full (no cache, nothing reused) to catch changes in GitHub's images; run by the nightly workflow, so a failure goes to the same issue</td><td>About 5 min</td></tr>
+            <tr><td>Saturdays 22:47 UTC</td><td>Weekly desktop full build: all three apps built in full (no cache, nothing reused) to catch changes in GitHub's images; run by the nightly workflow, so a failure goes to the same issue; only the Windows worker while macOS is paused</td><td>About 5 min</td></tr>
             <tr><td>Sundays 22:17 UTC</td><td>Python dependency update: opens a PR and triggers CI when there are updates</td><td>Under 1 min, plus CI</td></tr>
           </tbody>
         </table>
@@ -138,7 +159,7 @@ Releases (v* tags) and the Saturday full build: always a full build, nothing reu
       <div class="panel-body prose">
         <p>On GitHub's Actions page pick a workflow, press "Run workflow" and choose the branch and options. Or use <code>gh</code>:</p>
       </div>
-      <pre class="source"># Full run: all tests on three systems, browser tests twice more (about 30 min)
+      <pre class="source"># Full run: all tests on three systems, browser tests twice more (about 30 min; no macOS while it is paused)
 gh workflow run nightly.yml --ref branch-name
 # Windows only, no repeats
 gh workflow run nightly.yml --ref branch-name -f systems=windows -f extra=0
@@ -146,7 +167,8 @@ gh workflow run nightly.yml --ref branch-name -f systems=windows -f extra=0
 gh workflow run ci.yml --ref branch-name -f scope=full
 # Setup scripts: full (default) = all tests plus from scratch; role = same as PRs
 gh workflow run setup-scripts.yml --ref branch-name
-# Desktop builds: manual runs always run; a full build by default (with trial packages)
+# Desktop builds: manual runs always run; a full build by default (with trial packages). While macOS is paused
+# only Windows is built; for macOS trial packages name them: -f targets=recorder-macos-arm64,worker-macos-arm64
 gh workflow run desktop.yml --ref branch-name
 # Recorder only, only the code layer when the shell is cached (no trial packages)
 gh workflow run desktop.yml --ref branch-name -f targets=recorder-macos-arm64 -f build=auto

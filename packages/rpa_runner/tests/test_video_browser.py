@@ -362,10 +362,12 @@ def test_cancelled_run_keeps_a_playable_video(site: str, engine: str, tmp_path: 
     )
 
     assert result.status == "cancelled", result.error
-    info = json.loads((result.directory / VIDEO_INFO).read_text(encoding="utf-8"))
-    assert info["file"] == VIDEO, info
-    assert info["complete"] is True, info
-    assert info["repaired"] is False, info
+    text = (result.directory / VIDEO_INFO).read_text(encoding="utf-8")
+    info = json.loads(text)
+    # 失敗時印出整份 video.json（大小、終止的經過）：只印 dict 會被 pytest 截斷（2026-11-26）
+    assert info["file"] == VIDEO, text
+    assert info["complete"] is True, text
+    assert info["repaired"] is False, text
     assert not (result.directory / VIDEO_TMP).exists()
     duration, colors = _sample(result.directory / VIDEO, [0.1, 1e6])
     assert duration > 1.0

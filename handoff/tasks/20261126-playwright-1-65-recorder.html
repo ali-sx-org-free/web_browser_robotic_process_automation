@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Playwright 1.65 的接著錄製 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>Playwright 1.65 的接著錄製</h1><p>PR #30 把 Playwright 從 1.64.0 升到 1.65.2，1.65 拿掉了「接著錄製」用的內部命令：main 的型別檢查失敗，執行時一開始錄製就 <code>AttributeError</code>。改用 1.65 的 <code>showRecorder</code>，補真實瀏覽器的回歸測試。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261126-playwright-1-65-recorder；2026-11-26 23:58 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-26 23:31 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話：「你修復playwright 1.65的問題。」起點是 <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/37#issuecomment-7212513676">PR #37 的診斷留言</a>。完成條件：從 main 另開分支修好接著錄製，CI 轉綠，開 PR。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：<code>rpa_runner/record.py</code> 的 <code>enable_recorder</code>、新的瀏覽器測試與角色登記、錄影取消測試的失敗訊息、桌面端分發設計頁「要實測的風險」一條（三種語言）、本紀錄與任務索引。不包含：Playwright 版本（維持 1.65.2，不固定回 1.64）；PR #37（只允許同步推送 .sql，另一個任務）；Windows 錄影取消偶發失敗的根因（見未完成）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>主責：Claude（雲端 session）；審閱與合併：使用者；接收方：未指定</dd>
+        <dt>修改檔案／整合者</dt><dd>packages/rpa_runner/src/rpa_runner/record.py、packages/rpa_runner/tests/test_record_browser.py（新）、packages/rpa_runner/tests/test_video_browser.py、tools/ci_roles.py、docs/design/desktop.html 與英文、簡中版、handoff/tasks/index.html（共用檔案，合併時以 main 為準）</dd>
+        <dt>狀態</dt><dd>待審閱：<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/38">PR #38</a>，head ec891ee 的 CI 全綠，可合併</dd>
+        <dt>分支／PR／base SHA</dt><dd>claude/project-thread-35fd52；PR #38；base 5241762（origin/main，2026-11-26 23:32 fetch）</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送到上述分支；SHA 以 PR 的最新 head 為準</dd>
+        <dt>工作區／環境</dt><dd>Linux 雲端容器；Python 3.13.18、uv 0.11.32、ruff 0.17.6、pyright 1.1.414、pytest 9.2.0、Playwright 1.65.2（uv.lock）。容器連不到 cdn.playwright.dev，裝不了 1.65 對應的 Chromium 159（build 1255）；本機瀏覽器測試用容器內建的 Chromium 158（build 1243，以 <code>PLAYWRIGHT_BROWSERS_PATH</code> 指向）。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>原因：</strong>1.65 的 Python 端改成產生的 <code>protocol_channels</code>，<code>Channel</code> 沒有通用的 <code>send</code>；原本的 <code>enableRecorder</code> 改名 <code>showRecorder</code>，由 <code>BrowserContext._show_recorder(params)</code> 送出（codegen 也這樣開始錄製）。pyright 報 <code>record.py:71</code>；執行時接著錄製在既有步驟跑完、開始錄製那一刻送出 <code>error</code> 事件：<code>AttributeError: 'BrowserContextChannel' object has no attribute 'send'</code>（新測試在舊寫法上重現）。</li>
+        <li><strong>已完成：</strong><code>enable_recorder</code> 改成 <code>context._sync(impl._show_recorder(params))</code>，參數不變（language、mode、outputFile、handleSIGINT）。新的 <code>test_record_browser.py</code>（角色 recorder，Linux 的 PR 每次都跑 Chromium）：(1) 直接在開好的 context 上開始錄製，錄製稿只有之後的操作；(2) 整個 <code>record.main</code>：執行 BA-001 既有的 7 步、開始錄製、使用者操作後關掉分頁，結束碼 0、事件依序 replaying、recording，錄製稿不含既有步驟填的標題。Inspector 用 Playwright 自己測試用的 <code>PWTEST_CLI_HEADLESS=1</code> 改成無頭，沒有螢幕也能跑；第 (2) 個另把瀏覽器換成無頭、以測試代替使用者的操作與關視窗。</li>
+        <li><strong>錄影取消的測試：</strong>main 上 Windows 的 Worker 測試，CI #121 <code>test_cancelled_run_keeps_a_playable_video[chromium]</code>（video.json 的 error 是 unreadable）與 <code>test_each_step_has_a_screenshot[chromium]</code>（兩步之間 1.46 秒，上限 1 秒）失敗；CI #122 這兩個通過，改成 <code>test_too_many_records_cannot_be_continued[firefox]</code> 的 goto 逾時；1.65 上的 CI #114（deps/uv-upgrade 手動觸發）與 #123（PR #37）Windows 都通過。看起來是 Windows 上時好時壞，不是每次都壞；1.65 是否讓它更常發生沒有足夠的次數判斷。這次只讓取消測試失敗時印出整份 video.json（原本只印 dict，被 pytest 截斷，看不到大小與終止的經過）。</li>
+        <li><strong>未完成／阻礙：</strong>(1) Windows 錄影取消偶發 unreadable 的根因未查（要 Windows 才能重現，下次失敗時看完整的 video.json）。(2) 本機的影片相關測試在容器的 Chromium 158 上全部失敗（影片資料夾是空的），是瀏覽器版本不符的環境問題，不代表 CI；Linux 的完整範圍（main 推送的 Python 3.12）在 1.65 上通過。(3) 打包版的自我測試不涵蓋接著錄製（設計頁原本說會），已在設計頁更正，沒有補到自我測試。</li>
+        <li><strong>決定：</strong>實作選擇（Claude）：沿用 1.65 的私有 API，不固定回 1.64；理由是改動只有一行、行為和 codegen 相同，並由新的測試在下次升級時發現。1.65 另有 <code>startRecording</code>／<code>stopRecording</code>（不開 Inspector、以事件回傳程式碼），同樣是私有 API，這次不換。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱、合併 PR。之後在錄製端實際「接著錄製」一次（人工驗收）。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>base 5241762＋本任務的差異；Linux 容器</td><td><code>uv run ruff check .</code>、<code>uv run ruff format --check .</code>、<code>uv run pyright</code>、<code>uv run python tools/i18n.py check</code>、<code>git diff --check</code></td><td>通過（pyright 0 errors，11 個既有的 warning）</td><td>無</td></tr>
+          <tr><td>同上；Chromium 158（容器內建，見環境）</td><td><code>uv run pytest -q -n 4 -m "not browser or (role_recorder and not firefox)"</code></td><td>2582 passed、7 skipped（Windows 專屬、ssh-keygen、真的運行環境）</td><td>Firefox 與 Windows 交給 CI</td></tr>
+          <tr><td>同上</td><td>新測試在舊的 <code>record.py</code> 上執行</td><td>2 個都失敗：<code>AttributeError: 'BrowserContextChannel' object has no attribute 'send'</code>；換回修正後通過，連跑 3 次</td><td>無</td></tr>
+          <tr><td>同上，xvfb-run</td><td>手動：有頭模式（產品實際的設定，Inspector 也是有頭的）跑整個 <code>record.main</code>（BA-001），測試代替使用者操作；錄製稿再用 <code>convert_recording</code>＋<code>merge_recording</code> 接到 BA-001 後面</td><td>結束碼 0；錄製稿是填標題、點「查詢紀錄」兩步；轉換沒有警告，接在既有步驟之後</td><td>真人在錄製端（macOS App）操作：人工驗收</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：head ec891ee 全部通過（<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45961229694">CI 45961229694</a>：靜態檢查、Python 3.12／3.13、Worker 測試（Windows）；另有伺服器分發包、RPA Worker（Windows）、運行環境）。Python 3.13 的測試數從 main 的 2625 變成 2627，新的兩個 Chromium 測試在 CI 的 Chromium 159 上通過；Windows 的錄影取消測試這次通過。人工驗收：未執行；審閱者／SHA／發現與處理：未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-11-26 23:31～23:50 America/Los_Angeles（PST，UTC−08:00），Claude：開工、重現、修正、補測試與本機檢查。</li>
+        <li>2026-11-26 23:50 America/Los_Angeles（PST，UTC−08:00），Claude：建立 PR #38（head ec891ee）。</li>
+        <li>2026-11-26 23:56 America/Los_Angeles（PST，UTC−08:00），Claude：head ec891ee 的 CI 全綠（見驗證）。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
