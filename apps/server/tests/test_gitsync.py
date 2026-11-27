@@ -47,6 +47,17 @@ steps:
     url: /
 """
 
+SQL_NODE = """\
+schemaVersion: 1
+id: sql-query
+name: SQL 查詢
+script:
+  runtime: '1'
+  automation: automation.py
+  files: [query.sql]
+"""
+SQL_TEXT = "select 1;\n"
+
 JsonObject = dict[str, object]
 
 
@@ -172,6 +183,43 @@ def test_first_push_to_an_empty_repository(
     # 再推一次沒有變更：不建立空的提交
     assert push(client)["syncedCommit"] == remote_head(remote)
     assert len(git("--git-dir", str(remote), "log", "--format=%H", "main").split()) == 1
+
+
+def test_sql_files_of_a_scene_are_pushed_and_pulled(
+    client: Client, tmp_path: Path, remote: Path, lab: str
+) -> None:
+    """Python 節點 files 列的 SQL 跟著版本存放，推送不能擋下，另一台拉取後內容一樣。"""
+    make_scene(client, "sql-query")
+    body(
+        client.post(
+            "/api/scenes/sql-query/revisions",
+            json={
+                "baseRevision": 1,
+                "files": {
+                    SCENARIO_FILE: SQL_NODE,
+                    "automation.py": "print(1)\n",
+                    "query.sql": SQL_TEXT,
+                },
+            },
+        ),
+        201,
+    )
+    connect(client, remote)
+
+    preview = body(client.get("/api/domains/lab/sync/preview"))
+    assert preview["blockers"] == []
+    push(client)
+    assert "team/lab/scenes/sql-query/revisions/2/query.sql" in remote_files(remote)
+
+    with second_server(tmp_path) as (_, other):
+        body(
+            other.post("/api/domains/from-git", json={"url": str(remote), "directory": "team/lab"}),
+            201,
+        )
+        files = cast(
+            "dict[str, str]", body(other.get("/api/scenes/sql-query/revisions/2"))["files"]
+        )
+        assert files["query.sql"] == SQL_TEXT
 
 
 def test_new_directory_leaves_the_rest_of_the_repository_alone(
@@ -342,11 +390,13 @@ def test_push_is_blocked_by_secret_values_and_private_files(
     folder = settings.data_dir / "domains" / "lab"
     (folder / "notes.md").write_text("密碼 hunter2-very-secret\n", encoding="utf-8")
     (folder / "state.json").write_text("{}", encoding="utf-8")
+    (folder / "tool.exe").write_bytes(b"MZ")
     connect(client, remote)
 
     preview = body(client.get("/api/domains/lab/sync/preview"))
     blockers = cast("list[str]", preview["blockers"])
     assert any("state.json" in item for item in blockers)
+    assert any("tool.exe" in item for item in blockers)  # 定義檔以外的副檔名照舊擋下
     assert any("notes.md" in item and "LAB_PASSWORD" in item for item in blockers)
     assert not any("hunter2" in item for item in blockers)
     refused = client.post("/api/domains/lab/sync/push", json={})
