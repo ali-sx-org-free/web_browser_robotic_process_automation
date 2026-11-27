@@ -1637,7 +1637,7 @@
   "sync.startup_pull_failed": "Could not pull domain {id}; using the last local data: {detail}",
   "sync.block_manifest": "pack.yaml is missing or invalid",
   "sync.block_sensitive": "{path}: looks like a login state, Secrets or a private key and cannot be pushed",
-  "sync.block_suffix": "{path}: only yaml, json, py, md and txt files can be pushed",
+  "sync.block_suffix": "{path}: only yaml, json, py, sql, md and txt files can be pushed",
   "sync.block_size": "{path}: larger than {limit} KB",
   "sync.block_secret": "{path}: contains the value of Secret {name}",
   "sync.warn_problems": "The domain folder has {count} load problems (others will see them after the push)",
