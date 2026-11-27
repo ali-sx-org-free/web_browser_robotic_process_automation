@@ -21,8 +21,8 @@
         <dt>主責／審閱／接收方</dt><dd>設計：Claude（Claude 專案對話的雲端 session）。審閱與決定：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>docs/adr/0027-python-packages.html、docs/en/adr/0027-python-packages.html、docs/zh-Hans/adr/0027-python-packages.html（產生）、docs/adr/index.html 與英文、簡中版、docs/assets/nav.js、handoff/tasks/index.html、本頁。ADR 編號 0027：開工時沒有開著的 PR，最新的是 0026。</dd>
         <dt>狀態</dt><dd>設計待確認（ADR 0027 提議中）。</dd>
-        <dt>分支／PR／base SHA</dt><dd>claude/project-thread-70yx5u（雲端 session 指定的分支名稱），從 origin/main c6958b1（#41）開。PR 見追加紀錄。</dd>
-        <dt>交接版本／同步狀態</dt><dd>推送到上述分支；SHA 以 PR 為準。</dd>
+        <dt>分支／PR／base SHA</dt><dd>claude/project-thread-70yx5u（雲端 session 指定的分支名稱），從 origin/main c6958b1（#41）開；<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/42">PR #42</a>（草稿，base main）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送；設計文件的提交 b4df6d5，之後只有本頁的回填，最新 SHA 以 PR 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux x86_64、uv 0.11.32；這次連得到 PyPI，<code>uv sync --locked</code> 成功）。</dd>
       </dl></div>
     </section>
@@ -40,7 +40,7 @@
       <div class="panel-header"><h2>驗證與審閱</h2></div>
       <div class="table-scroll"><table class="wrap">
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
-        <tbody><tr><td>c6958b1＋本任務的文件差異／Claude 雲端環境</td><td><code>uv run python tools/i18n.py stamp</code>、<code>sync</code>、<code>check</code>；<code>uv run pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code></td><td>見追加紀錄</td><td>handoff/ 的連結另外人工確認；只有文件，沒有程式測試</td></tr></tbody>
+        <tbody><tr><td>c6958b1＋本任務的文件差異／Claude 雲端環境</td><td><code>uv run python tools/i18n.py stamp</code>、<code>sync</code>、<code>check</code>；<code>uv run pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code></td><td>b4df6d5：i18n check 通過；tests/docs、tests/i18n 432 通過；git diff --check 通過；ADR 與本頁的相對連結、錨點以腳本檢查通過；Chromium 開繁中、英文頁沒有橫向捲動</td><td>handoff/ 的連結另外人工確認；只有文件，沒有程式測試</td></tr></tbody>
       </table></div>
       <div class="panel-body"><p>CI：見 PR；人工驗收：不適用（設計）；審閱：使用者未審閱。</p></div>
     </section>
@@ -52,6 +52,7 @@
       <div class="panel-header"><h2>追加紀錄</h2></div>
       <div class="panel-body"><ul class="points">
         <li>2026-11-27 03:03～03:45 America/Los_Angeles（PST，UTC−08:00），Claude：建立本頁，查證並寫 ADR 0027（提議中）。</li>
+        <li>2026-11-27 約 03:50 America/Los_Angeles（PST，UTC−08:00），Claude：推送 b4df6d5，開草稿 PR #42；把 PR 指派給使用者與請求審閱都被 GitHub 拒絕（帳號不是倉庫的協作者），不影響 PR。</li>
       </ul></div>
     </section>
   </div>
