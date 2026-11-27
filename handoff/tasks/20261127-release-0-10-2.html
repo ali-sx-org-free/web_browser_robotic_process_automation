@@ -21,7 +21,7 @@
         <dt>主責／審閱／接收方</dt><dd>主責 Claude；審閱、合併與推標籤：使用者；接收方未指定。</dd>
         <dt>修改檔案／整合者</dt><dd><code>apps/server/src/rpa_server/gitsync.py</code>、<code>locales/*.json</code>、<code>apps/server/tests/test_gitsync.py</code>（cherry-pick 自 PR #37 的 <span class="mono">5419330</span>）、<code>apps/*/pyproject.toml</code>、<code>packages/*/pyproject.toml</code>、<code>uv.lock</code>（只有工作區套件的版本）、本任務卡、<a href="20261126-gitsync-sql.html">gitsync-sql 任務卡</a>、任務索引。</dd>
         <dt>狀態</dt><dd>待審閱：PR 合併後由使用者推標籤。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>release/v0.10.2</code>（使用者選擇推到新分支，不強制覆蓋已合併的 <code>claude/project-thread-g6e2z3</code>）；PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/39">#39</a>；起點 <span class="mono">742078a</span>（v0.10.1）；<strong>打標籤的提交 <span class="mono">1869b5e</span></strong>，之後的 <span class="mono">98cfa1e</span> 是把 main 合併進來（只解任務索引與 gitsync-sql 任務卡的衝突）</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>release/v0.10.2</code>（強制覆蓋已合併的 <code>claude/project-thread-g6e2z3</code> 被自動模式擋下；照 Claude 的建議、經專案協調者轉達改推新分支，不覆蓋任何分支）；PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/39">#39</a>；起點 <span class="mono">742078a</span>（v0.10.1）；<strong>打標籤的提交 <span class="mono">1869b5e</span></strong>，之後的 <span class="mono">98cfa1e</span> 是把 main 合併進來（只解任務索引與 gitsync-sql 任務卡的衝突）</dd>
         <dt>交接版本／同步狀態</dt><dd>已推送到 <code>release/v0.10.2</code>；發布提交 <span class="mono">1869b5e85d60e0e0cea4db7f81bcf336adba3b06</span>。</dd>
         <dt>工作區／環境</dt><dd>Linux 雲端容器，Python 3.13.18、uv 0.11.32，<code>uv sync --locked</code>（Playwright 1.64.0，同 v0.10.1）。雲端環境不能推標籤。</dd>
       </dl></div>
@@ -53,7 +53,7 @@
     </section>
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
-      <div class="panel-body"><ul class="points"><li>2026-11-27 00:25 America/Los_Angeles（PST，UTC−08:00），Claude：建立任務，從 v0.10.1 開分支、cherry-pick 修正、改版本號。</li><li>2026-11-27 00:40 America/Los_Angeles（PST，UTC−08:00），Claude：強制推送原分支被自動模式擋下，依使用者選擇推到新分支 <code>release/v0.10.2</code>；在發布提交上手動觸發伺服器分發包與 CI；把 main 合併進來後開 PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/39">#39</a>。合併 PR 要用「Create a merge commit」，標籤打在 <span class="mono">1869b5e</span>。</li></ul></div>
+      <div class="panel-body"><ul class="points"><li>2026-11-27 00:25 America/Los_Angeles（PST，UTC−08:00），Claude：建立任務，從 v0.10.1 開分支、cherry-pick 修正、改版本號。</li><li>2026-11-27 00:40 America/Los_Angeles（PST，UTC−08:00），Claude：強制推送原分支被自動模式擋下，照建議（專案協調者轉達）推到新分支 <code>release/v0.10.2</code>；在發布提交上手動觸發伺服器分發包與 CI；把 main 合併進來後開 PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/39">#39</a>。合併 PR 要用「Create a merge commit」，標籤打在 <span class="mono">1869b5e</span>。</li></ul></div>
     </section>
   </div>
 </main>
