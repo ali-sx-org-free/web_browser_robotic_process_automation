@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-11-27 20:41 America/Los_Angeles（PST，UTC−08:00）。共 478 次運行。
+更新：2026-11-28 00:37 America/Los_Angeles（PST，UTC−08:00）。共 479 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -9,10 +9,10 @@
 
 | 流程 | 次數 | 通過 | 耗時中位數 | 耗時 P90 | 最長排隊中位數 | 機器時間（Linux／Windows／macOS） |
 |---|---|---|---|---|---|---|
-| CI | 37（40） | 26（24） | 5.5 分（4.8 分） | 9.1 分（8.0 分） | 0.1 分（0.1 分） | 319／57／0 分（301／50／0 分） |
-| 桌面端建置 | 26（28） | 25（24） | 0.2 分（0.2 分） | 5.8 分（5.8 分） | 0.1 分（0.1 分） | 4／33／39 分（4／32／47 分） |
-| 伺服器分發包 | 33（32） | 32（29） | 0.3 分（0.3 分） | 2.8 分（2.8 分） | 0.1 分（0.1 分） | 76／0／0 分（65／0／0 分） |
-| 一鍵安裝腳本 | 36（34） | 34（33） | 0.2 分（0.2 分） | 33.0 分（32.8 分） | 0.1 分（0.1 分） | 257／340／345 分（235／304／298 分） |
+| CI | 37（34） | 26（21） | 5.5 分（4.6 分） | 9.1 分（8.6 分） | 0.1 分（0.1 分） | 319／57／0 分（260／32／0 分） |
+| 桌面端建置 | 26（24） | 25（20） | 0.2 分（0.2 分） | 5.8 分（6.4 分） | 0.1 分（0.1 分） | 4／33／39 分（3／29／47 分） |
+| 伺服器分發包 | 33（27） | 32（24） | 0.3 分（0.2 分） | 2.8 分（2.8 分） | 0.1 分（0.1 分） | 76／0／0 分（51／0／0 分） |
+| 一鍵安裝腳本 | 37（31） | 35（30） | 0.2 分（0.2 分） | 32.7 分（32.8 分） | 0.1 分（0.1 分） | 257／340／345 分（235／304／298 分） |
 | 每晚完整測試 | 14（8） | 12（7） | 73.0 分（73.3 分） | 80.4 分（78.5 分） | 0.1 分（0.1 分） | 751／673／724 分（515／473／598 分） |
 | 發布 | 2（2） | 2（2） | 7.6 分（8.1 分） | 8.2 分（8.3 分） | 0.1 分（0.1 分） | 11／10／22 分（11／11／23 分） |
 
@@ -20,6 +20,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
+| 2026-11-28 | 1 | 0 | 0 | 0 | 0 |
 | 2026-11-27 | 96 | 428 | 186 | 251 | 865 |
 | 2026-11-26 | 23 | 192 | 159 | 139 | 490 |
 | 2026-11-25 | 15 | 295 | 256 | 127 | 678 |
@@ -34,7 +35,6 @@
 | 2026-11-16 | 16 | 152 | 115 | 138 | 405 |
 | 2026-11-15 | 2 | 98 | 113 | 123 | 335 |
 | 2026-11-14 | 76 | 310 | 172 | 171 | 652 |
-| 2026-11-13 | 18 | 56 | 21 | 0 | 76 |
 
 ## 最慢的測試檔案（每份報告最近一次，括號是近 7 次的中位數）
 
@@ -263,6 +263,7 @@
 
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
+| 11-28 00:37 | 一鍵安裝腳本 | PR | claude/project-thread-louap6 | success | 0.2 分 | 0.1 分 | [#46126689688](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/46126689688/attempts/1) |
 | 11-27 20:35 | CI | PR | chore/server-upgrade-0.11.0 | success | 5.3 分 | 0.1 分 | [#46108270832](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/46108270832/attempts/1) |
 | 11-27 20:35 | 一鍵安裝腳本 | PR | chore/server-upgrade-0.11.0 | success | 0.2 分 | 0.0 分 | [#46108270775](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/46108270775/attempts/1) |
 | 11-27 20:35 | 桌面端建置 | PR | chore/server-upgrade-0.11.0 | success | 0.1 分 | 0.0 分 | [#46108232753](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/46108232753/attempts/1) |
@@ -302,5 +303,4 @@
 | 11-27 04:45 | 一鍵安裝腳本 | PR | claude/project-thread-70yx5u | success | 0.2 分 | 0.0 分 | [#46001364654](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/46001364654/attempts/1) |
 | 11-27 04:45 | 伺服器分發包 | PR | claude/project-thread-70yx5u | success | 2.7 分 | 0.1 分 | [#46001364587](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/46001364587/attempts/1) |
 | 11-27 04:45 | CI | PR | claude/project-thread-70yx5u | failure | 5.0 分 | 0.1 分 | [#46001364664](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/46001364664/attempts/1) |
-| 11-27 04:45 | 桌面端建置 | PR | claude/project-thread-70yx5u | success | 6.7 分 | 0.1 分 | [#46001364438](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/46001364438/attempts/1) |
 
