@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261128-release-0-12-1 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261128-release-0-12-1：發布 v0.12.1</h1><p>把 main 發布為小版本 v0.12.1：v0.12.0 之後的 Python 腳本錄影回看（PR #46）。Python、第三方套件與附帶的運行環境都沒變，從 v0.12.0 只要更新檔。打標籤與更新伺服器第一次交給 agent-pm 的 worker 做。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261128-release-0-12-1；2026-11-28 01:05 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-28 00:13 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話要求（原文）：「後續你自己的工作后，運維類工作包括打tag、更新大版本、更新小版本到服務器可以派發出去，有對應的worker會來接手續作。」00:17 要求替 Python 腳本錄影回看建 agent-pm 項目，「把你做完之後其他要做的事情任務派發出去，主要是打tag、部署服務器工作」。00:45 澄清版本號（原文）：「那就把計劃改成小版本，我的意思是假設你要做大版本下一個大版本號碼是0.14.0。要是你不做大版本就按照現有版本號碼繼續。」00:47 對 v0.12.1 的派工計劃回覆（原文）：「批准」。驗收：版本一致、版本 PR 的 CI 通過、標籤 v0.12.1 位於 main、發布流程通過、草稿 Release 的「從 v0.12.0 升級」顯示只要更新檔；草稿經使用者驗收後才發布；正式伺服器用更新檔升到 0.12.1。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：版本號（<code>tools/release_version.py bump 0.12.1</code>）、本紀錄、任務索引；回填 <a href="20261128-python-script-replay.html">python-script-replay</a> 與 <a href="20261127-release-0-12-0.html">release-0-12-0</a> 的狀態；決定紀錄加上運維派工的做法。不包含：功能修改；文檔站對齊 v0.12.1。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude（PM 討論串，agent-pm 的 PM 身分 <code>rpa_new_pm</code>）準備版本差異與本紀錄、開版本 PR，並在 agent-pm hub 派工與 review。使用者合併版本 PR、驗收草稿並按「發布」、批准打標籤的任務。worker <code>devpos-chatgpt-rpa--worker</code> 推標籤、更新正式伺服器（Claude 的雲端環境推不了標籤）。本任務合併不代表線上環境已升級。</dd>
+        <dt>修改檔案／整合者</dt><dd>九個套件的 <code>pyproject.toml</code>、<code>uv.lock</code>（只有工作區套件的版本）；本紀錄、任務索引、python-script-replay 與 release-0-12-0 任務紀錄、<code>handoff/decisions.html</code>。Claude 整合。</dd>
+        <dt>狀態</dt><dd>版本 PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/47">#47</a> 等 CI 與使用者合併；合併後打開 agent-pm 項目的派工。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-opq37t</code>（雲端 session 指定的分支名稱），從 origin/main <span class="mono">742afa5</span>（#46）開；PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/47">#47</a>。</dd>
+        <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Linux 雲端容器，Python 3.13、uv 0.11.32。跨平台安裝包由 GitHub Actions 建置。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="changes">
+      <div class="panel-header"><h2>發布內容與升級</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>和 v0.12.0（標籤指向 <span class="mono">453c9d3</span>）的差異。</strong></li>
+        <li>PR #46：相容模式（沒寫 <code>script.runtime</code>）的 Python 腳本自己開瀏覽器時，Runner 的啟動器替它錄影，<code>rpa_script.current().step()</code> 的步驟在影片上定位，回看頁與組合回看是播放器；腳本不用改，伺服器的錄影設定關著時行為和以前相同（<a href="20261128-python-script-replay.html">任務紀錄</a>、<a href="../../docs/adr/0016-run-replay.html#python-scripts">ADR 0016 › Python 腳本</a>）。</li>
+        <li><strong>沒有資料庫遷移。</strong>PR #46 沒有新的遷移，也沒有改 <code>pyproject.toml</code>、<code>uv.lock</code>、<code>tools/</code>、<code>runtimes/</code> 或 <code>.github/</code>。</li>
+        <li><strong>升級時要注意（從 v0.12.0）：</strong>Python、第三方套件與附帶的 RPA Python 運行環境都沒變，環境代號應該和 v0.12.0 相同：PR #46 <span class="mono">5ea9e12</span> 的 CI 建出的伺服器分發包（x64）運行環境代號 <span class="mono">7f0262edff709b01</span>，和 v0.12.0 相同。伺服器用 <code>bin/rpa update RPA-Update-0.12.1.zip</code>；Worker 與錄製端從伺服器自動更新。以發布流程比較環境代號的結果，也就是 Release 說明的「從 v0.12.0 升級」為準。還在 v0.10.x 的要用完整的安裝包（v0.11.0 換過第三方套件）。從 clone 執行的伺服器不能用更新檔。</li>
+        <li><strong>Worker 也要更新。</strong>這次改了 Worker 端的 <code>rpa_runner</code>：Worker 更新到 0.12.1 後，相容模式的 Python 腳本才會錄影；還沒更新的 Worker 照舊執行，只是沒有影片。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="dispatch">
+      <div class="panel-header"><h2>agent-pm 派工</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>hub：</strong>私有倉庫 <code>ali-sx-org-free/projects_site_v01</code>，項目與任務都是它的 Issue，讀寫一律用 <code>apm</code>。PM 用 <code>apm</code> 0.2.1，從 <code>ali-sx-org-free/project_manager_and_worker</code> 取得。</li>
+        <li><strong>項目：</strong><a href="https://github.com/ali-sx-org-free/projects_site_v01/issues/8">py-video-replay #8</a>（代碼倉庫本倉庫、base main、批准時不合併 PR、contributor <code>boyuanfeework</code>）。2026-11-28 00:48 America/Los_Angeles（PST，UTC−08:00）建立時並行數設為 0（暫停派工），版本 PR 合併後才打開，避免標籤早於版本號。</li>
+        <li><strong>任務：</strong><a href="https://github.com/ali-sx-org-free/projects_site_v01/issues/9">#9 打 v0.12.1 標籤並產生草稿 Release</a>（能力 <code>git-tag</code>，使用者批准；worker 不按 Publish）→ <a href="https://github.com/ali-sx-org-free/projects_site_v01/issues/10">#10 用更新檔把正式伺服器升到 v0.12.1</a>（能力 <code>webrpa-incremental-upgrade</code>，依賴 #9，PM review；備份資料目錄、<code>bin/rpa update</code>、確認版本與跑一次場景）。</li>
+        <li><strong>待處理：</strong>worker <code>devpos-chatgpt-rpa--worker</code> 目前設成只做項目「rpa相关的项目」，這不是合法的項目代號（只能用小寫英文、數字與連字號），要在它的機器重新 <code>apm join --projects all</code>（或 <code>--projects py-video-replay</code>）才領得到。正式伺服器有幾台、worker 是否有本倉庫推標籤的權限，使用者還沒回覆。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong><code>python3 tools/release_version.py bump 0.12.1</code>，<code>check v0.12.1</code> 一致；本紀錄；回填 python-script-replay（已合併，收入 v0.12.1）與 release-0-12-0（已發布）的狀態；決定紀錄加上運維派工的做法；agent-pm 項目與兩個任務。</li>
+        <li><strong>決定：</strong>小版本 v0.12.1（使用者 00:45 澄清，已確認）；打標籤與更新伺服器派給 agent-pm 的 worker（使用者 00:13 要求、00:47 批准計劃，已確認）。實作選擇（Claude）：項目建好先暫停派工；打標籤的任務由使用者批准，批准等於草稿驗收並已發布，之後才解鎖更新伺服器。</li>
+        <li><strong>下一個具體動作：</strong>版本 PR 的 CI 通過後使用者合併（要用「Create a merge commit」，發布流程會檢查標籤的提交在 main 上）→ Claude 用 <code>apm project set py-video-replay --max-parallel 1</code> 打開派工 → worker 推 v0.12.1 標籤、回報草稿 Release → 使用者驗收、按 Publish、說「批准」→ Claude 以 <code>--human</code> 批准 #9 → worker 更新正式伺服器 → Claude review #10。</li>
+        <li><strong>升級後要驗的：</strong>正式伺服器用更新檔升級（資料保留、裝置頁顯示 0.12.1）；Worker 與錄製端自動更新到 0.12.1；Python 腳本錄影回看的人工驗收（<a href="20261128-python-script-replay.html">python-script-replay</a> 的下一個具體動作）。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。派工計劃 JSON 在 Claude 雲端 session 的 scratchpad，不屬於倉庫；內容以 hub 上的 Issue 為準。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>742afa5＋本分支差異；Linux、Python 3.13</td><td><code>python3 tools/release_version.py check v0.12.1</code></td><td>版本一致：v0.12.1</td><td>無</td></tr>
+          <tr><td><span class="mono">5ea9e12</span>（PR #46，之後只改文件）；GitHub Actions</td><td>PR #46 的伺服器分發包（x64）</td><td>運行環境代號 <span class="mono">7f0262edff709b01</span>，和 v0.12.0 相同（開發討論串回報）</td><td>arm64 的代號沒有印在日誌尾端；Worker、錄製端的環境代號由發布流程比較</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI（版本 PR）：未執行。發布流程：未執行；人工驗收：未回報；審閱：使用者未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points"><li>2026-11-28 00:13～00:16 America/Los_Angeles（PST，UTC−08:00），Claude：照使用者給的步驟註冊成 agent-pm 的 PM（<code>apm setup --no-permissions</code>、<code>apm doctor</code> 除「Claude Code 權限」外都通過），hub 沒有進行中的項目。</li><li>2026-11-28 00:48 America/Los_Angeles（PST，UTC−08:00），Claude：使用者批准 v0.12.1 的計劃後，用 <code>apm project create</code> 建項目 #8 與任務 #9、#10，並行數 0。</li><li>2026-11-28 01:05 America/Los_Angeles（PST，UTC−08:00），Claude：PR #46 合併（main <span class="mono">742afa5</span>）後在本分支 bump 0.12.1，寫本紀錄，回填 python-script-replay 與 release-0-12-0，決定紀錄加上運維派工。</li><li>2026-11-28 01:08 America/Los_Angeles（PST，UTC−08:00），Claude：推送 <span class="mono">3a15b24</span>、<span class="mono">f4db0f0</span>，開 PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/47">#47</a>；把 PR 指派給使用者與請求審閱都被 GitHub 拒絕（帳號不是倉庫的協作者），不影響 PR。等 CI 與使用者合併。</li></ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
