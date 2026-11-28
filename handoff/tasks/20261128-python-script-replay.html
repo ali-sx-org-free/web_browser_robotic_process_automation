@@ -20,9 +20,9 @@
         <dt>範圍／不包含</dt><dd>包含：Runner 的啟動器 <code>rpa_runner.scripthost</code>（同步與 asyncio、多分頁、腳本只關 Browser 也有完整影片）、相容模式也寫 <code>steps.json</code>、伺服器的回看資料（步驟的 startMs／endMs 與所在分頁）、回看頁與組合回看的說明文字、測試、文件。不包含（D2、D3 決定之後再做）：沒有 <code>run.step()</code> 的腳本自動從 Playwright 動作產生步驟、每一步的截圖；運行環境模式（<code>runtime: '1'</code>）不開瀏覽器，照舊不錄影。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude（Claude 專案對話的雲端 session）。審閱與合併：使用者。接收方：未指定。</dd>
         <dt>修改檔案／整合者</dt><dd>Runner：<code>packages/rpa_runner/src/rpa_runner/scripthost.py</code>（新）、<code>video.py</code>（<code>PageVideos</code> 可以在沒有主分頁時開始、<code>NO_BROWSER</code>）、<code>run.py</code>、三種語言的訊息；伺服器：<code>apps/server/src/rpa_server/replay.py</code>、<code>pages.py</code>、<code>composite_replay.py</code>、<code>static/replay.js</code>、三種語言的訊息；測試：<code>packages/rpa_runner/tests/test_scripthost.py</code>（新）、<code>test_video_browser.py</code>、<code>apps/server/tests/test_composite_replay.py</code>；文件：<code>docs/adr/0016-run-replay.html</code>（新增「Python 腳本」一節）、<code>0020-python-nodes.html</code>、<code>docs/design/dsl.html</code>、<code>portal.html</code>、<code>docs/roadmap.html</code>（繁中原文、英文翻譯、簡中產生）、本頁、任務索引與決定紀錄。</dd>
-        <dt>狀態</dt><dd>實作中：程式、測試與文件完成，待推送與開 PR。</dd>
-        <dt>分支／PR／base SHA</dt><dd>claude/project-thread-louap6（雲端 session 指定的分支名稱），從 origin/main <span class="mono">453c9d3</span>（#44）開；PR 未建立。</dd>
-        <dt>交接版本／同步狀態</dt><dd>基準 <span class="mono">453c9d3</span>＋未提交差異（寫本頁時）；推送後以 PR 為準。</dd>
+        <dt>狀態</dt><dd>待審閱：程式、測試與文件完成，<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/46">PR #46</a> 等 CI 與使用者審閱、合併。</dd>
+        <dt>分支／PR／base SHA</dt><dd>claude/project-thread-louap6（雲端 session 指定的分支名稱），從 origin/main <span class="mono">453c9d3</span>（#44）開；<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/46">PR #46</a>（base main）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送：c5bef92（Runner）、3850f5a（伺服器）、554af3f（文件）、3a20493（本頁），之後補 PR 編號；最新 SHA 以 PR 為準。</dd>
         <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux x86_64、uv 0.11.32、Python 3.13.18、Playwright 1.65.2）。容器內附的 Chromium 與 Playwright 1.65.2 要的版本不同、又不能下載，真實瀏覽器測試以 scratchpad 裡指向內附 Chromium 與系統 ffmpeg 的資料夾設 <code>PLAYWRIGHT_BROWSERS_PATH</code> 執行；有頭模式與 Firefox、WebKit 在這個環境跑不了。</dd>
       </dl></div>
     </section>
@@ -30,10 +30,10 @@
       <div class="panel-header"><h2>進度、決定與下一步</h2></div>
       <div class="panel-body"><ul class="points">
         <li><strong>已完成：</strong>錄影開著時，相容模式的 automation.py 改由 <code>python -m rpa_runner.scripthost --video 執行目錄 automation.py …</code> 啟動（打包後是 <code>rpa-child --rpa-module rpa_runner.scripthost …</code>）；啟動器替 Playwright 公開 API（同步與 async 的 <code>Browser.new_context</code>／<code>new_page</code>／<code>close</code>、<code>BrowserType.launch_persistent_context</code>、離開 <code>sync_playwright()</code>／<code>async_playwright()</code>）加上錄影，再以 <code>runpy</code> 照原樣執行腳本：<code>sys.argv</code>、<code>sys.path[0]</code>、<code>__name__</code>、<code>__file__</code>、結束碼與例外和直接執行相同。影片大小跟著腳本的 viewport（同 DSL 場景）；腳本自己設了 <code>record_video_dir</code> 就不動。腳本只關 Browser 或忘了關時，先關掉有錄影的 context，影片才完整（這個 Playwright 版本直接關 Browser 會得到 0 位元組或只有第一格的影片）。之後沿用 DSL 場景的 <code>finalize</code>：多分頁有 video-page-N.webm 與 video.json v2 的 clips。相容模式也設 <code>RPA_STEPS</code>，<code>run.step()</code> 的步驟寫進 steps.json；伺服器把步驟的開始、結束換成相對影片的毫秒，所在分頁取那時最晚開始、還在錄的分頁。腳本沒有開瀏覽器時 video.json 記 <code>no_browser</code>，回看頁說明（入參沒通過、腳本沒執行時不記）。沒有錄影時命令和以前完全相同。文件：ADR 0016 新增「Python 腳本」一節與修訂紀錄，ADR 0020、DSL、管理 Portal、路線圖同步。</li>
-        <li><strong>未完成／阻礙：</strong>推送、開 PR、CI。Windows（Worker App 打包後的 <code>rpa-child</code>）、macOS、有頭模式、Firefox 與 WebKit 只能由 CI 與人工驗收涵蓋。</li>
+        <li><strong>未完成／阻礙：</strong>PR #46 的 CI、使用者審閱與合併。Windows（Worker App 打包後的 <code>rpa-child</code>）、macOS、有頭模式、Firefox 與 WebKit 只能由 CI 與人工驗收涵蓋。</li>
         <li><strong>決定：</strong>D1～D3 使用者 2026-11-28 00:12 America/Los_Angeles（PST，UTC−08:00）決定照建議（已確認）：D1 跟著伺服器的錄影設定自動錄，場景不用另外開；D2 沒有 <code>run.step()</code> 的腳本先只有影片與一整段「自動化」，自動產生步驟之後再做；D3 縮圖從影片取，每一步的截圖之後再做。下一個版本號 v0.14.0（00:07）。見 <a href="../../docs/adr/0016-run-replay.html#python-scripts">ADR 0016 › Python 腳本</a>與<a href="../decisions.html#decisions">決定紀錄</a>。實作選擇（Claude）：只用 Playwright 的公開 API 掛鉤（簽章穩定，Playwright 改版由 <code>test_video_browser.py</code> 的真實瀏覽器測試發現）；步驟對應分頁在伺服器推算。</li>
-        <li><strong>下一個具體動作：</strong>推送 <code>claude/project-thread-louap6</code>、開 PR（base main）、看 CI；合併後收入 v0.14.0。人工驗收：Windows Worker 有頭、無頭各執行一次 <code>scenarios/demo/ba-001-script</code>（相容模式、自己開瀏覽器、沒有 <code>run.step()</code>：只有影片與一整段「自動化」），回看頁能播放、拖曳；再執行一次加上 <code>run.step()</code> 的腳本（寫法見 <a href="../../docs/design/dsl.html#python">DSL › Python 節點</a>的範例），點步驟跳到影片上的位置；一次開新分頁的腳本；一次組合運行裡接在瀏覽器節點後面。</li>
-        <li><strong>未提交／stash／ignored 產物：</strong>寫本頁時程式與文件都還沒提交，推送後以 PR 為準。scratchpad 裡的瀏覽器資料夾（指向內附 Chromium 與系統 ffmpeg 的連結）與試驗腳本不屬於倉庫。</li>
+        <li><strong>下一個具體動作：</strong>看 PR #46 最新 head 的 CI；使用者審閱、合併後收入 v0.14.0。人工驗收：Windows Worker 有頭、無頭各執行一次 <code>scenarios/demo/ba-001-script</code>（相容模式、自己開瀏覽器、沒有 <code>run.step()</code>：只有影片與一整段「自動化」），回看頁能播放、拖曳；再執行一次加上 <code>run.step()</code> 的腳本（寫法見 <a href="../../docs/design/dsl.html#python">DSL › Python 節點</a>的範例），點步驟跳到影片上的位置；一次開新分頁的腳本；一次組合運行裡接在瀏覽器節點後面。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。scratchpad 裡的瀏覽器資料夾（指向內附 Chromium 與系統 ffmpeg 的連結）與試驗腳本不屬於倉庫。</li>
       </ul></div>
     </section>
     <section class="panel" id="validation">
@@ -42,9 +42,9 @@
         <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
         <tbody><tr><td><span class="mono">453c9d3</span>＋本任務的差異／Claude 雲端環境（Linux x86_64）</td><td><code>uv run ruff check .</code>、<code>ruff format --check .</code>、<code>pyright</code>、<code>uv run pytest -m "not browser" -n 8</code></td><td>ruff、ruff format、pyright 0 錯誤；pytest 2628 passed、7 skipped、2 failed（兩個 i18n 檢查：英文翻譯還沒 stamp、簡中還沒產生，<code>tools/i18n.py stamp</code>／<code>sync</code> 後 <code>check</code> 通過）</td><td>瀏覽器測試另跑；Windows、macOS 只在 CI</td></tr>
           <tr><td>同上，<code>PLAYWRIGHT_BROWSERS_PATH</code> 指向 scratchpad 的瀏覽器資料夾（無頭 Chromium）</td><td><code>uv run pytest packages/rpa_runner/tests/test_scripthost.py packages/rpa_runner/tests/test_video_browser.py apps/server/tests/test_composite_replay.py</code></td><td>通過：啟動器和直接執行的輸出相同（有沒有錄影）、結束碼與例外照原樣；範例 ba-001 的腳本有 1280×800 的影片；<code>run.step()</code> 的步驟落在影片時間內；腳本只關 Browser、不關也有完整影片；開新分頁有 page-1、page-2 兩段；asyncio 的腳本有第一格的時間；沒有開瀏覽器記 no_browser；組合回看在相容模式節點有錄影時是影片段</td><td>有頭模式、Firefox、WebKit；打包後的 <code>rpa-child</code></td></tr>
-          <tr><td>同上（文件）</td><td><code>uv run python tools/i18n.py stamp</code>、<code>sync</code>、<code>check</code>；<code>uv run pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code></td><td>見追加紀錄</td><td>handoff/ 的連結另外人工確認</td></tr></tbody>
+          <tr><td>同上（文件）</td><td><code>uv run python tools/i18n.py stamp</code>、<code>sync</code>、<code>check</code>；<code>uv run pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code></td><td>i18n check 通過；tests/docs、tests/i18n 432 passed；git diff --check 通過；本頁、索引、決定紀錄與 ADR 0016 的相對連結與錨點以腳本檢查通過</td><td>handoff/ 的連結另外人工確認</td></tr></tbody>
       </table></div>
-      <div class="panel-body"><p>CI：未執行（PR 未建立）；人工驗收：未執行；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI：待 PR #46 的最新 head；人工驗收：未執行；審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -56,6 +56,7 @@
         <li>2026-11-28 00:01～00:12 America/Los_Angeles（PST，UTC−08:00），Claude：讀 ADR 0016／0020、<code>run.py</code>、<code>video.py</code>、<code>rpa_script</code>，回覆可行性評估與設計（啟動器替腳本開的瀏覽器錄影、相容模式也記步驟、回看頁用播放器）與待確認的 D1～D3。</li>
         <li>2026-11-28 00:12 America/Los_Angeles（PST，UTC−08:00），使用者決定照建議開始做；Claude 開工。</li>
         <li>2026-11-28 00:12～00:35 America/Los_Angeles（PST，UTC−08:00），Claude：實作 Runner 與伺服器、測試、文件，建立本頁。試驗中發現這個 Playwright 版本只關 Browser 時影片是 0 位元組，改成先關有錄影的 context。</li>
+        <li>2026-11-28 約 00:40 America/Los_Angeles（PST，UTC−08:00），Claude：推送 c5bef92～3a20493，開 PR #46（base main）；把 PR 指派給使用者與請求審閱都被 GitHub 拒絕（帳號不是倉庫的協作者），不影響 PR。</li>
       </ul></div>
     </section>
   </div>
