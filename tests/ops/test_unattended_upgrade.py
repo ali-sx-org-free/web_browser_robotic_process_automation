@@ -10,6 +10,8 @@ def test_unattended_upgrade_transactions() -> None:
     result = subprocess.run(
         [
             sys.executable,
+            "-X",
+            "utf8",
             "-m",
             "unittest",
             "discover",

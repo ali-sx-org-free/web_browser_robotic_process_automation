@@ -16,8 +16,8 @@
 <dt>需求與授權</dt><dd>使用者於本次對話審閱完整安裝、停機備份、systemd 與回退方案後，明確要求執行升級。</dd>
 <dt>主責</dt><dd>Codex；使用者審閱方案；未指定接收方。</dd>
 <dt>範圍</dt><dd>既有 Linux 伺服器部署；依使用者後續要求，擴充為可重複的無人值守升級技能、維運腳本、隔離測試及 CI 接入；本紀錄、任務索引及協作入口。沒有產品程式碼變更。相關版本發布見 <a href="20261127-release-0-11-0.html">v0.11.0 發布紀錄</a>。</dd>
-<dt>分支／基準／同步</dt><dd>chore/server-upgrade-0.11.0；origin/main c6958b1；本次提交包含升級紀錄與流程沉澱，PR 準備中。</dd>
-<dt>狀態</dt><dd>伺服器完整包升級完成；無人值守流程已實作，本地與 Linux 隔離驗證通過，個人技能已同步，準備提交審閱。實際 Worker 執行及錄製端驗收另待使用者操作。</dd>
+<dt>分支／基準／同步</dt><dd>chore/server-upgrade-0.11.0；最初基準 c6958b1，已整合 origin/main 453c9d3；實作 48a911a 已推送。<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/45">PR #45</a> 待審閱；CI 以最終 head 為準。</dd>
+<dt>狀態</dt><dd>伺服器完整包升級完成；無人值守流程已實作，本地與 Linux 隔離驗證通過，個人技能已同步，PR #45 已建立，雲端檢查待完成。實際 Worker 執行及錄製端驗收另待使用者操作。</dd>
 </dl></div></section>
 <section class="panel" id="progress"><div class="panel-header"><h2>決定與進度</h2></div><div class="panel-body"><ul class="points">
 <li>使用已發布的 RPA-Server-0.11.0-linux-x64.tar.gz，提交 25bb2a8，環境代號 7f0262edff709b01；SHA-256 de5c2b74c9578a56c007e303d4a99404d7a98fd94d5142d9b1c1ebf9fa0ff48f。</li>
@@ -46,6 +46,6 @@
 <li>實機：2026-11-27 20:18 America/Los_Angeles（PST，UTC−08:00），主控端對現有 v0.11.0 完整執行同版本入口，獨立 systemd 工作回傳 already_current；沒有重裝；後續確認主程序 PID、啟動時間及 NRestarts 均未改變。初次測試在修訂期間遇到來源腳本與上傳版本不同，雜湊檢查於派送前阻止執行，已修正為凍結交易副本。</li>
 <li>Ruff 0.17.6 的本次技能目錄 lint／format、skill-creator quick_validate 通過；既有 CI 透過 tests/ops/test_unattended_upgrade.py 執行 unittest 隔離測試。沒有在正式服務故障注入，也沒有宣稱未發布的下一版已驗收。</li>
 </ul></div></section>
-<section class="panel" id="receipt"><div class="panel-header"><h2>接收確認</h2></div><div class="panel-body"><p>未接收；來源、測試及紀錄正在準備同步。沒有代填人工驗收。</p></div></section>
-<section class="panel" id="log"><div class="panel-header"><h2>追加紀錄</h2></div><div class="panel-body"><ul class="points"><li>2026-11-27 19:48 America/Los_Angeles（PST，UTC−08:00），Codex：確認授權、fetch 與乾淨 main；建立任務分支及本紀錄，開始部署。</li><li>2026-11-27 19:51:34 America/Los_Angeles（PST，UTC−08:00），Codex：停止舊程序；19:52:02 完成備份驗證；19:52:10 新版端點與資料比對通過；19:52:30 完成初步穩定性檢查。停機約 36 秒。</li><li>2026-11-27 19:53 America/Los_Angeles（PST，UTC−08:00），Codex：公網端點與備份 SHA-256 複核通過，回填本機紀錄；部署已完成，文件尚未推送。</li></ul></div></section>
+<section class="panel" id="receipt"><div class="panel-header"><h2>接收確認</h2></div><div class="panel-body"><p>可接續；來源、測試及紀錄已推送 PR #45，未指定接收方，尚未合併。沒有代填人工驗收。</p></div></section>
+<section class="panel" id="log"><div class="panel-header"><h2>追加紀錄</h2></div><div class="panel-body"><ul class="points"><li>2026-11-27 19:48 America/Los_Angeles（PST，UTC−08:00），Codex：確認授權、fetch 與乾淨 main；建立任務分支及本紀錄，開始部署。</li><li>2026-11-27 19:51:34 America/Los_Angeles（PST，UTC−08:00），Codex：停止舊程序；19:52:02 完成備份驗證；19:52:10 新版端點與資料比對通過；19:52:30 完成初步穩定性檢查。停機約 36 秒。</li><li>2026-11-27 19:53 America/Los_Angeles（PST，UTC−08:00），Codex：公網端點與備份 SHA-256 複核通過，回填本機紀錄；部署已完成，文件尚未推送。</li><li>2026-11-27 20:35 America/Los_Angeles（PST，UTC−08:00），Codex：主目錄已切至其他工作，在獨立 D:/webrpa-upgrade-work 接續；整合主線時只解決任務索引，保留雙方連結。GitHub OAuth 缺少 workflow 權限，改由既有 pytest 收集隔離測試；連接器建立 PR 返回 403，使用既有 Git 憑證成功建立 PR #45。補上 Windows 子程序 UTF-8 模式，入口測試通過；技能六份來源忽略換行差異一致。正式服務 active、PID 163756、NRestarts=0。</li></ul></div></section>
 </div></main></body></html>
