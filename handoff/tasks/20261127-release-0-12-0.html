@@ -20,7 +20,7 @@
         <dt>範圍／不包含</dt><dd>範圍：版本號（<code>tools/release_version.py bump 0.12.0</code>）、本紀錄、任務索引；回填 <a href="20261127-python-packages.html">python-packages</a> 任務紀錄（已合併）。不包含：功能修改；推標籤、發布 Release（使用者）；文檔站對齊 v0.12.0。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude 準備版本差異與本紀錄、開版本 PR；使用者合併 PR、在自己的電腦推標籤（Claude 的雲端環境推不了標籤）、驗收草稿、按「發布」。本任務不代表線上環境已升級。</dd>
         <dt>修改檔案／整合者</dt><dd>九個套件的 <code>pyproject.toml</code>、<code>uv.lock</code>（只有工作區套件的版本）；本紀錄、任務索引、python-packages 任務紀錄。Claude 整合。</dd>
-        <dt>狀態</dt><dd>版本 PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/44">#44</a> 已開，待 CI 與使用者合併、推標籤。</dd>
+        <dt>狀態</dt><dd>版本 PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/44">#44</a> 的 CI 通過，待使用者合併、推標籤。</dd>
         <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-70yx5u</code>（雲端工作階段指定的分支名稱；PR #42 合併後從 origin/main@<span class="mono">6aa38a9</span> 重開）；PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/44">#44</a>。</dd>
         <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Linux 雲端容器，Python 3.13、uv 0.11.32。跨平台安裝包由 GitHub Actions 建置。</dd>
@@ -56,7 +56,7 @@
           <tr><td><span class="mono">3d6f77f</span>（PR #42 head，程式和 main 相同）；GitHub Actions</td><td>PR #42 的伺服器分發包（<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/46009524765">運行 46009524765</a>）</td><td>通過；安裝的執行環境 x64 <span class="mono">7f0262edff709b01</span>、arm64 <span class="mono">9e1a2aed5cbb45b2</span>，和 v0.11.0 相同；Rocky 8 安裝、冒煙、更新檔升級與自動退回通過</td><td>Worker、錄製端的環境代號由發布流程比較</td></tr>
         </tbody>
       </table></div>
-      <div class="panel-body"><p>CI（版本 PR）：待結果；發布流程：未執行；人工驗收：未回報；審閱：使用者未審閱。</p></div>
+      <div class="panel-body"><p>CI（PR #44，head <span class="mono">0192cb6</span>，<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/46105672518">運行 46105672518</a>）：靜態檢查、測試（Python 3.12、3.13）通過；Worker 測試（Windows）、桌面端建置、伺服器分發包、RPA Python 運行環境、一鍵安裝腳本依輸入指紋沿用之前的通過（版本號不算改動）。發布流程：未執行；人工驗收：未回報；審閱：使用者未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -64,7 +64,7 @@
     </section>
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
-      <div class="panel-body"><ul class="points"><li>2026-11-27 20:05 America/Los_Angeles（PST，UTC−08:00），Claude：PR #42 合併後從 origin/main@6aa38a9 重開分支，bump 0.12.0，寫本紀錄，回填 python-packages 任務紀錄。</li><li>2026-11-27 20:10 America/Los_Angeles（PST，UTC−08:00），Claude：推送 <span class="mono">0986c24</span>，開 PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/44">#44</a>；等 CI 與使用者合併、推標籤。</li></ul></div>
+      <div class="panel-body"><ul class="points"><li>2026-11-27 20:05 America/Los_Angeles（PST，UTC−08:00），Claude：PR #42 合併後從 origin/main@6aa38a9 重開分支，bump 0.12.0，寫本紀錄，回填 python-packages 任務紀錄。</li><li>2026-11-27 20:10 America/Los_Angeles（PST，UTC−08:00），Claude：推送 <span class="mono">0986c24</span>，開 PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/44">#44</a>；等 CI 與使用者合併、推標籤。</li><li>2026-11-27 20:12 America/Los_Angeles（PST，UTC−08:00），Claude：PR #44 head <span class="mono">0192cb6</span> 的 CI 通過（見驗證），可以合併；等使用者合併、推標籤。</li></ul></div>
     </section>
   </div>
 </main>
