@@ -1,5 +1,7 @@
 """真實錄影（M12）：影片和步驟對得上、失敗與取消的影片也能播放與拖曳、關閉時不錄。
 
+相容模式的 Python 腳本（2026-11-28）：腳本自己開的瀏覽器也錄，run.step() 的步驟和影片對得上。
+
 在 Chromium 與 Firefox 各錄一次；影片一律用 Chromium 播放、讀出某個時間點的顏色：
 頁面原本是白色，點「變紅」的那一步之後變成紅色。這一步開始前 0.3 秒應該是白的、結束後 0.3 秒
 應該是紅的——影片的時間＝錄影開始時間＋t，和步驟記下的實際時間是同一個時鐘（ADR 0016）。
@@ -400,8 +402,8 @@ def test_no_video_unless_asked(site: str, tmp_path: Path) -> None:
     assert not (result.directory / VIDEO_TMP).exists()
 
 
-def test_python_script_scenarios_are_not_recorded(tmp_path: Path) -> None:
-    """Python 腳本場景自己開瀏覽器，M12 不錄（使用者 2026-10-20 的決定 D5）。"""
+def test_python_script_scenarios_are_recorded(tmp_path: Path) -> None:
+    """相容模式的 Python 腳本自己開瀏覽器，腳本不用改也錄得到（2026-11-28，取代 M12 的 D5）。"""
     from testsite.server import running
 
     require_engine("chromium")
@@ -416,8 +418,222 @@ def test_python_script_scenarios_are_not_recorded(tmp_path: Path) -> None:
         )
 
     assert result.status == "passed", result.error
-    assert not (result.directory / VIDEO).exists()
-    assert not (result.directory / VIDEO_INFO).exists()
+    info = json.loads((result.directory / VIDEO_INFO).read_text(encoding="utf-8"))
+    assert info["file"] == VIDEO, info
+    assert info["complete"] is True, info
+    assert (info["width"], info["height"]) == (1280, 800)  # 腳本自己的 viewport
+    assert [clip["pageId"] for clip in info["clips"]] == ["page-1"]
+    assert not (result.directory / VIDEO_TMP).exists()
+
+
+SCRIPT = """\
+import argparse, json, os
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+import rpa_script
+
+parser = argparse.ArgumentParser()
+for name in ("input", "facts", "screenshot", "target-url"):
+    parser.add_argument(f"--{{name}}", required=True)
+args = parser.parse_args()
+run = rpa_script.current()
+with sync_playwright() as playwright:
+    engine = getattr(playwright, os.environ.get("RPA_BROWSER", "chromium"))
+    browser = engine.launch(headless=os.environ.get("RPA_HEADLESS", "1") != "0")
+    page = browser.new_context(viewport={{"width": 640, "height": 360}}).new_page()
+    with run.step("open"):
+        page.goto(args.target_url + "/page.html")
+    with run.step("wait-ready"):
+        page.locator("#ready").wait_for()
+    with run.step("turn-red", "變紅"):
+        page.locator("#go").click()
+    with run.step("wait-done"):
+        page.locator("#done").wait_for()
+    {close}
+Path(args.facts).write_text("{{}}", encoding="utf-8")
+"""
+
+SCRIPT_SCENARIO = """\
+schemaVersion: 1
+id: script-video
+name: 腳本錄影
+browser:
+  engine: chromium
+  baseUrl: {base}
+deadline: 60000
+script:
+  automation: automation.py
+  assertion: assertion.py
+"""
+
+PASS = """\
+import argparse
+from pathlib import Path
+parser = argparse.ArgumentParser()
+for name in ("input", "facts", "output"):
+    parser.add_argument(f"--{name}", required=True)
+Path(parser.parse_args().output).write_text("{}", encoding="utf-8")
+"""
+
+
+def _script(tmp: Path, site: str, automation: str) -> Path:
+    folder = tmp / "script-video"
+    folder.mkdir()
+    (folder / "automation.py").write_text(automation, encoding="utf-8")
+    (folder / "assertion.py").write_text(PASS, encoding="utf-8")
+    path = folder / "scenario.yaml"
+    path.write_text(SCRIPT_SCENARIO.format(base=site), encoding="utf-8")
+    return path
+
+
+def test_python_script_steps_line_up_with_the_video(site: str, engine: str, tmp_path: Path) -> None:
+    """run.step() 的步驟和影片是同一個時鐘：「變紅」那一步之前是白的、之後是紅的。"""
+    path = _script(tmp_path, site, SCRIPT.format(close="browser.close()"))
+    result = execute(path, {}, out_root=tmp_path / "runs", engine=engine, record_video=True)
+
+    assert result.status == "passed", result.error
+    folder = result.directory
+    info = json.loads((folder / VIDEO_INFO).read_text(encoding="utf-8"))
+    assert info["file"] == VIDEO, info
+    assert info["complete"] is True, info
+    assert (info["width"], info["height"]) == (640, 360)
+    steps = json.loads((folder / STEPS).read_text(encoding="utf-8"))
+    assert [(step["id"], step["action"]) for step in steps] == [
+        ("open", "python"),
+        ("wait-ready", "python"),
+        ("turn-red", "python"),
+        ("wait-done", "python"),
+    ]
+    start = _moment(info["startedAt"])
+    click = steps[2]
+    before = _moment(click["startedAt"]) - start - TOLERANCE
+    after = _moment(click["endedAt"]) - start + TOLERANCE
+    assert before > 0.5, (info, click)
+
+    duration, colors = _sample(folder / VIDEO, [before, after])
+
+    assert duration >= _moment(steps[3]["endedAt"]) - start - TOLERANCE, (duration, info)
+    assert _white(colors[0]), (colors, info, click)
+    assert _red(colors[1]), (colors, info, click, _keep_evidence(folder, f"script-{engine}"))
+
+
+def test_python_script_that_leaves_the_browser_open_keeps_its_video(
+    site: str, tmp_path: Path
+) -> None:
+    """腳本沒關瀏覽器就離開 with sync_playwright()：先關 context，影片才完整。"""
+    require_engine("chromium")
+    path = _script(tmp_path, site, SCRIPT.format(close="pass"))
+    result = execute(path, {}, out_root=tmp_path / "runs", engine="chromium", record_video=True)
+
+    assert result.status == "passed", result.error
+    info = json.loads((result.directory / VIDEO_INFO).read_text(encoding="utf-8"))
+    assert info["complete"] is True, info
+    steps = json.loads((result.directory / STEPS).read_text(encoding="utf-8"))
+    start = _moment(info["startedAt"])
+    duration, colors = _sample(result.directory / VIDEO, [1e6])
+    assert duration >= _moment(steps[-1]["endedAt"]) - start - TOLERANCE, (duration, info)
+    assert _red(colors[0]), colors
+
+
+POPUP_SCRIPT = """\
+import argparse, os
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+import rpa_script
+
+parser = argparse.ArgumentParser()
+for name in ("input", "facts", "screenshot", "target-url"):
+    parser.add_argument(f"--{name}", required=True)
+args = parser.parse_args()
+run = rpa_script.current()
+with sync_playwright() as playwright:
+    browser = playwright.chromium.launch(headless=os.environ.get("RPA_HEADLESS", "1") != "0")
+    page = browser.new_page(viewport={"width": 640, "height": 360})
+    page.goto(args.target_url + "/main.html")
+    page.locator("#ready").wait_for()
+    with page.expect_popup() as opened:
+        page.locator("#popup").click()
+    child = opened.value
+    child.locator("#ready").wait_for()
+    with run.step("child-red"):
+        child.locator("#go").click()
+    child.locator("#done").wait_for()
+    child.close()
+    with run.step("main-red"):
+        page.locator("#go").click()
+    page.locator("#done").wait_for()
+    browser.close()
+Path(args.facts).write_text("{}", encoding="utf-8")
+"""
+
+
+def test_python_script_popup_has_its_own_clip(site: str, tmp_path: Path) -> None:
+    """browser.new_page() 開的頁面與它開出的新分頁各錄一段，和 DSL 的多分頁錄影相同。"""
+    require_engine("chromium")
+    path = _script(tmp_path, site, POPUP_SCRIPT)
+    result = execute(path, {}, out_root=tmp_path / "runs", engine="chromium", record_video=True)
+
+    assert result.status == "passed", result.error
+    info = json.loads((result.directory / VIDEO_INFO).read_text(encoding="utf-8"))
+    clips = info["clips"]
+    assert [clip["pageId"] for clip in clips] == ["page-1", "page-2"]
+    assert all(clip["complete"] for clip in clips), clips
+    assert [clip["file"] for clip in clips] == [VIDEO, "video-page-2.webm"]
+    steps = json.loads((result.directory / STEPS).read_text(encoding="utf-8"))
+    for clip, step in ((clips[1], steps[0]), (clips[0], steps[1])):
+        start = _moment(clip["startedAt"])
+        _, colors = _sample(
+            result.directory / clip["file"],
+            [
+                _moment(step["startedAt"]) - start - TOLERANCE,
+                _moment(step["endedAt"]) - start + TOLERANCE,
+            ],
+        )
+        assert not _red(colors[0]), (clip, colors, step)
+        assert _red(colors[1]), (clip, colors, step)
+
+
+ASYNC_SCRIPT = """\
+import argparse, asyncio, os
+from pathlib import Path
+from playwright.async_api import async_playwright
+
+parser = argparse.ArgumentParser()
+for name in ("input", "facts", "screenshot", "target-url"):
+    parser.add_argument(f"--{name}", required=True)
+args = parser.parse_args()
+
+
+async def main() -> None:
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch()
+        context = await browser.new_context(viewport={"width": 640, "height": 360})
+        page = await context.new_page()
+        await page.goto(args.target_url + "/page.html")
+        await page.locator("#ready").wait_for()
+        await page.locator("#go").click()
+        await page.locator("#done").wait_for()
+        await browser.close()
+
+
+asyncio.run(main())
+Path(args.facts).write_text("{}", encoding="utf-8")
+"""
+
+
+def test_asyncio_python_script_is_recorded(site: str, tmp_path: Path) -> None:
+    require_engine("chromium")
+    path = _script(tmp_path, site, ASYNC_SCRIPT)
+    result = execute(path, {}, out_root=tmp_path / "runs", engine="chromium", record_video=True)
+
+    assert result.status == "passed", result.error
+    info = json.loads((result.directory / VIDEO_INFO).read_text(encoding="utf-8"))
+    assert info["complete"] is True, info
+    assert info["clips"][0]["startedAtSource"] == "first-observed-frame", info
+    duration, colors = _sample(result.directory / VIDEO, [0.1, 1e6])
+    assert duration > 2.0, info  # #ready 1.2 秒後出現、#done 再 1.5 秒
+    assert _white(colors[0]), colors
+    assert _red(colors[1]), colors
 
 
 @pytest.mark.parametrize("close_child", [False, True], ids=["open-popup", "closed-popup"])

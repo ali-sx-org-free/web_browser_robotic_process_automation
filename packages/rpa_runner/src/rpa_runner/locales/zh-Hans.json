@@ -29,6 +29,7 @@
   "run.deadline_before_publish": "总期限在发布出参前用完",
   "run.process_failed": "子进程结束码 {code}，详见 {log}",
   "run.facts_missing": "自动化没有写出 facts.json",
+  "scripthost.video_failed": "录像：{error}（脚本照常运行，这段没有录像）",
   "run.verify_failed": "{count} 条独立断言没有通过，第一条是「{name}」",
   "run.candidate_missing": "assertion.py 没有写出候选出参",
   "run.output_failed": "出参有 {count} 个问题，没有发布",

@@ -11,6 +11,9 @@
 - Python 節點（ADR 0020）沒有錄影：用 rpa_script 記下的步驟當章節（步驟時間軸）。每一步附上腳本
   那幾行（標出那一步的行號）、第幾次、那一步的檔案變化與資料預覽，以及到那一步為止的主控台
   （rpa_script 記下每一步開始、結束時 automation.log 寫到哪裡）；另外有整份主控台的最後幾行與事實。
+- 相容模式的 Python 腳本有錄影時（2026-11-28，ADR 0016）：播放器照常，rpa_script 的步驟也換算成
+  影片裡的毫秒；rpa_script 不知道腳本在操作哪個分頁，步驟算在那一刻還在錄的分頁裡最後開的那一個
+  （:func:`_page_at`）。
 """
 
 import bisect
@@ -18,7 +21,7 @@ import contextlib
 import json
 import re
 from collections.abc import Mapping, Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Final, cast
 from urllib.parse import quote
@@ -397,12 +400,32 @@ def _shot(folder: Path, run_id: str, value: object) -> str | None:
     return f"/runs/{run_id}/files/{value}"
 
 
+def _page_at(recordings: Sequence[Mapping[str, object]], moment: datetime | None) -> str:
+    """Python 步驟對到哪個分頁的錄影：那一刻還在錄的分頁裡最後開的；都不在錄時是第一個分頁。
+
+    腳本開出新分頁後多半接著在新分頁操作，關掉之後回到原本的分頁（和 DSL 的 popup 相同）。
+    """
+    chosen, latest = "page-1", None
+    for clip in recordings:
+        started = _moment(clip.get("startedAt"))
+        duration = clip.get("durationMs")
+        if moment is None or started is None or isinstance(duration, bool):
+            continue
+        if not isinstance(duration, int | float):
+            continue
+        ended = started + timedelta(milliseconds=duration)
+        if started <= moment <= ended and (latest is None or started > latest):
+            chosen, latest = str(clip.get("pageId") or "page-1"), started
+    return chosen
+
+
 def _steps(
     folder: Path,
     run_id: str,
     result: Mapping[str, object] | None,
     start: datetime | None,
     console: _Console,
+    recordings: Sequence[Mapping[str, object]] = (),
 ) -> list[dict[str, object]]:
     raw = result.get("steps") if result is not None else None
     if not isinstance(raw, list):
@@ -419,6 +442,7 @@ def _steps(
     scripts: dict[str, list[str]] = {}
     for index, record in enumerate(records):
         if record.get("action") == "python":
+            began = _moment(record.get("startedAt"))
             steps.append(
                 {
                     "index": index + 1,
@@ -430,12 +454,13 @@ def _steps(
                     "error": record.get("error"),
                     "startedAt": record.get("startedAt"),
                     "endedAt": record.get("endedAt"),
-                    "startMs": None,
-                    "endMs": None,
+                    # 有錄影時（相容模式的腳本）換算成影片裡的毫秒；沒有錄影時 start 是 None
+                    "startMs": _offset(began, start),
+                    "endMs": _offset(_moment(record.get("endedAt")), start),
                     "shot": None,
                     "shotMs": None,
                     "parent": record.get("parent"),
-                    "pageId": "page-1",
+                    "pageId": _page_at(recordings, began) if start is not None else "page-1",
                     "notes": [],
                     "artifacts": [],
                     **_python_step(folder, record, scripts, console),
@@ -599,7 +624,7 @@ def build_replay(
         # 有錄但沒存下來（例如還沒開瀏覽器就取消）：頁面照樣顯示原因，不能因為少了 url 出錯
         video = {"playable": False, "url": None, "error": info.get("error")}
     console = _Console(folder)
-    steps = _steps(folder, run.id, result, start, console)
+    steps = _steps(folder, run.id, result, start, console, recordings)
     if video is not None and playable:
         # 開頁步驟可能比第一格畫面更早；保留這段等待，不把它壓到零點。
         moments = [
@@ -651,8 +676,13 @@ def build_replay(
             if isinstance(name, str):
                 step["editUrl"] = base + quote(name)
     facts_raw = read_json_or(folder / FACTS, None) if python else None
+    python_info = (result or {}).get("python")
     return {
         "kind": (result or {}).get("kind"),
+        # Python 腳本場景的模式（compatible、runtime）：沒有錄影時說明原因用
+        "pythonMode": cast("Mapping[str, object]", python_info).get("mode")
+        if isinstance(python_info, Mapping)
+        else None,
         "python": {
             "console": console.tail(),
             "facts": facts_raw if isinstance(facts_raw, dict) else None,

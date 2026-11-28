@@ -157,18 +157,31 @@ verify:
             <tr><td>出参</td><td>由 assertion.py 写出，不写 <code>from</code></td><td>用 assertion.py 时同左；用 verify 时每个出参写 <code>from</code>，取自事实</td></tr>
             <tr><td>文件入参</td><td>不能用</td><td>可以：脚本从 <code>RPA_INPUT_FILES</code>（或 <code>run.input_files</code>）拿到实际路径</td></tr>
             <tr><td>派工</td><td>同 DSL：要有场景的浏览器</td><td>要有这个主版本的运行环境、平台在 <code>platforms</code> 里</td></tr>
+            <tr><td>录像与回看</td><td>录像开着时，脚本自己开的浏览器也录（2026-11-28，<a href="../adr/0016-run-replay.html#python-scripts">ADR 0016</a>），脚本不用改；用 <code>rpa_script.current().step()</code> 标的步骤在视频上定位，没标步骤时只有视频</td><td>不开浏览器、不录；用 <code>run.step()</code> 的脚本回看是步骤时间轴</td></tr>
           </tbody>
         </table></div>
         <dl class="spec-list">
           <dt><code>automation</code>、<code>assertion</code></dt><dd>Python 文件的相对路径（相对于场景文件所在的文件夹，以 .py 结尾，不能用 <code>..</code>）。automation.py 接受 <code>--input --facts --screenshot --target-url</code>，assertion.py 接受 <code>--input --facts --output</code>（沿用 MVP 原型的命令行契约；运行环境模式的 <code>--target-url</code> 是空字符串）。assertion.py 结束码不是 0 就是断言失败。</dd>
           <dt><code>files</code></dt><dd>脚本会用到的其他文字档（例如 helpers.py、SQL、JSON 模板），最多 16 个，路径规则同上、任何扩展名；跟着版本存放、纳入场景哈希，脚本可以 <code>import</code> 同文件夹的 .py。二进位档（Excel 模板）放场景附件 <code>files/</code>，不列在这里。管理 Portal 的「完整场景文件」可以添加与移除这些文件。</dd>
           <dt><code>platforms</code></dt><dd><code>windows</code>、<code>macos</code>、<code>linux</code> 的子集，只派给这些系统的 Worker；没写是不限。</dd>
-          <dt>环境变量</dt><dd>两种模式都有 <code>RPA_DEADLINE_SECONDS</code>（剩下的总期限）、<code>RPA_LANG</code>（界面语言）与场景声明的 Secrets（同名）。运行环境模式另有 <code>RPA_WORKSPACE</code>（共用工作文件夹，也是工作目录）、<code>RPA_OUTPUT_DIR</code>（产出文件，运行目录的 outputs/，跟着上传）、<code>RPA_INPUT_FILES</code>（file 入参的路径，JSON 文件）、<code>RPA_STEPS</code>、<code>RPA_RUNTIME</code>、<code>RPA_PLATFORM</code>；不会有电脑上的 <code>PYTHONPATH</code>、<code>VIRTUAL_ENV</code> 之类的变量。兼容模式的浏览器相关变量见下方 <a href="#run">rpa run</a>。</dd>
+          <dt>环境变量</dt><dd>两种模式都有 <code>RPA_DEADLINE_SECONDS</code>（剩下的总期限）、<code>RPA_LANG</code>（界面语言）、<code>RPA_STEPS</code>（<code>rpa_script</code> 写步骤的文件；兼容模式 2026-11-28 起也有）与场景声明的 Secrets（同名）。运行环境模式另有 <code>RPA_WORKSPACE</code>（共用工作文件夹，也是工作目录）、<code>RPA_OUTPUT_DIR</code>（产出文件，运行目录的 outputs/，跟着上传）、<code>RPA_INPUT_FILES</code>（file 入参的路径，JSON 文件）、<code>RPA_RUNTIME</code>、<code>RPA_PLATFORM</code>；不会有电脑上的 <code>PYTHONPATH</code>、<code>VIRTUAL_ENV</code> 之类的变量。兼容模式的浏览器相关变量见下方 <a href="#run">rpa run</a>。</dd>
           <dt>共用工作文件夹</dt><dd>同一次组合运行的节点固定在同一台 Worker，共用一个工作文件夹：上一个节点下载、写出的文件，下一个节点用路径就读得到（路径入参也允许指到这里）。组合运行结束就删除；单独运行时是暂存文件夹，结束就删。要留下来给人看的文件写进 <code>RPA_OUTPUT_DIR</code>。</dd>
           <dt>不是沙箱</dt><dd>Python 节点等于在 Worker 上以那位用户的身分运行任意程序；只给信任的人编辑，审核时特别标示，建议 Worker 用专用账号运行。</dd>
         </dl>
         <h3><code>rpa_script</code>（选用）</h3>
-        <p>运行环境模式由 <code>python -m rpa_script automation.py …</code> 启动：照契约自己读写文件的脚本不用改；用 <code>@automation</code> 的脚本拿到一个 <code>Run</code>，报告会有步骤、数据预览与产出文件。兼容模式的脚本也可以 import 它（用 <code>rpa_script.current()</code>）。</p>
+        <p>运行环境模式由 <code>python -m rpa_script automation.py …</code> 启动：照契约自己读写文件的脚本不用改；用 <code>@automation</code> 的脚本拿到一个 <code>Run</code>，报告会有步骤、数据预览与产出文件。兼容模式的脚本也可以 import 它（用 <code>rpa_script.current()</code>）：兼容模式不经由这个启动器，<code>@automation</code> 不会被调用，但 <code>run.step()</code> 的步骤照样写进 <code>steps.json</code>（2026-11-28 起），录像时在视频上定位，例如：</p>
+<pre class="source">import rpa_script
+from playwright.sync_api import sync_playwright
+
+run = rpa_script.current()                       # 兼容模式：没有 @automation，自己取得 Run
+with sync_playwright() as playwright:
+    browser = playwright.chromium.launch()
+    page = browser.new_page()                     # 录像开着时 Runner 自动加上录像，脚本不用改
+    with run.step("login", "登录"):              # 回看时点这一步，视频跳到这一段
+        page.goto("https://erp.example.com/login")
+        ...
+    browser.close()</pre>
+        <p>兼容模式其他的写法照旧：命令行参数、自己写 facts.json。下面的示例是运行环境模式：</p>
 <pre class="source">from pathlib import Path
 
 import pandas as pd
@@ -513,7 +526,7 @@ $ rpa run scenarios/demo/ba-002.yaml --input runs/ba-001-…/output.json   # 无
           <dt>选项</dt><dd><code>-i 名称=值</code>（依类型转换，可重复；array、object 写 JSON）、<code>--input 文件.json</code>、<code>--base-url</code>、<code>--browser chromium|firefox</code>、<code>--headed</code>、<code>--video</code>（录像成运行目录的 video.webm，M12；只有 DSL 场景）、<code>--deadline 毫秒</code>、<code>--out 文件夹</code>（默认 runs/）、<code>--format json</code>、<code>--storage-state 登录状态.json</code>（场景有 login 时加载这个 storageState，只加载不检查；检查与人工登录在管理 Portal）。退出码：0 通过、1 未通过。</dd>
           <dt>运行目录</dt><dd>input.json、facts.json、steps.json、output.json（只有通过时）、screenshot.png 与 screenshot 步骤的截图、automation.log（自动化日志：开头写这次的浏览器、窗口模式、起始网址与开始时间，接着每一步一行（时间、第几步、名称与动作、通过或失败、耗时；打开网页与出错时加上网址），失败时写出错的步骤、略过的步骤、证据在哪里与完整的错误原文；时间是运行那台电脑的当地时间，网址与错误遮罩 Secrets，不写入参的值）、diagnostic.json（失败时）、scenario/（本次的场景快照）、result.json、report.html；有登录检查时另有 login.json、login.log 与 login.png。登录状态本身不拷贝进来。</dd>
           <dt>Secrets</dt><dd>命令行从同名的环境变量读取（例如 <code>ERP_PASSWORD</code>）；管理 Portal 先用「登录与凭证」设置的值，没有才找环境变量。只传给子进程，日志与报告中会遮罩；M8 改为加密存放。</dd>
-          <dt>Python 节点</dt><dd>运行环境模式在入参之后多一个「运行环境」阶段（准备运行环境，不算进总期限），见 <a href="#python">Python 节点</a>。兼容模式：剩下的总期限在环境变量 <code>RPA_DEADLINE_SECONDS</code>，浏览器在 <code>RPA_BROWSER</code>，目前的语言在 <code>RPA_LANG</code>（脚本要写给人看的消息时可以参考），要不要显示浏览器窗口在 <code>RPA_HEADLESS</code>（<code>0</code> 有头模式、<code>1</code> 无头模式），场景有 login 时登录状态档的路径在 <code>RPA_STORAGE_STATE</code>（给 <code>browser.new_context(storage_state=…)</code>）；示例见 <code>scenarios/demo/ba-001-script/</code>。脚本自己启动浏览器，不使用下面的预热设置档。</dd>
+          <dt>Python 节点</dt><dd>运行环境模式在入参之后多一个「运行环境」阶段（准备运行环境，不算进总期限），见 <a href="#python">Python 节点</a>。兼容模式：剩下的总期限在环境变量 <code>RPA_DEADLINE_SECONDS</code>，浏览器在 <code>RPA_BROWSER</code>，目前的语言在 <code>RPA_LANG</code>（脚本要写给人看的消息时可以参考），要不要显示浏览器窗口在 <code>RPA_HEADLESS</code>（<code>0</code> 有头模式、<code>1</code> 无头模式），场景有 login 时登录状态档的路径在 <code>RPA_STORAGE_STATE</code>（给 <code>browser.new_context(storage_state=…)</code>）；示例见 <code>scenarios/demo/ba-001-script/</code>。脚本自己启动浏览器，不使用下面的预热设置档。录像开着时（2026-11-28），Runner 经由 <code>python -m rpa_runner.scripthost</code> 启动脚本，替脚本用 <code>new_context</code>、<code>new_page</code>、<code>launch_persistent_context</code> 开的浏览器加上录像，关浏览器或结束 Playwright 之前先把视频写完；脚本照原样运行，见 <a href="../adr/0016-run-replay.html#python-scripts">ADR 0016</a>。</dd>
           <dt>Firefox 设置档</dt><dd>Firefox 每次用全新的设置档启动时，会先初始化设置档而停止回应几秒（Windows 上机器忙时可能超过步骤的超时）。所以每台电脑、每个 Firefox 版本会保留一份预先初始化过的空白设置档，每次运行拷贝一份来用，结束后删除，每次运行仍然是干净的。第一次用 Firefox 运行时创建，约多花 7～10 秒。放在缓存文件夹 <code>RPA_CACHE_DIR</code>，默认是 Windows 的 <code>%LOCALAPPDATA%\rpa\cache</code>、macOS 的 <code>~/Library/Caches/rpa</code>、Linux 的 <code>~/.cache/rpa</code>；删掉也没关系，下次会重建。</dd>
         </dl>
       </div>

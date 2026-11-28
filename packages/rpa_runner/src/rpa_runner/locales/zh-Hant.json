@@ -29,6 +29,7 @@
   "run.deadline_before_publish": "總期限在發布出參前用完",
   "run.process_failed": "子程序結束碼 {code}，詳見 {log}",
   "run.facts_missing": "自動化沒有寫出 facts.json",
+  "scripthost.video_failed": "錄影：{error}（腳本照常執行，這段沒有錄影）",
   "run.verify_failed": "{count} 條獨立斷言沒有通過，第一條是「{name}」",
   "run.candidate_missing": "assertion.py 沒有寫出候選出參",
   "run.output_failed": "出參有 {count} 個問題，沒有發布",

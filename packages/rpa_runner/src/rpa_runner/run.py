@@ -4,14 +4,17 @@
 - 場景有 login 時，先用子程序 ``python -m rpa_runner.login check`` 確認角色已登入
   （必要時自動登入）；沒登入就停在 needs_login，不執行任何步驟。登入狀態檔不複製進執行目錄。
 - 自動化在子程序執行：DSL 場景是 ``python -m rpa_runner.child``，Python 腳本場景是 automation.py。
-  子程序超過總期限（加上短暫的收尾時間）就終止整個程序群組。
+  子程序超過總期限（加上短暫的收尾時間）就終止整個程序群組。Python 腳本場景都有 ``RPA_STEPS``：
+  腳本用 ``rpa_script`` 的 ``run.step()`` 標出的步驟寫進 steps.json（相容模式 2026-11-28 起）。
 - 獨立斷言：DSL 場景與用 verify 的 Python 節點在本程序比對 verify；用 assertion.py 的
   Python 節點再啟動一個 assertion.py 子程序（ADR 0020）。
 - 只有每個階段都通過，才寫出 output.json；任何失敗都沒有成功出參。
 - 每次執行一個目錄（見 files.py），最後一定寫出 result.json 與 report.html。
 - 可以從別的執行緒取消（``cancel``，例如管理介面的 worker）：立即終止程序群組，狀態為 cancelled。
 - ``record_video`` 時 DSL 場景的自動化階段錄影（M12，見 video.py）：終止時讓錄影寫完
-  （:func:`_stop_gracefully`），結束後整理成 video.webm 與 video.json。
+  （:func:`_stop_gracefully`），結束後整理成 video.webm 與 video.json。相容模式的 Python 腳本
+  （2026-11-28，ADR 0016）由 ``python -m rpa_runner.scripthost`` 啟動，替腳本自己開的瀏覽器錄影，
+  整理方式相同；腳本沒有開瀏覽器時 video.json 記下 ``no_browser``。運行環境模式不開瀏覽器，不錄。
 - 運行環境模式的 Python 節點（``script.runtime``，ADR 0020）：自動化之前多一個 runtime 階段，
   準備 RPA Python 運行環境（見 pyruntime.py；準備的時間不算進總期限）。腳本由
   ``python -E -s -X utf8 -m rpa_script`` 啟動，工作目錄是共用工作資料夾（``workspace``，組合運行
@@ -69,6 +72,7 @@ from rpa_runner.files import (
     SCENARIO_DIR,
     SCREENSHOT,
     STEPS,
+    VIDEO_INFO,
     VIDEO_TMP,
     read_json,
     read_json_or,
@@ -97,8 +101,10 @@ from rpa_runner.pyruntime import (
 )
 from rpa_runner.pyruntime import prepare as prepare_runtime
 from rpa_runner.report import render_report
+from rpa_runner.scripthost import MODULE as SCRIPT_HOST
+from rpa_runner.scripthost import VIDEO_FLAG
 from rpa_runner.secrets import mask, missing_secrets, read_secrets
-from rpa_runner.video import VIDEO_STOP
+from rpa_runner.video import NO_BROWSER, VIDEO_STOP
 from rpa_runner.video import finalize as finalize_video
 
 # scenario_digest、scenario_sources 在 rpa-core（領域資料夾的校驗也要用，M11），這裡照舊匯出
@@ -521,7 +527,8 @@ def execute(
     - ``on_stage``：每個階段開始時呼叫，用來回報進度。
     - ``login``：場景有 login 時，這個角色的登入設定（管理 Portal 登記的角色）。
     - ``secrets``：Secrets 的值（例如管理 Portal 保存的）；沒有的再從同名的環境變數找。
-    - ``record_video``：自動化階段錄影（M12；只有 DSL 場景，Python 腳本場景不錄）。
+    - ``record_video``：自動化階段錄影（M12）：DSL 場景與相容模式的 Python 腳本（2026-11-28）；
+      運行環境模式的 Python 節點不開瀏覽器，不錄。
     - 檔案入參（M7c）：``uploads`` 是上傳檔代號 → 這台電腦上的檔案；``path`` 值只能在
       ``input_folders`` 裡（沒給時用環境變數 RPA_INPUT_FOLDERS），``any_path`` 時不限（命令列）；
       ``max_file_bytes``、``max_run_bytes`` 是單檔與合計的上限。
@@ -588,7 +595,7 @@ def execute(
         name: environ[name] for name in (login.secrets if login else ()) if name in environ
     }
     secrets = read_secrets(scenario, environ)
-    video = record_video and scenario.script is None
+    video = record_video and not uses_runtime
     deadline = Deadline.after((deadline_ms or scenario.deadline or DEFAULT_DEADLINE_MS) / 1000)
     current: Stage = result.stage("input")
 
@@ -679,7 +686,14 @@ def execute(
         if own_workspace:
             shutil.rmtree(work, ignore_errors=True)
         if video:
-            finalize_video(folder, engine=result.engine)
+            info = finalize_video(folder, engine=result.engine)
+            ran = result.stage("automation").status != "skipped"
+            if info is None and script is not None and ran:
+                # 相容模式的腳本沒有開瀏覽器（或開之前就結束了）：回看頁說明為什麼沒有錄影
+                write_json(
+                    folder / VIDEO_INFO,
+                    {"version": 1, "engine": result.engine, "file": None, "error": NO_BROWSER},
+                )
         (folder / CANDIDATE).unlink(missing_ok=True)
         for leftover in folder.glob(".*.tmp"):  # 子程序寫到一半被終止時留下的暫存檔
             _remove_leftover(leftover)
@@ -976,7 +990,14 @@ def _automation_stage(
         script = snapshot.parent / scenario.script.automation
         command = node.command(script, arguments, launcher=True)
     elif scenario.script is not None:
-        command = script_command(str(snapshot.parent / scenario.script.automation), arguments)
+        script = snapshot.parent / scenario.script.automation
+        if video:
+            # 相容模式錄影：由 scripthost 替腳本開的瀏覽器加上錄影，腳本本身照原樣執行
+            command = module_command(
+                SCRIPT_HOST, [VIDEO_FLAG, str(folder), str(script), *arguments]
+            )
+        else:
+            command = script_command(str(script), arguments)
     else:
         command = module_command(
             "rpa_runner.child",
@@ -1008,6 +1029,8 @@ def _automation_stage(
             )
         else:
             env = _environment(secrets, deadline, engine or scenario.browser.engine, headed, state)
+            if scenario.script is not None:
+                env["RPA_STEPS"] = str(folder / STEPS)
             _run_process(command, folder / AUTOMATION_LOG, deadline, env, cancel, video=record)
     except _StageFailedError as failure:
         # 瀏覽器還沒下載：DSL 場景與 Python 腳本場景都會把 Playwright 的錯誤印進日誌

@@ -21,6 +21,21 @@
   </div>
 
   <div class="stack">
+    <section class="panel" id="python-scripts">
+      <div class="panel-header"><h2>兼容模式的 Python 脚本也录像（2026-11-28）</h2></div>
+      <div class="panel-body prose">
+        <p>更新：2026-11-28 00:40 America/Los_Angeles（PST，UTC−08:00）。本节修订决策 1「录什么」里的「Python 脚本场景不录」（M12 的 D5）：兼容模式（没写 <code>runtime</code>）的 Python 脚本自己用 Playwright 开浏览器，录像时也录；运行环境模式的 Python 节点不开浏览器（<a href="0020-python-nodes.html">ADR 0020</a>），照旧不录。</p>
+        <p><strong>原因：</strong>用户 2026-11-28 问 Python 浏览器脚本能不能回看，看过可行性评估后决定照建议做（D1～D3，见<a href="../../../handoff/decisions.html#decisions">决定记录</a>）。这类脚本的报告只有阶段、断言、截图与主控台，失败时看不到失败前的画面；原本只能改写成 DSL 节点加 Python 节点的组合场景才有录像。</p>
+        <p><strong>怎么录：</strong>录像时 Runner 改用 <code>python -m rpa_runner.scripthost --video 运行目录 automation.py …</code>（打包后是 <code>rpa-child --rpa-module rpa_runner.scripthost …</code>）运行脚本，不录像时照旧直接运行。启动器挂在 Playwright 的公开 API 上（同步与 asyncio 两套）：脚本用 <code>Browser.new_context</code>、<code>Browser.new_page</code>、<code>BrowserType.launch_persistent_context</code> 开的 context 加上 <code>record_video_dir</code>（运行目录的 <code>.video/</code>）与 <code>record_video_size</code>（画面大小照决策 1；脚本自己给了就用它的）。每个分页照 DSL 子进程的格式记在 <code>.video/pages.json</code>（page-1、page-2…、开页时间、视频文件名、Chromium 的首格观测时间），之后的整理、<code>video.json</code>、保留规则与 Windows 先结束浏览器的收尾都不变。脚本自己指定 <code>record_video_dir</code> 的 context 不动，也不收那段录像。脚本以 <code>__main__</code> 运行，<code>sys.argv</code> 与 import 路径和直接运行相同，例外与结束码照原样，脚本不用改。</p>
+        <p><strong>收尾：</strong>Playwright 1.65 关浏览器或结束时，不会先替录像收尾。2026-11-28 在云端容器实测：只调用 <code>browser.close()</code> 时视频是 0 字节，没关浏览器就离开 <code>with sync_playwright()</code> 时只有开头一格。所以启动器在 <code>Browser.close()</code> 与结束 Playwright（离开 <code>with</code>、调用 <code>playwright.stop()</code>）之前，先关掉录像中的 context，和 DSL 的子进程先关 context 相同。脚本完全没有结束 Playwright 就离开时，视频可能没写完，沿用重新封装的修复。</p>
+        <p><strong>步骤（D2）：</strong>兼容模式也有 <code>RPA_STEPS</code>：脚本用 <code>rpa_script.current().step()</code> 标出的步骤写进 <code>steps.json</code>，格式和运行环境模式相同，开始与结束是 UTC 毫秒、和视频同一个时钟，回看时在视频上定位；步骤详情照旧有脚本那几行、文件变化、数据预览与到那一步为止的主控台。<code>rpa_script</code> 不知道脚本在操作哪个分页，步骤算在那一刻还在录的分页里最后开的那一个：开出新分页后多半在新分页操作，关掉后回到原本的分页。没有标步骤的脚本只有视频，时间轴用「依时间」。把 <code>goto</code>、<code>click</code>、<code>fill</code> 自动记成步骤之后再评估。</p>
+        <p><strong>缩略图（D3）：</strong>不另拍每一步的截图，回看用视频里那一步做完的画面（没有截图的运行原本的做法）。像 DSL 那样每步另拍，要知道步骤在哪个分页，之后再评估。</p>
+        <p><strong>什么时候录（D1）：</strong>跟着服务器的录像设置自动录，场景不用另外声明；保留规则、总量上限与钉选和 DSL 相同。录像时脚本没有开浏览器（或在开之前就结束了），<code>video.json</code> 只有 <code>error: "no_browser"</code>，回看页照这个说明原因，不当成录像失败。</p>
+        <p><strong>限制：</strong>脚本用 <code>connect_over_cdp</code> 接到已经开着的浏览器时，原本就在的 context 录不到。Firefox 用 <code>launch_persistent_context</code> 时，启动时就有的那个分页可能少了工具列的高度（决策 1；DSL 改开新分页避开，脚本的写法不改）。挂勾用 Playwright 的公开 API，只有结束 Playwright 的那一段是内部模块，升级 Playwright 时由测试确认；挂勾出错时脚本照常运行，主控台留一行，那段没有录像。</p>
+        <p><strong>验证：</strong>云端容器（Linux、无头 Chromium）跑 ba-001 的 Python 脚本示例、用 <code>run.step()</code> 的脚本的对时（「变红」那一步前后 0.3 秒的颜色）、新分页、asyncio 与没关浏览器就结束的脚本；Firefox、有头模式与 Windows 由 CI 确认。实现与验证记录见<a href="../../../handoff/tasks/20261128-python-script-replay.html">本任务交接</a>。</p>
+      </div>
+    </section>
+
     <section class="panel" id="chapters">
       <div class="panel-header"><h2>依步骤的时间轴与每一步的截图（2026-10-29）</h2></div>
       <div class="panel-body prose">
@@ -49,7 +64,7 @@
     <section class="panel panel-body">
       <dl class="spec-list">
         <dt>日期</dt><dd class="mono">2026-10-20</dd>
-        <dt>修订</dt><dd><span class="mono">2026-10-22</span>：每个分页各录一段、回看依步骤的分页换片段，Chromium 用首格观测时间对时；取代「单一视频即可覆盖运行」与「超界步骤接在最后一格」，见<a href="#multipage">多标签页与对时修正</a>。<span class="mono">2026-10-27</span>：组合运行里的节点录像整组保留（保留天数看整次组合运行、钉选与超量删除整组处理），播放器可以把整次组合运行的各段录像接起来播，见 <a href="0019-composite-report-replay.html">ADR 0019</a>。<span class="mono">2026-10-29</span>：录像时每一步另外拍一张缩小的截图当缩略图，时间轴默认依步骤排（一格一步、空档折叠与快转），见<a href="#chapters">依步骤的时间轴与每一步的截图</a>。</dd>
+        <dt>修订</dt><dd><span class="mono">2026-10-22</span>：每个分页各录一段、回看依步骤的分页换片段，Chromium 用首格观测时间对时；取代「单一视频即可覆盖运行」与「超界步骤接在最后一格」，见<a href="#multipage">多标签页与对时修正</a>。<span class="mono">2026-10-27</span>：组合运行里的节点录像整组保留（保留天数看整次组合运行、钉选与超量删除整组处理），播放器可以把整次组合运行的各段录像接起来播，见 <a href="0019-composite-report-replay.html">ADR 0019</a>。<span class="mono">2026-10-29</span>：录像时每一步另外拍一张缩小的截图当缩略图，时间轴默认依步骤排（一格一步、空档折叠与快转），见<a href="#chapters">依步骤的时间轴与每一步的截图</a>。<span class="mono">2026-11-28</span>：兼容模式的 Python 脚本也录像（启动器替脚本开的 context 加上录像），<code>run.step()</code> 的步骤在视频上定位，见<a href="#python-scripts">兼容模式的 Python 脚本也录像</a>。</dd>
         <dt>影响范围</dt><dd>rpa-runner、rpa-worker、rpa-server（M12 起）</dd>
         <dt>相关</dt><dd><a href="0009-scenario-contract.html">ADR 0009</a>（运行目录）、<a href="0012-remote-workers.html">ADR 0012</a>（远程 worker 上传运行目录）；M11 的 D4（运行记录不进 git）；<a href="../design/portal.html#video">管理 Portal › 运行 › 录像</a></dd>
       </dl>

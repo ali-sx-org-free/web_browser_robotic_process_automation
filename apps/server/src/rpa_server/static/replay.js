@@ -12,7 +12,8 @@
 // 退回錄影裡那一步做完的畫面。「依時間」是原本的等比例時間軸。兩種排法都用 axis（時間 ↔ 位置）畫。
 // Python 節點（ADR 0020）：單一運行沒有播放器，是章節列與步驟詳情；合併回看裡是一段 kind 為 python
 // 的「卡片」（ReplayMedia 的時鐘照走），一步一格，畫面顯示目前那一步的腳本、檔案變化、資料預覽與到那
-// 一步為止的主控台（步驟的 console）。
+// 一步為止的主控台（步驟的 console）。相容模式的 Python 腳本有錄影時（2026-11-28）和 DSL 一樣播影片，
+// 步驟詳情照舊有腳本那幾行與主控台。
 (() => {
   const root = document.getElementById('replay');
   if (!root) return;
@@ -261,7 +262,9 @@
   function renderSteps() {
     list.textContent = '';
     if (!steps.length && !composite) {
-      list.innerHTML = '<li class="empty">' + esc(messages.no_steps) + '</li>';
+      // Python 腳本場景（2026-11-28）：相容模式有錄影、沒有用 run.step() 時，影片照常播放
+      const text = data.kind === 'script' ? messages.no_steps_script : messages.no_steps;
+      list.innerHTML = '<li class="empty">' + esc(text) + '</li>';
       return;
     }
     if (composite) {

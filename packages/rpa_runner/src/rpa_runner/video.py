@@ -2,7 +2,8 @@
 
 - 子程序（child.py）開 BrowserContext 時加上 Playwright 的錄影，寫到執行目錄的 ``.video/``；
   開好頁面就用 :func:`mark_page` 記下影片檔名與開頁面的時間（讀不到影片標頭時用）。
-  結束時先關 context：Playwright 這時才把影片寫完。
+  結束時先關 context：Playwright 這時才把影片寫完。相容模式的 Python 腳本（2026-11-28）由
+  scripthost.py 替腳本開的每個 context 加上錄影，分頁一樣用 :class:`PageVideos` 記下。
 - 父程序（run.py）在執行結束後呼叫 :func:`finalize`：等影片寫完；沒有長度與索引（Cues）時——
   例如 Windows 上連 ffmpeg 一起被強制結束——用 Playwright 自帶的 ffmpeg 重新封裝（不重新編碼）；
   主要影片改名成 ``video.webm``，其他分頁存為 ``video-page-N.webm``；
@@ -28,13 +29,14 @@ from pathlib import Path
 from typing import BinaryIO, Final, cast
 
 import playwright
-from playwright.sync_api import Page, ScreencastFrame, ViewportSize
+from playwright.sync_api import BrowserContext, Page, ScreencastFrame, ViewportSize
 
 from rpa_runner.commands import no_window_flags
 from rpa_runner.files import VIDEO, VIDEO_INFO, VIDEO_TMP, read_json_or, write_json
 
 __all__ = [
     "MAX_WIDTH",
+    "NO_BROWSER",
     "VIDEO_INFO_VERSION",
     "VIDEO_STOP",
     "PageVideos",
@@ -58,6 +60,8 @@ _DEFAULT_VIEWPORT: Final[ViewportSize] = {"width": 1280, "height": 720}
 """場景沒有指定視窗大小時，Playwright 用的大小。"""
 _PAGE_MARK: Final = "page.json"
 _PAGES_MARK: Final = "pages.json"
+NO_BROWSER: Final = "no_browser"
+"""video.json 的 error：錄影時相容模式的 Python 腳本沒有開瀏覽器（2026-11-28），所以沒有影片。"""
 VIDEO_STOP: Final = "stop.json"
 """錄影時被終止（取消、超過收尾時間）的經過：父程序寫在 ``.video/``，整理時放進 video.json。"""
 _SETTLE_SECONDS: Final = 0.5
@@ -85,45 +89,82 @@ def mark_page(folder: Path, video: str | None, opened_at: float) -> None:
 
 
 class PageVideos:
-    """將實際 Page 與影片綁定；事件到達時立即存檔，取消執行也能整理已錄下的分頁。"""
+    """將實際 Page 與影片綁定；事件到達時立即存檔，取消執行也能整理已錄下的分頁。
 
-    def __init__(self, folder: Path, main: Page, *, engine: str) -> None:
+    DSL 的子程序給起始分頁（``main``），同一個 context 之後開的分頁自動加入；相容模式的 Python
+    腳本可能開好幾個 context、用不同的瀏覽器，由 scripthost.py 逐一 :meth:`watch`。
+    """
+
+    def __init__(self, folder: Path, main: Page | None = None, *, engine: str) -> None:
         self.folder = folder
         self.engine = engine
-        self.pages: dict[Page, str] = {}
+        self.pages: dict[object, str] = {}
         self.marks: list[dict[str, object]] = []
-        self.identify(main)
-        main.context.on("page", self._opened)
+        if main is not None:
+            self.identify(main)
+            main.context.on("page", self._opened)
 
     def _opened(self, page: Page) -> None:
         self.identify(page)
 
-    def identify(self, page: Page) -> str:
+    def watch(self, context: BrowserContext, *, engine: str | None = None) -> None:
+        """再記一個 context：已經開著的分頁與之後開的分頁都記下來。"""
+        chosen = engine or self.engine
+
+        def opened(page: Page) -> None:
+            self.identify(page, engine=chosen)
+
+        for page in list(context.pages):
+            opened(page)
+        context.on("page", opened)
+
+    def add(self, page: object) -> dict[str, object] | None:
+        """新的分頁：給代號（page-1、page-2…）、記下開頁的時間；記過的分頁回傳 None。
+
+        scripthost.py 的 asyncio 腳本自己填影片檔名與首格時間，再呼叫 :meth:`save`。
+        """
         if page in self.pages:
-            return self.pages[page]
+            return None
         page_id = f"page-{len(self.pages) + 1}"
         self.pages[page] = page_id
         mark: dict[str, object] = {"pageId": page_id, "file": None, "openedAt": time.time()}
         self.marks.append(mark)
+        return mark
+
+    def observed(self, mark: dict[str, object], timestamp_ms: float) -> bool:
+        """記下第一個觀測到的畫面的時間；已經有了就回傳 False（之後的畫面不用再看）。
+
+        Chromium 的編碼器可能把首格時間歸零，DateUTC 仍是編碼器啟動時間。記下立即訂閱時觀測到的
+        首格；保留來源標記，不宣稱逐格精確同步。
+        """
+        if "firstObservedAt" in mark:
+            return False
+        mark["firstObservedAt"] = timestamp_ms / 1000
+        self.save()
+        return True
+
+    def save(self) -> None:
+        (self.folder / VIDEO_TMP).mkdir(parents=True, exist_ok=True)
+        write_json(self.folder / VIDEO_TMP / _PAGES_MARK, self.marks)
+
+    def identify(self, page: Page, *, engine: str | None = None) -> str:
+        mark = self.add(page)
+        if mark is None:
+            return self.pages[page]
         with contextlib.suppress(Exception):  # 記錄失敗不能中斷業務步驟
             if page.video is not None:
                 mark["file"] = page.video.path().name
 
         def frame_seen(frame: ScreencastFrame) -> None:
-            if "firstObservedAt" in mark:
-                return
-            # Chromium 的編碼器可能把首格時間歸零，DateUTC 仍是編碼器啟動時間。
-            # 記下立即訂閱時觀測到的首格；保留來源標記，不宣稱逐格精確同步。
-            mark["firstObservedAt"] = frame["timestamp"] / 1000
-            write_json(self.folder / VIDEO_TMP / _PAGES_MARK, self.marks)
-            with contextlib.suppress(Exception):
-                page.screencast.stop()
+            if self.observed(mark, frame["timestamp"]):
+                with contextlib.suppress(Exception):
+                    page.screencast.stop()
 
-        if self.engine == "chromium":
+        if (engine or self.engine) == "chromium":
             with contextlib.suppress(Exception):  # 舊版引擎或已關閉的分頁仍保留檔案時間
                 page.screencast.start(on_frame=frame_seen)
-        write_json(self.folder / VIDEO_TMP / _PAGES_MARK, self.marks)
-        return page_id
+        self.save()
+        return self.pages[page]
 
 
 def clips(info: Mapping[str, object]) -> list[dict[str, object]]:

@@ -4,6 +4,7 @@
 晚 30 秒開始；可以指定哪個場景在第幾步失敗。驗證接起來的時間軸（片段、步驟、轉場與說明卡）、頁面、
 全部錄影的下載，以及整組的錄影保留與釘選（D6）。真實錄影的連續播放在 test_composite_replay_flow.py。
 Python 節點（ADR 0020）不錄影：假的執行器照 rpa_script 的格式留下步驟（含主控台的位置）與主控台。
+相容模式的 Python 腳本（2026-11-28）自己開瀏覽器，錄影時和瀏覽器場景一樣留下一段影片。
 """
 
 import io
@@ -26,11 +27,19 @@ from sqlalchemy import select
 from rpa_core.dsl import validate_file
 from rpa_runner.browser import plan_records
 from rpa_runner.contract import check_inputs
-from rpa_runner.files import AUTOMATION_LOG, RESULT, SCENARIO_DIR, STEPS, VIDEO_TMP, write_json
+from rpa_runner.files import (
+    AUTOMATION_LOG,
+    RESULT,
+    SCENARIO_DIR,
+    STEPS,
+    VIDEO_INFO,
+    VIDEO_TMP,
+    write_json,
+)
 from rpa_runner.login import LoginSettings
 from rpa_runner.run import RunResult, StageName
 from rpa_runner.stepshots import shot_name
-from rpa_runner.video import finalize, mark_page
+from rpa_runner.video import NO_BROWSER, finalize, mark_page
 from rpa_server.domain import now
 from rpa_server.models import Revision, Run, Scene, WorkflowRun
 from rpa_server.services import Services
@@ -81,6 +90,20 @@ def main(run):
     with run.step("sum", "加總"):
         print("合計 60")
 """
+COMPAT_NODE = """\
+schemaVersion: 1
+id: py-browser
+name: 腳本開瀏覽器
+inputs:
+  recordId: { type: string }
+browser:
+  engine: chromium
+script:
+  automation: automation.py
+  assertion: assertion.py
+"""
+"""相容模式的 Python 腳本（沒寫 runtime）：自己開瀏覽器，2026-11-28 起錄影。"""
+COMPAT_ASSERTION = "print('ok')\n"
 PYTHON_LOG = "讀到 3 列\n合計 60\n".encode()
 PYTHON_STEPS: list[tuple[str, str, int, int, int]] = [
     ("read", "讀取", 6, 20, len("讀到 3 列\n".encode())),
@@ -97,6 +120,8 @@ class ClockExecutor:
         self.fail: dict[str, int] = {}
         self.calls = 0
         self.python_steps = True
+        self.no_browser = False
+        """相容模式的腳本沒有開瀏覽器：錄影時 video.json 只有 no_browser。"""
 
     def __call__(
         self,
@@ -127,7 +152,18 @@ class ClockExecutor:
         (folder / SCENARIO_DIR).mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, folder / SCENARIO_DIR / "scenario.yaml")
         if scenario.script is not None:
-            return self._python(scenario.id, scenario.name, run_id, folder, path, resolved, started)
+            compatible = scenario.script.runtime is None
+            return self._python(
+                scenario.id,
+                scenario.name,
+                run_id,
+                folder,
+                path,
+                resolved,
+                started,
+                video=record_video and compatible,
+                mode="compatible" if compatible else "runtime",
+            )
         records = plan_records(scenario)
         fail_at = self.fail.get(scenario.id)
         status = "passed"
@@ -186,6 +222,9 @@ class ClockExecutor:
         path: Path,
         resolved: dict[str, object],
         started: datetime,
+        *,
+        video: bool = False,
+        mode: str = "runtime",
     ) -> RunResult:
         shutil.copy2(path.parent / "automation.py", folder / SCENARIO_DIR / "automation.py")
         (folder / AUTOMATION_LOG).write_bytes(PYTHON_LOG)
@@ -214,7 +253,22 @@ class ClockExecutor:
             moment += duration / 1000
             written = upto
         write_json(folder / STEPS, records)
-        write_json(folder / RESULT, {"kind": "script", "checks": [], "stages": []})
+        result: JsonObject = {
+            "kind": "script",
+            "checks": [],
+            "stages": [],
+            "python": {"mode": mode},
+        }
+        write_json(folder / RESULT, result)
+        if video and self.no_browser:
+            write_json(folder / VIDEO_INFO, {"version": 1, "file": None, "error": NO_BROWSER})
+        elif video:
+            # 相容模式的腳本自己開瀏覽器：照 scripthost 的做法留下一段錄影，步驟從第 1 秒開始
+            mark_page(folder, "page.webm", started.timestamp())
+            (folder / VIDEO_TMP / "page.webm").write_bytes(
+                tiny_webm(duration_ms=VIDEO_MS, started_at=started, width=1280, height=800)
+            )
+            finalize(folder, engine="chromium")
         return RunResult(
             run_id=run_id,
             scenario_id=scene_id,
@@ -593,6 +647,99 @@ def python_composite_again(client: Client) -> int:
         client.post("/api/workflows", json={"name": "只有腳本", "definition": definition}), 201
     )
     return int(cast("int", created["id"]))
+
+
+def compat_composite(app: FastAPI, client: Client) -> int:
+    """ba-001（瀏覽器）→ py-browser（相容模式的 Python 腳本，自己開瀏覽器）。"""
+    assert client.post("/api/scenes/import").status_code < 400
+    publish(app, "ba-001")
+    assert client.post("/api/scenes", json={"id": "py-browser", "name": "暫名"}).status_code == 201
+    files = {
+        "scenario.yaml": COMPAT_NODE,
+        "automation.py": PYTHON_AUTOMATION,
+        "assertion.py": COMPAT_ASSERTION,
+    }
+    saved = client.post(
+        "/api/scenes/py-browser/revisions", json={"baseRevision": 1, "files": files}
+    )
+    assert saved.status_code == 201, saved.text
+    with services(app).sessions() as session:
+        scene = session.get(Scene, "py-browser")
+        revision = session.scalars(
+            select(Revision).where(Revision.scene_id == "py-browser", Revision.number == 2)
+        ).one()
+        assert scene is not None
+        revision.status = "passed"
+        revision.published_at = now()
+        scene.published_number = 2
+        session.commit()
+    nodes = cast("list[JsonObject]", THREE["nodes"])
+    python: JsonObject = {
+        "id": "n2",
+        "sceneId": "py-browser",
+        "revision": 2,
+        "inputs": {"recordId": {"node": "n1", "output": "recordId"}},
+    }
+    definition: JsonObject = {
+        "version": 2,
+        "mode": "dag",
+        "nodes": [nodes[0], python],
+        "edges": [{"source": "n1", "target": "n2"}],
+    }
+    created = body(
+        client.post("/api/workflows", json={"name": "腳本錄影", "definition": definition}), 201
+    )
+    return int(cast("int", created["id"]))
+
+
+def test_recorded_python_script_is_a_video_segment(
+    app: FastAPI, client: Client, worker: Worker
+) -> None:
+    """相容模式的腳本有錄影（2026-11-28）：和瀏覽器節點一樣是一段錄影，步驟放在影片的實際時間上。"""
+    run_id = run(client, worker, compat_composite(app, client))
+    data = body(client.get(f"/api/workflow-runs/{run_id}/replay"))
+    kinds = [(s["kind"], s.get("node")) for s in segments(data)]
+    assert kinds == [("video", "n1"), ("transition", "n2"), ("video", "n2")]
+    start = cast("int", segments(data)[2]["startMs"])
+    steps = [s for s in cast("list[JsonObject]", data["steps"]) if s["node"] == "n2"]
+    # 步驟照實際時間（影片開始後 1 秒、1.02 秒），不是步驟時間軸的 1.5～6 秒一格
+    assert [(s["label"], s["startMs"], s["endMs"]) for s in steps] == [
+        ("n2·1", start + 1000, start + 1020),
+        ("n2·2", start + 1020, start + 10020),
+    ]
+    assert {s["pageId"] for s in steps} == {"n2/page-1"}
+    assert steps[1]["focusLine"] == 8  # 腳本那幾行與主控台照舊
+    assert steps[1]["console"] == {"line": 1, "text": "讀到 3 列\n合計 60", "own": [2, 2]}
+
+    node = next(r for r in node_runs(app, run_id) if r.scene_id == "py-browser")
+    single = body(client.get(f"/api/runs/{node.id}/replay"))
+    video = cast("JsonObject", single["video"])
+    assert video["playable"] is True
+    assert single["pythonMode"] == "compatible"
+    assert [(s["startMs"], s["pageId"]) for s in cast("list[JsonObject]", single["steps"])] == [
+        (1000, "page-1"),
+        (1020, "page-1"),
+    ]
+    page = client.get(f"/runs/{node.id}/replay").text
+    assert '<video id="replay-video"' in page
+    assert 'id="replay-python"' not in page  # 有影片就不是步驟時間軸
+
+
+def test_python_script_that_opened_no_browser_is_explained(
+    app: FastAPI, client: Client, worker: Worker, executor: ClockExecutor
+) -> None:
+    executor.no_browser = True
+    executor.python_steps = False
+    run_id = run(client, worker, compat_composite(app, client))
+    data = body(client.get(f"/api/workflow-runs/{run_id}/replay"))
+    card = segments(data)[-1]
+    assert (card["kind"], card["node"]) == ("no_video", "n2")
+    assert "腳本沒有開瀏覽器" in str(card["reason"])
+
+    node = next(r for r in node_runs(app, run_id) if r.scene_id == "py-browser")
+    single = body(client.get(f"/api/runs/{node.id}/replay"))
+    assert single["video"] == {"playable": False, "url": None, "error": NO_BROWSER}
+    assert "腳本沒有開瀏覽器" in client.get(f"/runs/{node.id}/replay").text
 
 
 @pytest.mark.browser
