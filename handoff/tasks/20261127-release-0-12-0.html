@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261127-release-0-12-0 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>20261127-release-0-12-0：發布 v0.12.0</h1><p>把 main 發布為 v0.12.0：v0.11.0 之後的管理後台管理 RPA Python 運行環境的套件（ADR 0027 第一期）。Python、第三方套件與附帶的運行環境都沒變，從 v0.11.0 只要更新檔。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261127-release-0-12-0；2026-11-27 20:05 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-27 19:11 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話問（原文）：「這次改動需要升級大版本還是小版本。」Claude 建議次版本 0.12.0、從 v0.11.0 用更新檔升級；使用者 19:59 回覆（原文）：「好的升级版本号。」驗收：版本一致、版本 PR 的 CI 通過、標籤 v0.12.0 位於 main、發布流程通過、草稿 Release 的「從 v0.11.0 升級」顯示只要更新檔；草稿經使用者驗收後才發布。</dd>
+        <dt>範圍／不包含</dt><dd>範圍：版本號（<code>tools/release_version.py bump 0.12.0</code>）、本紀錄、任務索引；回填 <a href="20261127-python-packages.html">python-packages</a> 任務紀錄（已合併）。不包含：功能修改；推標籤、發布 Release（使用者）；文檔站對齊 v0.12.0。</dd>
+        <dt>主責／審閱／接收方</dt><dd>Claude 準備版本差異與本紀錄、開版本 PR；使用者合併 PR、在自己的電腦推標籤（Claude 的雲端環境推不了標籤）、驗收草稿、按「發布」。本任務不代表線上環境已升級。</dd>
+        <dt>修改檔案／整合者</dt><dd>九個套件的 <code>pyproject.toml</code>、<code>uv.lock</code>（只有工作區套件的版本）；本紀錄、任務索引、python-packages 任務紀錄。Claude 整合。</dd>
+        <dt>狀態</dt><dd>版本 PR 已開，待 CI 與使用者合併、推標籤。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-70yx5u</code>（雲端工作階段指定的分支名稱；PR #42 合併後從 origin/main@<span class="mono">6aa38a9</span> 重開）；版本 PR 見追加紀錄。</dd>
+        <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
+        <dt>工作區／環境</dt><dd>Linux 雲端容器，Python 3.13、uv 0.11.32。跨平台安裝包由 GitHub Actions 建置。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="changes">
+      <div class="panel-header"><h2>發布內容與升級</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>和 v0.11.0（標籤指向 <span class="mono">25bb2a8</span>）的差異。</strong></li>
+        <li>PR #42：管理後台「Python 套件」（<code>/python-packages</code>，系統管理員）新增、修改、移除 RPA Python 運行環境的套件，檢查（解析、各平台的 wheel、下載、雜湊與冷卻期、在伺服器 import）後發布成「套件 #N」，可以回到之前的版本；找套件（套件名稱或 import 名稱、常用套件、場景用到但清單沒有的）；來源測速、鏡像、代理；Worker 從伺服器下載、閒置時先準備；運行報告與場景頁顯示套件版本、缺模組時建議套件（<a href="20261127-python-packages.html">任務紀錄</a>、<a href="../../docs/adr/0027-python-packages.html">ADR 0027</a>）。</li>
+        <li>其他：PR #41、#43 只改任務紀錄（v0.11.0 改為已發布、macOS 恢復後的補測結果）。</li>
+        <li><strong>資料庫遷移。</strong>遷移 0022：新增 <code>python_package_sets</code>，runs、batches、workflow_runs 多一欄 <code>python_packages</code>；啟動時自動升級，第一次啟動時建立「套件 #1」（和附帶的運行環境相同，行為不變）。用更新檔升級時伺服器遷移前自動備份 SQLite，新版起不來時退回。</li>
+        <li><strong>升級時要注意（從 v0.11.0）：</strong>Python、第三方套件（<code>uv.lock</code> 只改工作區套件的版本）與附帶的 RPA Python 運行環境（<code>runtimes/python/</code>、<code>runtime.toml</code> 沒變）都沒變，環境代號應該和 v0.11.0 相同：PR #42 head <span class="mono">3d6f77f</span> 的 CI 建出的伺服器分發包是 x64 <span class="mono">7f0262edff709b01</span>、arm64 <span class="mono">9e1a2aed5cbb45b2</span>，和 v0.11.0 相同。伺服器用 <code>bin/rpa update RPA-Update-0.12.0.zip</code>；Worker 與錄製端從伺服器自動更新。以發布流程比較環境代號的結果，也就是 Release 說明的「從 v0.11.0 升級」為準；Worker、錄製端的環境代號由發布流程比較。還在 v0.10.x 的要用完整的安裝包（v0.11.0 換過第三方套件）。從 clone 執行的伺服器不能用更新檔。</li>
+        <li><strong>升級後第一次「檢查」</strong>伺服器要連得到 PyPI 或鏡像（同時下載固定版本的 uv）；內網連不出去時先在 Python 套件頁的設定填公司的鏡像或代理。舊版（v0.11.0 以前）的 App 只會拿到套件 #1 與和 #1 相同的版本。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong><code>python3 tools/release_version.py bump 0.12.0</code>，<code>check v0.12.0</code> 一致；本紀錄；回填 python-packages 任務紀錄（已合併，收入 v0.12.0）。</li>
+        <li><strong>決定：</strong>使用者同意升版本號。實作選擇：次版本 0.12.0（新功能與資料庫遷移；沒有換環境，不用完整安裝，和 v0.9.0 → v0.9.1 只要更新檔的情況相同）。</li>
+        <li><strong>下一個具體動作（使用者）：</strong>版本 PR 的 CI 通過後合併 → 在自己的電腦 <code>git switch main &amp;&amp; git pull --ff-only</code> 後 <code>git tag v0.12.0 &amp;&amp; git push origin v0.12.0</code>（只推這一個標籤）→ 發布流程建草稿 Release → 確認「從 v0.11.0 升級」只要更新檔、驗收 → 按 Publish → 正式伺服器 <code>bin/rpa update RPA-Update-0.12.0.zip</code>。</li>
+        <li><strong>升級後要驗的：</strong>正式伺服器用更新檔升級（資料保留、遷移 0022、Python 套件頁顯示套件 #1）；Worker 與錄製端自動更新到 0.12.0；Python 套件的人工驗收（<a href="20261127-python-packages.html">python-packages</a> 的下一步）。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody>
+          <tr><td>6aa38a9＋本分支差異；Linux、Python 3.13</td><td><code>python3 tools/release_version.py check v0.12.0</code></td><td>版本一致：v0.12.0</td><td>無</td></tr>
+          <tr><td><span class="mono">3d6f77f</span>（PR #42 head，程式和 main 相同）；GitHub Actions</td><td>PR #42 的伺服器分發包（<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/46009524765">運行 46009524765</a>）</td><td>通過；安裝的執行環境 x64 <span class="mono">7f0262edff709b01</span>、arm64 <span class="mono">9e1a2aed5cbb45b2</span>，和 v0.11.0 相同；Rocky 8 安裝、冒煙、更新檔升級與自動退回通過</td><td>Worker、錄製端的環境代號由發布流程比較</td></tr>
+        </tbody>
+      </table></div>
+      <div class="panel-body"><p>CI（版本 PR）：待結果；發布流程：未執行；人工驗收：未回報；審閱：使用者未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points"><li>2026-11-27 20:05 America/Los_Angeles（PST，UTC−08:00），Claude：PR #42 合併後從 origin/main@6aa38a9 重開分支，bump 0.12.0，寫本紀錄，回填 python-packages 任務紀錄。</li></ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>
