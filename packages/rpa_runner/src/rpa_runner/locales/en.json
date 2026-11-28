@@ -29,6 +29,7 @@
   "run.deadline_before_publish": "The deadline ran out before the outputs were published",
   "run.process_failed": "The subprocess exited with code {code}; see {log}",
   "run.facts_missing": "The automation did not write facts.json",
+  "scripthost.video_failed": "Recording: {error} (the script keeps running; this part is not recorded)",
   "run.verify_failed": "{count} independent assertion(s) failed; the first is \"{name}\"",
   "run.candidate_missing": "assertion.py did not write candidate outputs",
   "run.output_failed": "{count} output problem(s); nothing was published",
