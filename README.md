@@ -1,6 +1,6 @@
 # CI 運行耗時紀錄
 
-更新：2026-11-27 20:29 America/Los_Angeles（PST，UTC−08:00）。共 470 次運行。
+更新：2026-11-27 20:29 America/Los_Angeles（PST，UTC−08:00）。共 471 次運行。
 
 每次 CI、桌面端建置、一鍵安裝腳本、每晚完整測試、發布結束後，由 `.github/workflows/ci-metrics.yml` 追加到 `data/`；本頁由 `tools/ci_metrics.py report` 產生，不要手改。耗時＝第一個工作建立到最後一個工作結束（含排隊）；機器時間＝各工作實際執行的時間總和。
 規則與背景見 main 的 `docs/develop/ci.html`。
@@ -12,7 +12,7 @@
 | CI | 34（40） | 25（24） | 5.5 分（4.8 分） | 10.4 分（8.0 分） | 0.1 分（0.1 分） | 294／57／0 分（301／50／0 分） |
 | 桌面端建置 | 25（28） | 24（24） | 0.2 分（0.2 分） | 6.7 分（5.8 分） | 0.1 分（0.1 分） | 4／33／39 分（4／32／47 分） |
 | 伺服器分發包 | 33（32） | 32（29） | 0.3 分（0.3 分） | 2.8 分（2.8 分） | 0.1 分（0.1 分） | 76／0／0 分（65／0／0 分） |
-| 一鍵安裝腳本 | 33（34） | 31（33） | 0.2 分（0.2 分） | 33.0 分（32.8 分） | 0.1 分（0.1 分） | 257／340／345 分（235／304／298 分） |
+| 一鍵安裝腳本 | 34（34） | 32（33） | 0.2 分（0.2 分） | 33.0 分（32.8 分） | 0.1 分（0.1 分） | 257／340／345 分（235／304／298 分） |
 | 每晚完整測試 | 14（8） | 12（7） | 73.0 分（73.3 分） | 80.4 分（78.5 分） | 0.1 分（0.1 分） | 751／673／724 分（515／473／598 分） |
 | 發布 | 1（2） | 1（2） | 7.0 分（8.1 分） | 7.0 分（8.3 分） | 0.1 分（0.1 分） | 5／5／11 分（11／11／23 分） |
 
@@ -20,7 +20,7 @@
 
 | 日期 | 運行次數 | Linux | Windows | macOS | 合計 |
 |---|---|---|---|---|---|
-| 2026-11-27 | 88 | 397 | 182 | 239 | 818 |
+| 2026-11-27 | 89 | 397 | 182 | 239 | 818 |
 | 2026-11-26 | 23 | 192 | 159 | 139 | 490 |
 | 2026-11-25 | 15 | 295 | 256 | 127 | 678 |
 | 2026-11-24 | 2 | 95 | 104 | 123 | 323 |
@@ -264,6 +264,7 @@
 | 開始（洛杉磯） | 流程 | 觸發 | 分支 | 結果 | 耗時 | 最長排隊 | 運行 |
 |---|---|---|---|---|---|---|---|
 | 11-27 20:29 | 伺服器分發包 | 推送 | main | success | 0.1 分 | 0.0 分 | [#46107755429](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/46107755429/attempts/1) |
+| 11-27 20:29 | 一鍵安裝腳本 | 推送 | main | success | 0.1 分 | 0.0 分 | [#46107755454](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/46107755454/attempts/1) |
 | 11-27 20:09 | 桌面端建置 | PR | claude/project-thread-70yx5u | success | 0.1 分 | 0.0 分 | [#46106194815](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/46106194815/attempts/1) |
 | 11-27 20:09 | CI | PR | claude/project-thread-70yx5u | success | 2.5 分 | 0.1 分 | [#46106194863](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/46106194863/attempts/1) |
 | 11-27 20:09 | 一鍵安裝腳本 | PR | claude/project-thread-70yx5u | success | 0.2 分 | 0.1 分 | [#46106194816](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/46106194816/attempts/1) |
@@ -302,5 +303,4 @@
 | 11-27 04:01 | 一鍵安裝腳本 | PR | claude/project-thread-70yx5u | success | 0.2 分 | 0.0 分 | [#45995174002](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45995174002/attempts/1) |
 | 11-27 04:01 | 伺服器分發包 | PR | claude/project-thread-70yx5u | success | 0.2 分 | 0.0 分 | [#45995173863](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45995173863/attempts/1) |
 | 11-27 04:01 | CI | PR | claude/project-thread-70yx5u | success | 2.7 分 | 0.1 分 | [#45995174216](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45995174216/attempts/1) |
-| 11-27 03:50 | 桌面端建置 | PR | claude/project-thread-70yx5u | success | 0.2 分 | 0.0 分 | [#45993802364](https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/actions/runs/45993802364/attempts/1) |
 
