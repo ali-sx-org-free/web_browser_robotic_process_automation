@@ -30,6 +30,7 @@ from rpa_core.dsl.yaml_writer import flow
 from rpa_core.i18n import parse_locale
 from rpa_runner.files import OUTPUTS_DIR, PREVIEWS_DIR, REPORT, STEP_SHOTS
 from rpa_runner.installed import DISPLAY_NAMES
+from rpa_runner.video import NO_BROWSER
 from rpa_server.access import ROLES, Capability, current_access
 from rpa_server.agents import SCOPES
 from rpa_server.batch_table import MAX_BYTES, MAX_ROWS
@@ -260,11 +261,21 @@ def _no_video_reason(
     if video is not None and video.get("deletedAt"):
         reason = str(video.get("deletedReason") or "expired")
         return t("replay.no_video_deleted", reason=t(f"replay.deleted_{reason}"))
+    if video is not None and video.get("error") == NO_BROWSER:
+        return t("replay.no_video_no_browser")
     if video is not None and video.get("error"):
         return t("replay.no_video_failed", error=str(video["error"]))
-    if result is not None and result.get("kind") == "script":
+    if result is not None and result.get("kind") == "script" and not _compatible(result):
         return t("replay.no_video_script")
     return t("replay.no_video_off")
+
+
+def _compatible(result: dict[str, object]) -> bool:
+    """相容模式的 Python 腳本（2026-11-28 起會錄影）；運行環境模式不開瀏覽器、不錄。"""
+    python = result.get("python")
+    return (
+        isinstance(python, dict) and cast("dict[str, object]", python).get("mode") == "compatible"
+    )
 
 
 def _location_context(services: Services) -> dict[str, object]:

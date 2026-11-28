@@ -9,6 +9,7 @@
 - Python 節點（ADR 0020）沒有錄影，用 rpa_script 記下的步驟播一段步驟時間軸：一步一格，每一步依實際
   耗時佔 1.5～6 秒（太短的看不清、太長的不必等），畫面是那一步的腳本、檔案變化、資料預覽與到那一步
   為止的主控台。和錄影一樣，前後的節點之間有轉場卡。沒有記步驟的 Python 節點是說明卡。
+  相容模式的 Python 腳本有錄影時（2026-11-28）和瀏覽器節點一樣是一段錄影，步驟照實際時間放在影片上。
 - 條件連線沒走到而略過的節點不放進時間軸；重複的節點播最後一次（2026-11-11）。
 - 沒有錄影的節點（已依保留規則刪除、需要登入、沒有開始、錄影關閉）是一張 3 秒的說明卡；沿用的節點
   （從停下的節點繼續）也是一張卡片，連到原本那次的回看（D3）；最後沒有執行或還沒輪到的節點合成
@@ -26,6 +27,7 @@ from typing import Final, cast
 from sqlalchemy.orm import Session
 
 from rpa_core.workflow import Workflow
+from rpa_runner.video import NO_BROWSER
 from rpa_server.composite_report import build_composite_report
 from rpa_server.domain import WorkflowNodeState, WorkflowRunRecord
 from rpa_server.i18n import t
@@ -71,8 +73,10 @@ def _no_video(
     video: Mapping[str, object] | None,
     stages: Sequence[object],
     kind: object = None,
+    mode: object = None,
 ) -> str:
-    """節點沒有錄影的原因（說明卡）。``kind`` 是 result.json 的 kind（script 是 Python 節點）。"""
+    """節點沒有錄影的原因（說明卡）。``kind`` 是 result.json 的 kind（script 是 Python 節點），
+    ``mode`` 是 Python 節點的模式（compatible 的腳本自己開瀏覽器，2026-11-28 起會錄影）。"""
     if state.run is None:
         return t("creplay.no_video_not_started")
     if video is not None and video.get("deletedAt"):
@@ -80,6 +84,8 @@ def _no_video(
         return t("replay.no_video_deleted", reason=t(f"replay.deleted_{reason}"))
     if state.status == "needs_login":
         return t("creplay.no_video_login")
+    if video is not None and video.get("error") == NO_BROWSER:
+        return t("replay.no_video_no_browser")
     if video is not None and video.get("error"):
         return t("replay.no_video_failed", error=str(video["error"]))
     automation = next(
@@ -93,7 +99,7 @@ def _no_video(
     )
     if automation is not None and automation.get("status") == "skipped":
         return t("creplay.no_video_no_automation")
-    if kind == "script":
+    if kind == "script" and mode != "compatible":
         return t("creplay.no_video_python")
     return t("replay.no_video_off")
 
@@ -177,7 +183,9 @@ def build_composite_replay(
         data = build_replay(session, storage, row, settings) if row is not None else None
         video = cast("dict[str, object] | None", (data or {}).get("video"))
         steps = cast("list[dict[str, object]]", (data or {}).get("steps") or [])
-        if data is not None and data.get("python") and steps and state.status not in _WAITING:
+        recorded = video is not None and bool(video.get("playable"))
+        python = bool(data is not None and data.get("python") and steps) and not recorded
+        if python and state.status not in _WAITING:
             # Python 節點的步驟時間軸：一步一格，依實際耗時佔 PYTHON_STEP_MS 之間
             low, high = PYTHON_STEP_MS
             slots = [
@@ -200,7 +208,9 @@ def build_composite_replay(
                 NOTE_MS,
                 node=state.id,
                 status=state.status,
-                reason=_no_video(state, video, stages, (data or {}).get("kind")),
+                reason=_no_video(
+                    state, video, stages, (data or {}).get("kind"), (data or {}).get("pythonMode")
+                ),
             )
             entry.update(segment=segment["index"], startMs=segment["startMs"])
             _add_steps(line, state, data, offset=None)
