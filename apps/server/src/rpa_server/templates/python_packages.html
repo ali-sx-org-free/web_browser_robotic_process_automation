@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{#- ADR 0027：RPA Python 運行環境的套件。改的都是草稿；檢查通過才能發布成下一個「套件 #N」。 -#}
+{% block description %}{{ t("pypackages.description") }}{% endblock %}
+{% block actions %}<button class="button" data-action="pkg-upgrade"{% if draft %} disabled title="{{ t('pypackages.upgrade_has_draft') }}"{% endif %}>{{ t("pypackages.check_updates") }}</button>{% endblock %}
+{% block content %}
+{% set family_names = {"windows": "Windows", "macos": "macOS", "linux": "Linux"} %}
+<div class="stack" id="python-packages" data-state="{{ draft.status if draft else '' }}" data-current="{{ current.number }}">
+  <div class="notice">{{ t("pypackages.notice") }}</div>
+
+  {# ---------------------------------------------------------------- 目前的版本與草稿 #}
+  <section class="panel" id="pkg-status">
+    <div class="panel-header"><h2>{{ t("pypackages.current", number=current.number) }}</h2>
+      <span class="muted">{{ t("pypackages.published_at") }} {{ m.time(current.published_at) }}{% if current.published_by %} · {{ current.published_by }}{% endif %}</span></div>
+    <div class="panel-body">
+      <dl class="kv-grid">
+        <div><dt>{{ t("pypackages.direct_count") }}</dt><dd><strong>{{ current.requirements | length }}</strong> · {{ t("pypackages.all_count", count=current.packages | length) }}</dd></div>
+        {% for platform, size in current.sizes().items() %}
+        <div><dt>{{ platform }}</dt><dd>{{ size | filesize }}</dd></div>
+        {% endfor %}
+      </dl>
+      {% if current.note %}<p class="hint">{{ current.note }}</p>{% endif %}
+    </div>
+    {% if draft %}
+    {% set check = draft.check or {} %}
+    <div class="panel-body" id="pkg-draft">
+      <h3>{{ t("pypackages.draft") }} {{ m.badge(draft.status, t("pypackages.state_" + draft.status)) }}
+        {% if draft.restored_from %}<span class="tag">{{ t("pypackages.restored_from", number=draft.restored_from) }}</span>{% endif %}</h3>
+      <p class="hint">{{ t("pypackages.draft_hint_" + draft.status) }}</p>
+      {% if draft.status == "checking" %}<p class="notice" data-pkg-progress>{{ t("pypackages.progress_wait") }}</p>{% endif %}
+      {% if check.get("steps") %}
+      <ul class="checklist">
+        {% for step in check.steps %}<li>{{ m.badge(step.status, t("pypackages.step_status_" + step.status)) }} {{ t("pypackages.step_" + step.id) }}{% if step.get("platform") %} <span class="tag">{{ step.platform }}</span>{% endif %}</li>{% endfor %}
+      </ul>
+      {% endif %}
+      {% if check.get("errors") %}
+      <div class="notice warn"><strong>{{ t("pypackages.errors") }}</strong>
+        <ul>{% for item in check.errors %}<li>{{ describe(item) }}{% if item.get("detail") %}<pre class="source">{{ item.detail }}</pre>{% endif %}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+      {% if check.get("warnings") %}
+      <div class="notice"><strong>{{ t("pypackages.warnings") }}</strong>
+        <ul>{% for item in check.warnings %}<li>{{ describe(item) }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+      {% if check.get("diff") %}
+      <h3>{{ t("pypackages.diff", number=current.number) }}</h3>
+      {{ m.package_diff(check.diff) }}
+      {% endif %}
+      {% if check.get("sizes") %}
+      <div class="table-scroll"><table>
+        <thead><tr><th>{{ t("pypackages.col_platform") }}</th><th>{{ t("pypackages.col_total") }}</th><th>{{ t("pypackages.col_new") }}</th></tr></thead>
+        <tbody>{% for platform, size in check.sizes.items() %}<tr><td>{{ platform }}</td><td>{{ size.total | filesize }}</td><td>{{ t("pypackages.new_download", size=size.new | filesize, count=size.newFiles) }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+      {% endif %}
+      <div class="actions">
+        {% if draft.status in ("draft", "failed") %}<button class="button primary" data-action="pkg-check">{{ t("pypackages.check") }}</button>{% endif %}
+        {% if draft.status == "checked" %}<button class="button primary" data-action="pkg-publish" data-number="{{ (history[0].number or 0) + 1 }}">{{ t("pypackages.publish", number=(history[0].number or 0) + 1) }}</button>{% endif %}
+        {% if draft.status != "checking" %}<button class="button" data-action="pkg-discard">{{ t("pypackages.discard") }}</button>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </section>
+
+  {# ---------------------------------------------------------------- 套件清單 #}
+  <section class="panel" id="pkg-list">
+    <div class="panel-header"><h2>{{ t("pypackages.list_draft") if draft else t("pypackages.list") }} <span class="count">{{ view.requirements | length }}</span></h2>
+      <span class="muted">{{ t("pypackages.list_hint") }}</span></div>
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr><th>{{ t("pypackages.col_package") }}</th><th>{{ t("pypackages.col_spec") }}</th><th>{{ t("pypackages.col_platforms") }}</th>
+        <th>{{ t("pypackages.col_version") }}</th><th>{{ t("pypackages.col_note") }}</th><th>{{ t("pypackages.col_actions") }}</th></tr></thead>
+      <tbody>
+      {% for row in rows %}
+      {% set item = row.item %}
+      <tr data-package="{{ item.to_json() | tojson | forceescape }}"{% if row.change == "removed" %} class="muted"{% endif %}>
+        <td><strong>{% if row.change == "removed" %}<s>{{ item.name }}</s>{% else %}{{ item.name }}{% endif %}</strong>
+          {% if item.default %}<span class="tag">{{ t("pypackages.default") }}</span>{% endif %}
+          {% if row.change != "same" %}{{ m.badge({"new": "passed", "changed": "running", "removed": "draft"}[row.change], t("pypackages.change_" + row.change)) }}{% endif %}
+          {% if item.allow_new %}<span class="cell-sub">{{ t("pypackages.allow_new_on") }}</span>{% endif %}</td>
+        <td class="mono">{{ item.spec or t("pypackages.spec_any") }}</td>
+        <td>{% if item.platforms %}{% for family in item.platforms %}{{ family_names[family] }}{% if not loop.last %}{{ t("js.list_separator") }}{% endif %}{% endfor %}{% else %}{{ t("pypackages.platforms_all") }}{% endif %}</td>
+        <td class="mono">{{ row.version or t("pypackages.version_pending") }}</td>
+        <td>{{ item.note or "" }}{% if item.added_by or item.added_at %}<span class="cell-sub">{{ t("pypackages.added_by", who=item.added_by or "—") }}{% if item.added_at %} · {{ item.added_at[:10] }}{% endif %}</span>{% endif %}</td>
+        <td class="role-actions">
+          {% if row.change != "removed" %}
+          <button class="text-btn" data-action="pkg-edit">{{ t("pypackages.edit") }}</button>
+          <button class="text-btn" data-action="pkg-remove">{{ t("pypackages.remove") }}</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% if dependencies %}
+    <details class="panel-body">
+      <summary>{{ t("pypackages.dependencies", count=dependencies | length) }}</summary>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>{{ t("pypackages.col_package") }}</th><th>{{ t("pypackages.col_version") }}</th><th>{{ t("pypackages.col_via") }}</th></tr></thead>
+        <tbody>{% for item in dependencies %}<tr><td>{{ item.name }}</td><td class="mono">{{ item.version }}</td><td>{{ (item.via or []) | join(t("js.list_separator")) }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </details>
+    {% endif %}
+  </section>
+
+  {# ---------------------------------------------------------------- 加入套件 #}
+  <section class="panel" id="pkg-add">
+    <div class="panel-header"><h2>{{ t("pypackages.add") }}</h2></div>
+    <div class="panel-body">
+      <form class="inline-fields" data-pkg-lookup>
+        <label class="field">{{ t("pypackages.lookup_label") }}<input name="q" required maxlength="100" placeholder="{{ t('pypackages.lookup_placeholder') }}" autocomplete="off"></label>
+        <button class="button primary" type="submit">{{ t("pypackages.lookup") }}</button>
+        <a class="text-btn external-link" data-pypi-search href="https://pypi.org/search/" target="_blank" rel="noopener noreferrer">{{ t("pypackages.pypi_search") }}</a>
+      </form>
+      <p class="hint">{{ t("pypackages.lookup_hint") }}</p>
+      <p class="form-error" role="alert" data-pkg-lookup-error></p>
+      <div id="pkg-lookup-result" hidden></div>
+
+      {% if missing %}
+      <h3>{{ t("pypackages.missing") }}</h3>
+      <p class="hint">{{ t("pypackages.missing_hint") }}</p>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>{{ t("pypackages.col_module") }}</th><th>{{ t("pypackages.col_suggested") }}</th><th>{{ t("pypackages.col_scenes") }}</th><th></th></tr></thead>
+        <tbody>
+        {% for item in missing %}
+        <tr><td class="mono">{{ item.module }}</td><td>{{ item.package }}</td>
+          <td>{% for scene in item.scenes %}<a href="/scenes/{{ scene.sceneId }}">{{ scene.name }}</a> v{{ scene.number }}{% if not scene.published %} <span class="tag">{{ t("pypackages.unpublished") }}</span>{% endif %}{% if not loop.last %}{{ t("js.list_separator") }}{% endif %}{% endfor %}</td>
+          <td><button class="text-btn" data-lookup="{{ item.module }}">{{ t("pypackages.lookup") }}</button></td></tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+      {% endif %}
+
+      <h3>{{ t("pypackages.common") }}</h3>
+      <p class="hint">{{ t("pypackages.common_hint") }}</p>
+      <dl class="kv-grid">
+        {% for category in categories %}
+        <div class="wide"><dt>{{ t("pypackages.category_" + category) }}</dt>
+          <dd class="chip-list">{% for item in common if item.category == category %}<button class="chip-btn" type="button" data-lookup="{{ item.name }}" title="{{ t('pypackages.common_' + (item.name | lower | replace('-', '_'))) }}">{{ item.name }}</button>{% endfor %}</dd></div>
+        {% endfor %}
+      </dl>
+    </div>
+  </section>
+
+  {# ---------------------------------------------------------------- 裝置 #}
+  <section class="panel" id="pkg-devices">
+    <div class="panel-header"><h2>{{ t("pypackages.devices", number=current.number) }}</h2><span class="muted">{{ t("pypackages.devices_hint") }}</span></div>
+    {% if devices %}
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr><th>{{ t("pypackages.col_device") }}</th><th>{{ t("pypackages.col_platform") }}</th><th>{{ t("pypackages.col_state") }}</th></tr></thead>
+      <tbody>
+      {% for device in devices %}
+      <tr><td><a href="/devices">{{ device.name }}</a> <span class="tag">{{ device.id }}</span>{% if not device.online %} <span class="muted">{{ t("pypackages.offline") }}</span>{% endif %}</td>
+        <td>{{ device.platform or "—" }}</td>
+        <td>{{ m.badge({"ready": "passed", "preparing": "running", "failed": "failed"}.get(device.state, ""), t("pypackages.device_" + device.state, number=device.revision or "")) }}
+          {% if device.error %}<span class="cell-sub">{{ device.error }}</span>{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="empty">{{ t("pypackages.devices_empty") }}</div>{% endif %}
+  </section>
+
+  {# ---------------------------------------------------------------- 歷史 #}
+  <section class="panel" id="pkg-history">
+    <div class="panel-header"><h2>{{ t("pypackages.history") }} <span class="count">{{ history | length }}</span></h2><span class="muted">{{ t("pypackages.history_hint") }}</span></div>
+    <div class="table-scroll"><table class="wrap">
+      <thead><tr><th>{{ t("pypackages.col_number") }}</th><th>{{ t("pypackages.published_at") }}</th><th>{{ t("pypackages.col_packages") }}</th><th>{{ t("pypackages.col_note") }}</th><th></th></tr></thead>
+      <tbody>
+      {% for revision in history %}
+      <tr><td><strong>#{{ revision.number }}</strong>{% if revision.number == current.number %} {{ m.badge("published", t("pypackages.in_use")) }}{% endif %}
+          {% if revision.restored_from %}<span class="cell-sub">{{ t("pypackages.restored_from", number=revision.restored_from) }}</span>{% endif %}</td>
+        <td>{{ m.time(revision.published_at) }}{% if revision.published_by %}<span class="cell-sub">{{ revision.published_by }}</span>{% endif %}</td>
+        <td>{{ t("pypackages.history_count", direct=revision.requirements | length, count=revision.packages | length) }}</td>
+        <td class="pre-line">{{ revision.note or "" }}</td>
+        <td>{% if revision.number != current.number %}<button class="text-btn" data-action="pkg-restore" data-number="{{ revision.number }}"{% if draft %} disabled title="{{ t('pypackages.restore_has_draft') }}"{% endif %}>{{ t("pypackages.restore") }}</button>{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+
+  {# ---------------------------------------------------------------- 設定 #}
+  <section class="panel" id="pkg-settings">
+    <div class="panel-header"><h2>{{ t("pypackages.settings") }}</h2></div>
+    <form class="panel-body stack" data-pkg-settings>
+      <div class="field-row">
+        <label class="field">{{ t("pypackages.source") }}<select name="source">
+          <option value="auto"{% if settings.source == "auto" %} selected{% endif %}>{{ t("pypackages.source_auto") }}</option>
+          {% for source in presets %}<option value="{{ source }}"{% if settings.source == source %} selected{% endif %}>{{ t("pypackages.source_" + source) }}</option>{% endfor %}
+          <option value="custom"{% if settings.source == "custom" %} selected{% endif %}>{{ t("pypackages.source_custom") }}</option>
+        </select></label>
+        <label class="field">{{ t("pypackages.custom_url") }}<input name="customUrl" class="mono" value="{{ settings.custom_url }}" placeholder="https://nexus.example.com/repository/pypi/simple"></label>
+      </div>
+      <div class="field-row">
+        <label class="field">{{ t("pypackages.proxy") }}<input name="proxy" class="mono" value="{{ settings.proxy }}" placeholder="http://proxy.example.com:8080"></label>
+        <label class="field">{{ t("pypackages.ca_file") }}<input name="caFile" class="mono" value="{{ settings.ca_file }}" placeholder="/etc/pki/ca-trust/source/anchors/company.pem"></label>
+      </div>
+      <div class="field-row">
+        <label class="field">{{ t("pypackages.cooldown_days") }}<input type="number" name="cooldownDays" min="0" max="365" value="{{ settings.cooldown_days }}" required></label>
+        <label class="field">{{ t("pypackages.parallel") }}<input type="number" name="parallel" min="1" max="16" value="{{ settings.parallel }}" required></label>
+        <label class="field">{{ t("pypackages.worker_downloads") }}<input type="number" name="workerDownloads" min="1" max="100" value="{{ settings.worker_downloads }}" required></label>
+        <label class="field">{{ t("pypackages.keep_versions") }}<input type="number" name="keepVersions" min="1" max="1000" value="{{ settings.keep_versions }}" required></label>
+      </div>
+      <p class="hint">{{ t("pypackages.settings_hint") }}</p>
+      <p class="form-error" role="alert"></p>
+      <div class="actions"><button class="button primary" type="submit">{{ t("pypackages.save") }}</button>
+        <button class="button" type="button" data-action="pkg-speed-test">{{ t("pypackages.speed_test") }}</button></div>
+      {% if speed %}
+      <h3>{{ t("pypackages.speed_results") }} <span class="muted">{{ speed.at[:16] | replace("T", " ") }}</span></h3>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>{{ t("pypackages.source") }}</th><th>{{ t("pypackages.col_speed") }}</th><th>{{ t("pypackages.col_upload_times") }}</th></tr></thead>
+        <tbody>{% for result in speed.results %}<tr><td>{{ t("pypackages.source_" + result.source) }}{% if loop.first and result.ok %} {{ m.badge("passed", t("pypackages.fastest")) }}{% endif %}</td>
+          <td>{% if result.ok %}{{ t("pypackages.speed_value", speed=result.speed | filesize) }}{% else %}{{ m.badge("failed", t("pypackages.unreachable")) }}<span class="cell-sub">{{ result.get("error") or "" }}</span>{% endif %}</td>
+          <td>{% if result.get("uploadTimes") is none %}—{% elif result.uploadTimes %}{{ t("pypackages.upload_times_yes") }}{% else %}{{ t("pypackages.upload_times_no") }}{% endif %}</td></tr>{% endfor %}</tbody>
+      </table></div>
+      {% endif %}
+    </form>
+  </section>
+</div>
+
+<template id="pkg-form">
+  <label>{{ t("pypackages.form_name") }}<input name="name" required maxlength="100" class="mono" autocomplete="off"></label>
+  <label>{{ t("pypackages.form_spec") }}<input name="spec" maxlength="200" class="mono" placeholder="&gt;=1.0,&lt;2"><span class="cell-sub">{{ t("pypackages.form_spec_hint") }}</span></label>
+  <fieldset class="field choice inline">
+    <legend>{{ t("pypackages.form_platforms") }}</legend>
+    {% for family in families %}<label><input type="checkbox" name="platform" value="{{ family }}"> {{ family_names[family] }}</label>{% endfor %}
+    <span class="cell-sub" data-platform-hint>{{ t("pypackages.form_platforms_hint") }}</span>
+  </fieldset>
+  <label>{{ t("pypackages.form_note") }}<input name="note" maxlength="300" placeholder="{{ t('pypackages.form_note_placeholder') }}"></label>
+  <fieldset class="field choice">
+    <label><input type="checkbox" name="allow-new"> {{ t("pypackages.form_allow_new") }}</label>
+    <span class="cell-sub">{{ t("pypackages.form_allow_new_hint") }}</span>
+  </fieldset>
+  <ul class="checklist form-issues"></ul>
+  <p class="form-error" role="alert"></p>
+</template>
+<template id="pkg-remove-form">
+  <p data-remove-body></p>
+  <div data-remove-used hidden>
+    <div class="notice warn" data-remove-warning></div>
+    <ul data-remove-scenes></ul>
+    <label>{{ t("pypackages.form_reason") }}<textarea name="reason" rows="3" maxlength="500"></textarea></label>
+  </div>
+  <p class="form-error" role="alert"></p>
+</template>
+<template id="pkg-publish-form">
+  <p>{{ t("pypackages.publish_body") }}</p>
+  <label>{{ t("pypackages.form_publish_note") }}<textarea name="note" rows="3" maxlength="2000" placeholder="{{ t('pypackages.form_publish_note_placeholder') }}"></textarea></label>
+  <p class="form-error" role="alert"></p>
+</template>
+{% endblock %}

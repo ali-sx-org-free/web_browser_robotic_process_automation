@@ -45,6 +45,7 @@ from rpa_core.dsl.features import (
 )
 from rpa_core.dsl.files import MAX_FILE_BYTES, MAX_RUN_BYTES, uploaded_ids
 from rpa_core.i18n import Locale, use_locale
+from rpa_runner.pypackages import PackageSet
 from rpa_server import __version__
 from rpa_server.domain import (
     DOMAIN_ID,
@@ -59,6 +60,7 @@ from rpa_server.errors import ServiceError, conflict, invalid, not_found
 from rpa_server.i18n import page_t, t
 from rpa_server.jobs import Outcome, RunQueue
 from rpa_server.models import DeviceInvite, Recorder, RemoteWorker, Run, Setting
+from rpa_server.pypackages.service import RUNTIME as PACKAGES_RUNTIME
 from rpa_server.roles import RoleService
 from rpa_server.storage import Storage
 from rpa_worker.environment import PROTOCOL, code_fingerprint
@@ -79,6 +81,10 @@ logger = logging.getLogger("rpa_server.dispatch")
 ONLINE_SECONDS: Final = CLAIM_WAIT_SECONDS + 35
 """這麼久內有報到（領取、心跳）就算線上。"""
 REAP_SECONDS: Final = 5.0
+PYTHON_PACKAGES: Final = "pythonPackages"
+"""看得懂伺服器管理的套件版本的 App（ADR 0027，rpa_worker.environment.CAPABILITIES）。"""
+HINT_SECONDS: Final = 600.0
+"""叫閒置的 worker 先準備套件環境後，這麼久沒有回報就再叫一次。"""
 _STAGES: Final = frozenset({"input", "login", "runtime", "automation", "verify", "output"})
 _DEFAULT_TARGET: Final = "default_target"
 
@@ -111,6 +117,8 @@ class _Capabilities:
     runtimes: frozenset[str]
     """RPA Python 運行環境的版本（ADR 0020）。"""
     platform: str
+    capabilities: frozenset[str] = frozenset()
+    """支援的功能（M14，rpa_worker.environment.CAPABILITIES）。"""
 
     def browser_ok(self, headless: bool, engine: str) -> bool:
         """瀏覽器場景：有頭模式要能顯示視窗，瀏覽器要下載過（沒有回報時當作都有）。"""
@@ -160,6 +168,8 @@ class WorkerHub:
         self._needs: dict[tuple[str, int], frozenset[str]] = {}
         self._cleanup: dict[str, set[str]] = {}
         """worker → 要它刪掉的共用工作資料夾（已經結束的組合運行，ADR 0020）。"""
+        self._hinted: dict[str, tuple[int, float]] = {}
+        """worker → 上一次叫它先準備的套件版本與時間（ADR 0027）。"""
         self._condition = threading.Condition()
         self._generation = 0
         self._closing = threading.Event()
@@ -500,6 +510,7 @@ class WorkerHub:
             "features",
             "runtimes",
             "platform",
+            "capabilities",
         )
         with self.sessions() as session:
             row = self._touch(session, worker_id)
@@ -541,6 +552,7 @@ class WorkerHub:
             name=name,
             runtimes=frozenset(reported_names(info.get("runtimes"))),
             platform=platform if isinstance(platform, str) else "",
+            capabilities=frozenset(reported_names(info.get("capabilities"))),
         )
 
     def _python_node(self, run: Run) -> ScriptConfig | None:
@@ -593,13 +605,16 @@ class WorkerHub:
                 elif not capabilities.browser_ok(run.headless, self.queue.engine_of(run)):
                     return False
                 # App 太舊、而這台伺服器自己會執行：留給本機（領取後才標失敗的只有沒有別處可跑的）
-                return not (
+                if not (
                     run.target == "any"
                     and run.required_worker is None
                     and self.local_worker
                     and self.queue.local_accepts(run)
-                    and missing_features(self._needed(run), features)
-                )
+                ):
+                    return True
+                if script is not None and not self._packages_ok(run, capabilities):
+                    return False
+                return not missing_features(self._needed(run), features)
 
             lease = now() + timedelta(seconds=self.lease_seconds)
             run = self.queue.claim_run(
@@ -612,15 +627,28 @@ class WorkerHub:
                         message = t("run.worker_outdated", name=name, features=", ".join(missing))
                     self.queue.fail_run(run.id, message, worker_id=worker_id)
                     continue
-                payload = self._payload(run)
+                if self._python_node(run) is not None and not self._packages_ok(run, capabilities):
+                    with use_locale(self.locale):
+                        message = t(
+                            "run.worker_packages_outdated", name=name, number=run.python_packages
+                        )
+                    self.queue.fail_run(run.id, message, worker_id=worker_id)
+                    continue
+                payload = self._payload(run, capabilities.platform)
                 if payload is not None:
                     self._set_current(worker_id, run.id)
                     payload["cleanup"] = self.take_cleanup(worker_id)
                     return payload
                 continue
+            reply: dict[str, object] = {}
             pending = self.take_cleanup(worker_id)
             if pending:
-                return {"cleanup": pending}
+                reply["cleanup"] = pending
+            hint = self._package_hint(worker_id, capabilities)
+            if hint is not None:
+                reply["pythonPackages"] = hint
+            if reply:
+                return reply
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return None
@@ -636,7 +664,74 @@ class WorkerHub:
                 row.current_run = run_id
                 session.commit()
 
-    def _payload(self, run: Run) -> dict[str, object] | None:
+    def _packages_ok(self, run: Run, capabilities: "_Capabilities") -> bool:
+        """套件版本（ADR 0027）：#1 之外的版本要看得懂套件清單的 App；#1（以及回到 #1 的版本）
+        和內附的運行環境相同，舊的 App 也能執行。"""
+        number = run.python_packages
+        if number is None or PYTHON_PACKAGES in capabilities.capabilities:
+            return True
+        packages = self.queue.packages
+        return number == 1 or (packages is not None and packages.same_as_first(number))
+
+    def _package_hint(
+        self, worker_id: str, capabilities: "_Capabilities"
+    ) -> dict[str, object] | None:
+        """閒置的 worker 還沒準備目前的套件版本時，叫它先準備（ADR 0027）；同一版只叫一次，
+        :data:`HINT_SECONDS` 內沒有回報才再叫。"""
+        packages = self.queue.packages
+        if packages is None or PYTHON_PACKAGES not in capabilities.capabilities:
+            return None
+        if not any(item.split(".", 1)[0] == PACKAGES_RUNTIME for item in capabilities.runtimes):
+            return None
+        number = packages.current_number()
+        status = packages.device_status(worker_id)
+        if status is not None and status.get("revision") == number:
+            return None
+        moment = time.monotonic()
+        with self._condition:
+            last = self._hinted.get(worker_id)
+            if last is not None and last[0] == number and moment - last[1] < HINT_SECONDS:
+                return None
+            self._hinted[worker_id] = (number, moment)
+        found = packages.package_set(capabilities.platform, number)
+        if found is None:
+            return None
+        return {"runtime": PACKAGES_RUNTIME, "packages": found.to_json()}
+
+    def package_file(self, worker_id: str, sha256: str) -> Path | None:
+        """worker 下載套件環境的 wheel（ADR 0027）；同時下載的 worker 太多時回傳 None。"""
+        packages = self.queue.packages
+        with self.sessions() as session:
+            self._touch(session, worker_id)
+            session.commit()
+        if packages is None:
+            raise not_found("package_file_not_found", t("error.package_file_not_found"))
+        if not packages.begin_download(worker_id):
+            return None
+        try:
+            path = packages.wheel_file(sha256)
+        except Exception:
+            packages.end_download(worker_id)
+            raise
+        if path is None:
+            packages.end_download(worker_id)
+            raise not_found("package_file_not_found", t("error.package_file_not_found"))
+        return path
+
+    def package_downloaded(self, worker_id: str) -> None:
+        packages = self.queue.packages
+        if packages is not None:
+            packages.end_download(worker_id)
+
+    def package_status(self, worker_id: str, data: Mapping[str, object]) -> None:
+        """worker 回報套件環境的準備狀態（ready、preparing、failed）。"""
+        with self.sessions() as session:
+            self._touch(session, worker_id)
+            session.commit()
+        if self.queue.packages is not None:
+            self.queue.packages.report(worker_id, data)
+
+    def _payload(self, run: Run, platform: str = "") -> dict[str, object] | None:
         """把執行打包成任務；版本的檔案讀不到時，執行標為失敗並回傳 None。"""
         try:
             folder = self.storage.revision_dir(run.scene_id, run.revision_number)
@@ -668,12 +763,20 @@ class WorkerHub:
                 secrets=values,
                 record_video=self.queue.record_video(),
                 workspace=run.workflow_run_id,
+                python_packages=self._package_set(run, platform),
             )
         except Exception as error:
             logger.exception("無法打包任務 %s", run.id)
             self.queue.fail_run(run.id, t("run.crashed", detail=f"{type(error).__name__}: {error}"))
             return None
         return payload.to_json()
+
+    def _package_set(self, run: Run, platform: str) -> PackageSet | None:
+        """任務帶著的套件清單（ADR 0027）：這次執行固定的版本、這台 worker 的平台。"""
+        packages = self.queue.packages
+        if run.python_packages is None or packages is None or not platform:
+            return None
+        return packages.package_set(platform, run.python_packages)
 
     def _input_files(self, run: Run) -> tuple[tuple[InputFile, ...], int | None, int | None]:
         """任務用到的上傳檔清單與上限（M7c）；內容由 worker 另外下載。"""

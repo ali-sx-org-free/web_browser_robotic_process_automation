@@ -25,6 +25,13 @@
   {% elif scene.published_number != scene.latest_number %}
   <div class="notice">{{ t("scene.newer_draft", published=scene.published_number, latest=scene.latest_number) }}</div>
   {% endif %}
+  {% set packages = packages | default(none) %}
+  {% if packages %}
+  <details class="notice" data-packages-changed>
+    <summary>{{ t("scene.packages_changed", revision=packages.revision, validated=packages.validated, number=packages.number) }}</summary>
+    {% if packages.diff is not none %}{{ m.package_diff(packages.diff) }}{% endif %}
+  </details>
+  {% endif %}
   </div>
   {{ m.needs_notice(needs) }}
 

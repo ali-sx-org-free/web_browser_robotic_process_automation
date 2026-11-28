@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="translation-source" content="sha256:08e727156dd40fa0">
+<title>ADR 0027 · Browser RPA Engineering Docs</title>
+<link rel="stylesheet" href="../../design-system/assets/portal.css">
+<link rel="stylesheet" href="../../assets/docs.css">
+<script defer src="../../assets/nav.js"></script>
+<script defer src="../../assets/docs-shell.js"></script>
+</head>
+<body data-page="adr-0027" data-root="../">
+<main id="main">
+  <div class="heading">
+    <div>
+      <h1>ADR 0027: The server manages the RPA Python runtime's packages, and Workers get them from the server</h1>
+      <p>System administrators add and remove the packages Python nodes can use in the admin console. The server resolves one lock file and downloads each wheel once from the fastest source; Workers fetch the missing files over the LAN and build the same package environment on the interpreter bundled with the App. No App needs reinstalling.</p>
+    </div>
+    <span class="badge green">Accepted</span>
+  </div>
+
+  <div class="stack">
+    <section class="panel panel-body">
+      <dl class="spec-list">
+        <dt>Date</dt><dd class="mono">2026-11-27</dd>
+        <dt>Status</dt><dd>Accepted. On 2026-11-27 03:02 America/Los_Angeles (PST, UTC−08:00) the user asked in the Claude project chat for the server admin console to manage the fixed packages with add and remove, to take download speed into account when adding packages, and to keep today's packages as the defaults; design first, develop after the design is approved. At 04:00 the user decided not to do D9 for now, and at 04:02 replied “start implementing as recommended”: <a href="#open-questions">D1–D8</a> follow the recommendations, starting with phase 1.</dd>
+        <dt>Scope</dt><dd>rpa-server (tables and migration, the package page, resolving and downloading, Worker API), rpa-worker (reporting, downloading, preparing ahead), rpa-runner (building and running the package environment, <code>pyruntime.py</code>), docs. The rpa-core DSL, the recorder and compatibility-mode Python nodes don't change; the bundled runtime archive and <code>runtimes/python/</code> don't change.</dd>
+        <dt>Related</dt><dd><a href="0020-python-nodes.html">ADR 0020</a> (Python nodes and the RPA Python runtime), <a href="0018-layered-updates.html">ADR 0018</a> (layered updates, runtime IDs), <a href="0012-remote-workers.html">ADR 0012</a> (remote Workers), <a href="0025-multi-user.html">ADR 0025</a> (system administrators, audit log).</dd>
+      </dl>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="context">
+        <div class="panel-header"><h2>Context</h2></div>
+        <div class="panel-body prose">
+          <p>RPA Python runtime 1.0.0 is Python 3.13.14 plus 9 packages (18 with dependencies: openpyxl, xlsxwriter, xlrd, pandas, python-dateutil, python-docx, pypdf, charset-normalizer, requests). The list lives in the repository's <code>runtimes/python/requirements.in</code>; CI builds and self-tests it for four platforms and bundles it with the Worker App and the Linux server package. On Workers pip is removed and <code>EXTERNALLY-MANAGED</code> is in place, so nothing else can be installed.</p>
+          <p>Today one more package means changing the repository, bumping the runtime's minor version and shipping a release. The archive's file name is part of the runtime ID (ADR 0018), so every Worker and the server must be reinstalled from the full installer.</p>
+          <p>Download speed is a real problem. The company network reaches PyPI slowly: on 2026-10-20 the server's <code>uv sync</code> was slow enough that mirror speed tests were added (<code>scripts/setup-linux.sh</code>); on 2026-10-21 browser downloads measured about 0.8–1.7 MiB/s from the official source and about 5 MiB/s from a mirror in China. The default packages' wheels add up to about 30–36 MB per platform (PyPI on 2026-11-27: about 30 MB on Windows, 34 MB on macOS, 36 MB on Linux x64); adding scikit-learn adds about 23–45 MB per platform (numpy is already there).</p>
+        </div>
+      </section>
+      <section class="panel" id="goals">
+        <div class="panel-header"><h2>Goals</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li>System administrators add and remove packages in the admin console; after publishing, every Worker uses the new packages automatically.</li>
+            <li>The defaults are today's 9 packages, identical to the bundled runtime; without changes, behavior and downloads stay the same.</li>
+            <li>Adding packages is fast: one download from the internet, from the fastest source, only what's new; Workers fetch over the LAN and prepare while idle.</li>
+            <li>Every Worker has the same packages and versions, and earlier versions can be restored.</li>
+            <li>Workers don't reach the internet; no App or server package needs reinstalling.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="decision">
+      <div class="panel-header"><h2>Decision</h2></div>
+      <div class="panel-body prose">
+<pre class="source">Admin console (system administrator)
+  add / remove ─▶ draft ─▶ check: uv resolves pylock.toml → wheels for every platform → download from the fastest source → import on the server
+                                                                                  │
+                                                                     publish: packages #N (immutable)
+                                                                                  │
+Server wheel store (by sha256, shared across versions) ◀── each file downloaded from the internet once ──┘
+  │  Worker API: list and files for this version and platform (LAN, resumable, at most 4 Workers at once)
+  ▼
+Worker: bundled runtime (interpreter + default packages) + missing wheels ─▶ package environment venv (#N) ─▶ Python node</pre>
+          <ul>
+            <li><strong>Interpreter and packages are separate.</strong> The <code>RPA-Python-1.0.0-&lt;platform&gt;.tar.gz</code> bundled with Apps and the server package stays and is extracted to the cache on first use as before, but it only serves as the interpreter and a source of the default packages. Python nodes actually run in a "package environment": a standard venv created from the bundled interpreter (no pip, without the bundled site-packages) containing exactly the packages of this package version. Subprocesses a script starts with <code>sys.executable</code> run in the same environment.</li>
+            <li><strong>The package list lives on the server.</strong> One per runtime major version (only 1 today), stored in the server's database and shared by all Workers (<a href="#open-questions">D1</a>). On first start the server creates "packages #1" from the default list and lock file shipped with the code, identical to the bundled runtime. Adding and removing edit a draft; after the checks pass it's published as #2, #3, …; published versions never change.</li>
+            <li><strong>The server resolves once.</strong> <code>uv pip compile --universal --only-binary :all: --python-version 3.13</code> writes a PEP 751 <code>pylock.toml</code>: each package's exact version and each wheel's URL, size, upload time and sha256. The previous lock file is the starting point, so adding a package keeps the other versions (tested with uv 0.11.32 on 2026-11-27: after adding tabulate, numpy, pandas and xlsxwriter kept their locked versions); upgrades happen only with "Check for updates". The server downloads a pinned uv from the package source the first time it's needed (version and sha256 in the code, <a href="#open-questions">D7</a>).</li>
+            <li><strong>Wheels only, for every platform.</strong> No source distributions: neither the server nor Workers compile or run installers. For each of the four platforms (windows-x86_64, macos-arm64, linux-x86_64 glibc 2.28, linux-aarch64) the server checks every package has a usable wheel; when one is missing it says which platform, and the package can be limited to the platforms it supports (a platform marker, e.g. pywin32 only on Windows). Scenarios that use it must declare <code>platforms</code>, and validation warns about it (tested on 2026-11-27: pywin32 without a marker gets locked for every platform, so the separate check is needed).</li>
+            <li><strong>Files are kept on the server.</strong> Wheels are stored by sha256 under <code>python-packages/</code> in the server's data directory and shared across versions; Workers only fetch from the server (Worker API) and never reach the internet.</li>
+            <li><strong>Dispatch and reports.</strong> Tasks carry the package version. Among Workers that can run a task, those that already prepared this version go first. Others prepare it in the run's "runtime" phase (not counted against the deadline, per ADR 0020). The <code>python</code> section of <code>result.json</code> gains <code>packages</code>: package version, lock file hash, reused or prepared now, and how much was downloaded.</li>
+          </ul>
+        </div>
+    </section>
+
+    <section class="panel" id="download-speed">
+      <div class="panel-header"><h2>Download speed</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>Approach</th><th>Effect</th></tr></thead>
+          <tbody>
+            <tr><td>One download from the internet</td><td>The server is the only place that downloads from outside; each file (identified by sha256) is downloaded once and every Worker fetches it over the LAN. Adding a 40 MB package for 50 Workers downloads "40 MB × platforms in use" from the internet, not 2 GB.</td></tr>
+            <tr><td>Use the fastest source</td><td>The package source defaults to "auto": PyPI, Tsinghua, USTC, Alibaba Cloud, Tencent Cloud and Huawei Cloud (the same list as <code>scripts/setup-linux.sh</code>) each download the same file with a known sha256; the fastest one with matching content goes first and the others become fallbacks in speed order. Results are shown on the page and reused for 24 hours. A specific source, a company Nexus/Artifactory/devpi URL, an HTTP proxy and a company root certificate can also be set (<a href="#open-questions">D3</a>).</td></tr>
+            <tr><td>Changing sources can't change content</td><td>The lock file records sha256. For a mirror, <code>files.pythonhosted.org</code> in the file URL is replaced with the mirror's same path; files are checked after download, and a mismatch is discarded and the next source tried, with the original URL last.</td></tr>
+            <tr><td>Only the platforms in use</td><td>The server downloads only for platforms that have devices (its own and those reported by paired Workers); a new platform is filled in when its first device comes online.</td></tr>
+            <tr><td>Only what's new</td><td>Adding a package downloads only it and its new dependencies; unchanged versions aren't downloaded again. Packages with the same name and version as in the bundled runtime are copied from it on the Worker: the default #1 needs no downloads on Workers, and adding scikit-learn doesn't download numpy again.</td></tr>
+            <tr><td>Parallel and resumable</td><td>The server downloads 4 files at once (configurable); large files resume from where they stopped using HTTP Range; the page shows each file's progress, speed and source. Workers' downloads from the server are resumable too.</td></tr>
+            <tr><td>Prepare after publishing</td><td>Idle Workers download and build a new version in the background without taking task time; the server limits how many Workers download at once (4 by default, configurable) so they don't saturate its network together.</td></tr>
+            <tr><td>Warn about big packages</td><td>Before adding, the page shows the download size per platform and an estimate based on the current source's speed; a single package over 100 MB (e.g. PyTorch) needs another confirmation, with how much more disk each Worker will use.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="admin-page">
+        <div class="panel-header"><h2>Admin console: "Python packages"</h2></div>
+        <div class="panel-body prose">
+          <p>A new page in the admin console, visible only to system administrators (like users and the audit log).</p>
+          <ul>
+            <li><strong>Current packages.</strong> Packages added directly: name, requested version, actual version, platforms, size per platform, license, summary, who added it and when; defaults are marked "Default". Dependencies are collapsed and show what needs them.</li>
+            <li><strong>Add.</strong> Enter a name (see <a href="#finding">Finding the packages you need</a>), optionally with a version constraint (e.g. <code>tabulate</code>, <code>pandas&gt;=3,&lt;4</code>), optionally limited to platforms. The page first shows the latest version, summary, license, home page, upload time and whether each of the four platforms has a wheel and its size, then adds it to the draft.</li>
+            <li><strong>Remove.</strong> Takes it out of the draft; dependencies nothing else needs go with it, and those still needed stay with an explanation. The <code>.py</code> files of runtime-mode scenarios in every domain (published and draft) are scanned with <code>ast</code> to list the scenarios that import the package; when a published scenario uses it, removal is blocked by default and needs a reason to force it (<a href="#open-questions">D2</a>).</li>
+            <li><strong>Check.</strong> Resolve, check platforms, download (with progress), build on the server's own platform and import every directly added package; list the differences from the current version (added, removed, changed versions, including dependencies) and the download size per platform.</li>
+            <li><strong>Publish, history, restore a version.</strong> Restoring publishes a new version with that version's lock file; the files are still there, so it's quick.</li>
+            <li><strong>Device readiness.</strong> For the current version each Worker is "Ready", "Downloading N%", "Failed (reason)" or "App too old"; the Devices page under Cluster shows it too.</li>
+            <li><strong>Settings.</strong> Package source and speed-test results, proxy, cooldown days (<a href="#open-questions">D4</a>), how many Workers download at once, how many versions to keep.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="worker">
+        <div class="panel-header"><h2>Package environments on Workers</h2></div>
+        <div class="panel-body prose">
+<pre class="source">&lt;cache&gt;/python/
+  1.0.0-windows-x86_64/     bundled runtime
+  wheels/&lt;sha256&gt;.whl       downloaded wheels
+  envs/&lt;hash&gt;-&lt;platform&gt;/   package environments (venv)</pre>
+          <p>The bundled runtime is extracted as before (interpreter + default packages); <code>wheels/</code> holds wheels from the server, named by content and shared across versions; <code>envs/</code> holds one standard venv per package version, named by the lock file hash, with the same hash in <code>.ready</code>.</p>
+          <ol>
+            <li>Get this version's list for this platform from the server: packages, versions, wheel file names, sha256, sizes.</li>
+            <li>Packages with the same name and version in the bundled runtime are copied using the dist-info RECORD (hard links on the same disk); the rest are downloaded from the server into <code>wheels/</code> and checked against sha256.</li>
+            <li>Create the environment from the bundled interpreter with the standard library's venv (no pip, without the bundled site-packages). On Windows this uses the <code>venvlauncher.exe</code> shipped with python-build-standalone (confirmed present in the 3.13.14 Windows build on 2026-11-27).</li>
+            <li>Unpack the wheels with the standard library (purelib, platlib and data per the wheel format, no console scripts), compile them with compileall, then import every directly added package in the new environment.</li>
+            <li>Write <code>.ready</code> and rename to the final folder. Only one process builds a given version at a time (the existing lock file); on failure the folder is discarded and rebuilt next time.</li>
+          </ol>
+          <p>The latest 3 versions and any in use are kept and the rest deleted, along with files in <code>wheels/</code> that kept versions no longer use. The Runner runs the interpreter in <code>envs/…</code> with the same flags as before (<code>-E -s -B -X utf8</code>).</p>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="finding">
+      <div class="panel-header"><h2>Finding the packages you need</h2></div>
+      <div class="panel-body prose">
+        <p>PyPI has no search for programs (turned off in 2020; on 2026-11-27 its XML-RPC search still returns an error telling people to search on the website), and mirrors don't have one either. So the page doesn't do keyword search; the approaches below find a name, and each ends in "Look up by name" to confirm it can be added.</p>
+        <ul>
+          <li><strong>Look up by name.</strong> Enter a package name (case-insensitive; <code>-</code>, <code>_</code> and <code>.</code> count as the same). The server gets the version list and each file's platform, size and upload time from the current package source (the PEP 691 simple API, which mirrors serve too), then that version's wheel METADATA (a small PEP 658 file) for summary, license, home page and dependencies, all small requests. The result shows the latest version and the versions allowed by the cooldown, whether each of the four platforms has a wheel and its size, and a trial resolution saying whether it conflicts with the current packages and which dependencies it adds.</li>
+          <li><strong>Find by import name.</strong> Many packages are imported under another name: <code>import docx</code> is python-docx, <code>cv2</code> is opencv-python-headless, <code>yaml</code> is PyYAML, <code>PIL</code> is pillow, <code>fitz</code> is PyMuPDF. The name entered is first matched against a mapping built into the code and the current packages' top_level names, and only then looked up as a package name.</li>
+          <li><strong>Common packages.</strong> The code ships a suggested list grouped by RPA use: Excel and Office documents, PDF, images and barcodes, databases, file transfer and email, compression, Chinese text, Windows automation. Each entry has a one-line use, license and limits (e.g. xlwings needs Excel installed, pywin32 is Windows only, PyMuPDF is AGPL); clicking it opens "Look up by name". The list updates with the code layer's update file.</li>
+          <li><strong>Find what scenarios are missing.</strong> The same <code>ast</code> scan used for removal lists modules that runtime-mode scenarios import but the current packages don't have (excluding the standard library, rpa_script and the scenario's own modules in <code>files</code>), each with a suggested package and "Add to draft".</li>
+          <li><strong>Missing modules at run time.</strong> When a Python node fails with <code>ModuleNotFoundError</code>, the run report says "the current packages don't include X" with a suggested package; system administrators get a link to the Python packages page, others get "Ask a system administrator to add it".</li>
+          <li><strong>Search on the PyPI website.</strong> The page links to pypi.org's search in the browser; find the name by keyword there, then come back and look it up.</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="two-col">
+      <section class="panel" id="versions">
+        <div class="panel-header"><h2>Versions and consistency</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>A package version is one lock file.</strong> Exact versions plus every file's sha256; every Worker builds the same packages and versions, differing only in platform binaries. Pages show "packages #N", counting up on each server; the lock file hash compares across servers.</li>
+            <li><strong>Scenario files don't change.</strong> They still say <code>runtime: "1"</code> and don't name a package version.</li>
+            <li><strong>One run, one version.</strong> Composite runs and batches fix the package version when they start, so publishing mid-run doesn't mix versions.</li>
+            <li><strong>Validation versus run.</strong> Validation records the package version; when a run uses a different one, the run report and scenario page show "validated with #3, this run #5" and the differences (e.g. pandas 3.1.0 → 3.2.0), without blocking the run or re-validating automatically (<a href="#open-questions">D6</a>).</li>
+            <li><strong>Rollback.</strong> Old versions aren't deleted. The server keeps the files used by the latest 10 versions (configurable) and Workers keep the latest 3 environments, so going back one version needs almost no download.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="security">
+        <div class="panel-header"><h2>Security</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>Who can change it.</strong> System administrators only; adding, removing, publishing, restoring and changing sources all go into the audit log (ADR 0025).</li>
+            <li><strong>Wheels only, pinned by sha256.</strong> Installing never runs package code; Workers accept only files whose hash matches the list.</li>
+            <li><strong>Cooldown.</strong> By default versions uploaded less than 7 days ago aren't chosen (uv's <code>--exclude-newer</code>), lowering the chance of installing a just-compromised release; explicitly asking for a newer version needs another confirmation.</li>
+            <li><strong>Hashes checked separately.</strong> When resolving from a mirror, newly added files' sha256 are checked against pypi.org's JSON API (small requests); when it can't be reached the page says "hashes from this source only".</li>
+            <li><strong>See before adding.</strong> Home page, license, first and current upload times; wheels containing a <code>.pth</code> file (code Python runs at startup) need an explicit confirmation.</li>
+            <li><strong>Not allowed.</strong> Installers such as pip, setuptools and uv; playwright (runtime mode doesn't open browsers, ADR 0020); modules named like rpa_script, rpa_* or the standard library.</li>
+            <li><strong>Still not a sandbox.</strong> Python nodes already run arbitrary code as the Worker's user (ADR 0020). Packages have the same trust level as scenario scripts and travel over the same authenticated Worker API.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <div class="two-col">
+      <section class="panel" id="compatibility">
+        <div class="panel-header"><h2>Compatibility and upgrading</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>No full installer.</strong> All code is in the code layer (rpa_server, rpa_worker, rpa_runner) and upgrades with the update file (ADR 0018); the bundled runtime and the runtime IDs don't change; the server downloads uv itself.</li>
+            <li><strong>Default behavior unchanged.</strong> #1 equals the bundled runtime; without package changes after upgrading, runs give the same results and Workers download nothing.</li>
+            <li><strong>Older code layers.</strong> Devices report a new capability <code>pythonPackages</code>; when the current package version isn't #1, runtime-mode tasks go only to devices with it (devices follow the server's version, so they usually have it soon); versions identical to #1 (such as going back to #1) still run on old apps.</li>
+            <li><strong>Not affected.</strong> The recorder (it has no runtime); compatibility-mode Python nodes (they still use the App's own Python).</li>
+            <li><strong>The repository's <code>runtimes/python/</code>.</strong> Still the defaults for new installations and the source CI builds the bundled runtime from. When the bundled defaults change later, the page says "The App's default packages have new versions" and the administrator decides whether to apply them; nothing changes automatically.</li>
+            <li><strong>Later.</strong> A new Python minor version (runtime 2) gets its own list per major version. ADR 0020's optional layer for model packages (D4) can use the same mechanism later (a second list dispatched only to Workers that chose it), designed then.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="phases">
+        <div class="panel-header"><h2>Phases and verification</h2></div>
+        <div class="panel-body">
+          <ul class="points">
+            <li><strong>Phase 1.</strong> Tables and migration, getting uv, resolving and platform checks, source speed tests and the downloader, the wheel store, the admin page (add, remove with affected scenarios, differences, check, publish, history, restore, settings), finding packages (lookup by name, import names, common list, what scenarios are missing, missing-module hints), audit; the Worker API's list and files, building and preparing ahead on Workers, dispatch and reports; docs (this ADR, management Portal, Python nodes, remote Workers, in three languages).</li>
+            <li><strong>Phase 2.</strong> Uploading wheels for offline servers, exporting and importing lock files (the same one on test and production servers), trying a version on chosen devices before publishing, looking up known vulnerabilities in OSV (<a href="#open-questions">D8</a>).</li>
+            <li><strong>Automated tests.</strong> A fake package source from a local wheel folder, no network; resolving, platform checks, source fallback and resuming, building, cleanup, dispatch, permissions and audit. CI's RPA Python runtime jobs build real package environments on each platform and run Python nodes in them.</li>
+            <li><strong>Manual acceptance.</strong> Add tabulate and scikit-learn on the admin page, remove one, restore the previous version; run a Python node that uses them once on a Windows Worker and once on the Linux server; check download sizes and times.</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel" id="open-questions">
+      <div class="panel-header"><h2>Decisions</h2></div>
+      <div class="table-scroll">
+        <table class="wrap">
+          <thead><tr><th>#</th><th>Question</th><th>Decision</th><th>Alternatives</th></tr></thead>
+          <tbody>
+            <tr><td>D1</td><td>What the package list covers</td><td><span class="badge green">As recommended</span> One per server (per runtime major version), the same for every Worker.</td><td>One per domain: a Worker would need several environments, and composites spanning domains would conflict.</td></tr>
+            <tr><td>D2</td><td>Can default packages be removed</td><td><span class="badge green">As recommended</span> Yes; when a published scenario uses one, forcing the removal needs a reason.</td><td>Defaults are fixed; only packages added later can be removed.</td></tr>
+            <tr><td>D3</td><td>Package source</td><td><span class="badge green">As recommended</span> Speed-tested "auto" by default (PyPI and five mirrors in China), switchable to a specific source or the company mirror.</td><td>Use a specific source instead of "auto" when the company allows only approved sources.</td></tr>
+            <tr><td>D4</td><td>Cooldown</td><td><span class="badge green">As recommended</span> 7 days.</td><td>0 (no limit) or another number of days.</td></tr>
+            <tr><td>D5</td><td>Which checks must pass before publishing</td><td><span class="badge green">As recommended</span> The server's checks (resolve, platforms, download, import on the server's platform) must pass; other platforms are checked when Workers prepare, and a failure is flagged on the page with a one-step rollback.</td><td>Every platform must pass on an online device before publishing; without a device for a platform, publishing isn't possible.</td></tr>
+            <tr><td>D6</td><td>Package version changed after validation</td><td><span class="badge green">As recommended</span> Show the differences only; don't block runs or re-validate automatically.</td><td>Affected scenarios must be validated again before they run.</td></tr>
+            <tr><td>D7</td><td>Where the server's uv comes from</td><td><span class="badge green">As recommended</span> Download a pinned version from the package source the first time it's needed; no server reinstall.</td><td>Ship it in the server package: the next upgrade needs the full server package.</td></tr>
+            <tr><td>D8</td><td>Phases</td><td><span class="badge green">As recommended</span> Do phase 1 first; schedule phase 2 later.</td><td>Do both phases together.</td></tr>
+            <tr><td>D9</td><td>Can scenario editors see packages and request new ones</td><td><span class="badge">Not now</span> Decided by the user on 2026-11-27 04:00 America/Los_Angeles (PST, UTC−08:00). In this version only system administrators see and add packages, and requests happen outside the platform; it can be raised again later.</td><td>The original recommendation: a read-only package list and requests in phase 1, handled by system administrators.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="implementation">
+      <div class="panel-header"><h2>Phase 1 as implemented</h2></div>
+      <div class="panel-body prose">
+        <p>Phase 1 was completed in PR #42 on 2026-11-27 America/Los_Angeles (PST, UTC−08:00) (D1–D8 as recommended, D9 not done). Where it differs from the design above or is not done yet:</p>
+        <ul>
+          <li><strong>Where the code is.</strong> Server: <code>rpa_server.pypackages</code> (<code>service</code> drafts, checks, publishing and the wheel store; <code>resolve</code> and <code>uvtool</code> resolve with uv; <code>locks</code> reads lock files, picks wheels and computes differences; <code>sources</code> sources, speed tests and resumable downloads; <code>finder</code> lookups and scanning scenarios; <code>routes</code> the admin page's API). Building a package environment is in <code>rpa_runner.pypackages</code> (shared by Workers and the server's check); Worker downloads and preparing ahead are in <code>rpa_worker.remote</code>.</li>
+          <li><strong>Audit.</strong> It relies on ADR 0025's audit of every write request (account, method and path, result) and does not record request bodies; who added which package when, and reasons for removals, are kept in the package version's list and note.</li>
+          <li><strong>Package version at validation (D6).</strong> Recorded on this server's validation runs (<code>runs.python_packages</code>); run reports and scenario pages compare with the latest passing validation. The domain folder's verification records (<code>verifications/…</code>) don't record it yet; comparing across servers (by lock file hash) comes with phase 2's export and import.</li>
+          <li><strong>The check downloads only platforms with devices.</strong> The server's own platform and those of registered Workers; wheels for other platforms are downloaded from the source when a Worker of that platform first asks for them.</li>
+          <li><strong>Device readiness.</strong> Ready, preparing, preparation failed (with the reason), still on an older version, not reported yet (an old app or not online yet); Workers report only the state, not a download percentage.</li>
+          <li><strong>Old apps.</strong> Besides #1, versions whose lock file hash matches #1 (such as going back to #1) also go to apps without the <code>pythonPackages</code> capability.</li>
+          <li><strong>Not done yet.</strong> The "the app's bundled default packages have a new version" notice (the "later" item under <a href="#compatibility">Compatibility and upgrading</a>).</li>
+          <li><strong>Verification.</strong> Automated tests don't use the network (a fake package source, the local uv); the CI RPA Python runtime job builds a package environment with the real runtime (Windows included) and runs a Python node in it. The admin page was walked through once against the real PyPI in a cloud environment: look up PIL, add python-pptx, check (resolution, wheels for four platforms, downloads, hashes and cooldown, about 6 seconds), publish #2, go back to #1, speed test (the mainland China mirrors were unreachable from there, so only PyPI was measured). Manual acceptance follows <a href="#phases">Phases and verification</a>.</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="stack">
+      <section class="panel" id="consequences">
+        <div class="panel-header"><h2>Consequences</h2></div>
+        <div class="panel-body prose">
+          <ul>
+            <li>Adding a package goes from "change the repository, release, reinstall every device from the full installer" to "add a row on the admin page, publish, and Workers fetch it over the LAN". Small packages take seconds; ones like scikit-learn, tens of MB per platform, are still downloaded from the internet only once.</li>
+            <li>The server gains uv (about 20 MB) and a wheel store (from about 30–40 MB per platform in use, growing with packages). Each package environment on a Worker is a few hundred MB unpacked, and 3 are kept.</li>
+            <li>Servers can have different packages. Moving scenarios to another server means checking it has the packages they need (export and import in phase 2 address this).</li>
+            <li>Administrators can install any package on PyPI that has wheels; safety comes from system-administrator-only changes, the audit log, the cooldown and hashes, not technical isolation.</li>
+            <li>Python nodes run in the package environment's venv instead of the bundled interpreter, adding a path to CI's runtime tests; venvs on Windows must be verified for real in phase 1.</li>
+          </ul>
+        </div>
+      </section>
+      <section class="panel" id="alternatives">
+        <div class="panel-header"><h2>Alternatives not chosen</h2></div>
+        <div class="panel-body">
+          <table class="table">
+            <thead><tr><th>Alternative</th><th>Why not</th></tr></thead>
+            <tbody>
+              <tr><td>Keep changing the list in the repository, building in CI and releasing</td><td>Every change needs full installers and can't be made in the admin console; changing that is the point of this request.</td></tr>
+              <tr><td>The server repackages the whole runtime (interpreter + packages) per version and distributes it</td><td>Every change downloads the whole 60–75 MB archive; the server can only test its own platform; the interpreter is downloaded again each time.</td></tr>
+              <tr><td>Workers install straight from PyPI or a mirror</td><td>Every Worker needs internet access and downloads on its own, with timing and results varying by machine; Workers would need pip or uv.</td></tr>
+              <tr><td>Layer a folder over the bundled site-packages (added to <code>sys.path</code>)</td><td>Default packages can't be removed, one package can exist in two versions, and subprocesses a script starts don't see the layered packages.</td></tr>
+              <tr><td>Each scenario declares and locks its own packages</td><td>Workers would need many environments, exactly the version and dependency problem ADR 0020 avoids.</td></tr>
+              <tr><td>Accept source distributions (sdists)</td><td>They have to be compiled and run installers on the server or Workers, with a compiler per platform; unsafe and not reproducible.</td></tr>
+              <tr><td>Conda</td><td>A separate ecosystem with bigger downloads, incompatible with the current python-build-standalone.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+</body>
+</html>

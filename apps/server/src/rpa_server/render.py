@@ -22,7 +22,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoes
 from markupsafe import Markup, escape
 
 from rpa_core.dsl.files import format_size
-from rpa_core.i18n import LOCALES, NATIVE_NAMES, get_locale
+from rpa_core.i18n import DEFAULT_LOCALE, LOCALES, NATIVE_NAMES, get_locale
 from rpa_core.workflow import Workflow, condition_text
 from rpa_runner.files import STEP_SHOTS, STEPS
 from rpa_server import __version__
@@ -160,13 +160,14 @@ NAV: Final = (
         (
             NavPage("domains", "/domains"),
             NavPage("projects", "/projects"),
+            NavPage("python_packages", "/python-packages"),
             NavPage("agents", "/agents"),
             NavPage("users", "/users"),
             NavPage("audit", "/audit"),
         ),
     ),
 )
-SYSTEM_PAGES: Final = frozenset({"workers", "agents", "users", "audit"})
+SYSTEM_PAGES: Final = frozenset({"workers", "agents", "users", "audit", "python_packages"})
 """只有系統管理員看得到的頁面（M8，ADR 0025）。"""
 EDITOR_PAGES: Final = frozenset({"recording"})
 """至少在一個領域是編輯者才看得到的頁面。"""
@@ -193,6 +194,7 @@ _BADGES: Final[Mapping[str, str]] = {
     "timed_out": "red",
     "cancelled": "amber",
     "draft": "amber",
+    "checked": "green",  # 套件草稿檢查通過（ADR 0027）
     # 批次執行（M7.3）：批次與每一列的狀態
     "finished": "green",
     "stopped": "amber",
@@ -637,6 +639,8 @@ def js_messages() -> dict[str, str]:
         "js.batch_stop_action",
         "js.batch_started",
         "js.batch_rerun_started",
+        # ADR 0027 的套件管理頁：js.pkg_ 開頭的都放進來
+        *(key for key in t.messages(DEFAULT_LOCALE) if key.startswith("js.pkg_")),
     )
     return {key.removeprefix("js."): page_t(key) for key in keys}  # 透過錄製端時換掉用詞
 
@@ -812,6 +816,7 @@ cast("dict[str, object]", _env.globals).update(
     via_recorder=via_recorder,
     current_access=current_access,
     menu_shown=menu_shown,
+    page_allowed=page_allowed,
     composites_domain=COMPOSITES_DOMAIN,
     recorder_menus=RECORDER_MENUS,
     badge_color=badge_color,

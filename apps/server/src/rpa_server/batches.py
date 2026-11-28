@@ -298,6 +298,7 @@ class BatchService:
                     client_id=client_id,
                     user_id=principal.user_id if principal is not None else None,
                     idempotency_key=key,
+                    python_packages=self.services.packages.current_number(),
                 )
             )
             session.flush()
@@ -982,7 +983,9 @@ class BatchService:
             self.services.check_revision_use(scene_id or "", number, actor)
 
     def _claim(self, batch: Batch) -> None:
-        """開始或重跑：檢查按下去的人，之後排的每一列都用他（M8.1）。"""
+        """開始或重跑：檢查按下去的人，之後排的每一列都用他（M8.1）；套件版本換成目前的
+        （ADR 0027：例如補上缺的套件後重跑失敗的列）。"""
+        batch.python_packages = self.services.packages.current_number()
         principal = current_principal()
         if principal is None:
             return  # 背景工作：照記下的人

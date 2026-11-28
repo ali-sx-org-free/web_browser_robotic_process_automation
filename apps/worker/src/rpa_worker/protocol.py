@@ -7,6 +7,9 @@
 - 執行目錄打包成 zip 上傳；解開時只接受安全的相對路徑、限制檔案數與大小。
 - 檔案入參（M7c，D8）：任務只帶上傳檔的清單（:class:`InputFile`），內容由 worker 另外用
   ``GET /runs/<執行>/files/<代號>`` 逐一下載、比對 sha256，不放進任務的 JSON。
+- 套件版本（ADR 0027）：運行環境模式的任務帶著這個平台的套件清單
+  （:class:`rpa_runner.pypackages.PackageSet`），wheel 由 worker 用
+  ``GET /python-packages/files/<sha256>`` 下載（可以從斷點續傳）、核對 sha256。
 """
 
 import base64
@@ -21,6 +24,7 @@ from typing import Final, cast
 from rpa_core.dsl.files import FILE_ID
 from rpa_core.i18n import Locale, parse_locale
 from rpa_runner.login import LoginSettings
+from rpa_runner.pypackages import PackageSet, PackagesUnavailableError
 
 __all__ = [
     "API_PREFIX",
@@ -140,6 +144,9 @@ class JobPayload:
     workspace: str | None = None
     """組合運行的編號（ADR 0020）：同一次組合運行的節點在 worker 上共用一個工作資料夾。
     舊版管理 Portal 不會送；單獨執行時是 None。"""
+    python_packages: PackageSet | None = None
+    """運行環境模式的 Python 節點用的套件清單（ADR 0027）；舊版管理 Portal 不會送，
+    沒有時用內附的運行環境。"""
 
     def to_json(self) -> dict[str, object]:
         login = None
@@ -164,6 +171,9 @@ class JobPayload:
             "maxFileBytes": self.max_file_bytes,
             "maxRunBytes": self.max_run_bytes,
             "workspace": self.workspace,
+            "pythonPackages": self.python_packages.to_json()
+            if self.python_packages is not None
+            else None,
         }
 
     @classmethod
@@ -202,6 +212,13 @@ class JobPayload:
         )
         max_file = data.get("maxFileBytes")
         max_run = data.get("maxRunBytes")
+        raw_packages = data.get("pythonPackages")
+        python_packages = None
+        if isinstance(raw_packages, dict):
+            try:
+                python_packages = PackageSet.from_json(cast("dict[str, object]", raw_packages))
+            except PackagesUnavailableError as error:
+                raise ValueError(f"invalid pythonPackages: {error}") from error
         workspace = data.get("workspace")
         if workspace is not None and (
             not isinstance(workspace, str) or not is_safe_path(workspace) or "/" in workspace
@@ -229,6 +246,7 @@ class JobPayload:
             max_file_bytes=max_file if isinstance(max_file, int) and max_file > 0 else None,
             max_run_bytes=max_run if isinstance(max_run, int) and max_run > 0 else None,
             workspace=workspace,
+            python_packages=python_packages,
         )
 
 

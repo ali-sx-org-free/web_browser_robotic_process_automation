@@ -45,6 +45,7 @@ from rpa_server.middleware import (
     SameOriginMiddleware,
 )
 from rpa_server.pages import page_router
+from rpa_server.pypackages.routes import python_packages_router
 from rpa_server.render import render
 from rpa_server.services import Services
 from rpa_server.storage import Storage
@@ -157,6 +158,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             yield
         finally:
             hub.close()
+            services.packages.close()
             services.videos.close()
             services.uploads.close()
             services.recorders.close()
@@ -196,6 +198,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(account_router(services))
     app.include_router(api_router(services), prefix="/api")
+    app.include_router(python_packages_router(services), prefix="/api")
     app.include_router(worker_api_router(hub, services.device_updates))
     app.include_router(client_api_router(hub, services.recorders, storage, services.device_updates))
     app.include_router(page_router(services))

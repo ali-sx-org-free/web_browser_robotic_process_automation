@@ -34,6 +34,7 @@ from rpa_runner.run import RunResult, ScenarioInvalidError, StageName
 from rpa_server.domain import LOCAL_WORKER, now
 from rpa_server.i18n import t
 from rpa_server.models import Revision, Run, WorkflowRun
+from rpa_server.pypackages.service import PackageService
 from rpa_server.roles import RoleService
 from rpa_server.storage import Storage
 from rpa_server.uploads import UploadService
@@ -146,6 +147,8 @@ class RunQueue:
         """任務結束（資料庫已更新）之後呼叫，參數是執行編號。"""
         self.runtimes: Callable[[], Collection[str]] = _local_runtimes
         """這台伺服器有的 RPA Python 運行環境版本（測試可以換掉）。"""
+        self.packages: PackageService | None = None
+        """伺服器管理的套件版本（ADR 0027）；Services 建立後設定。"""
 
     # ------------------------------------------------------------ 場景與登入
 
@@ -259,6 +262,10 @@ class RunQueue:
         options = self.file_options(run.input)
         if run.workflow_run_id is not None:
             options["workspace"] = self.storage.workspace(run.workflow_run_id)
+        if run.python_packages is not None and self.packages is not None:
+            request = self.packages.request(platform_tag(), run.python_packages)
+            if request is not None:
+                options["python_packages"] = request
         return Job(
             run_id=run.id,
             scenario=path,

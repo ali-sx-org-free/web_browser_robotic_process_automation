@@ -41,6 +41,12 @@ from rpa_server.errors import ServiceError, not_found
 from rpa_server.gitsync import GitSource
 from rpa_server.i18n import t
 from rpa_server.middleware import LANG_COOKIE
+from rpa_server.pypackages.finder import COMMON, COMMON_CATEGORIES
+from rpa_server.pypackages.locks import PLATFORM_FAMILIES, PLATFORMS
+from rpa_server.pypackages.routes import dependencies, describe, package_rows
+from rpa_server.pypackages.routes import devices as package_devices
+from rpa_server.pypackages.service import suggest_package
+from rpa_server.pypackages.sources import PRESETS
 from rpa_server.render import (
     composite_run_filters,
     domain_page,
@@ -291,6 +297,17 @@ def _scene_attachments(
 
 _PREVIEW_ROWS: Final = 20
 """運行詳情裡每份資料預覽顯示幾列（完整的在 previews/ 的 JSON 與執行報告）。"""
+
+
+def _missing_module(result: Mapping[str, object] | None) -> dict[str, str] | None:
+    """Python 節點因為缺模組失敗（ADR 0027）：缺的模組與建議加入的套件。"""
+    python = result.get("python") if result is not None else None
+    if not isinstance(python, dict):
+        return None
+    module = cast("dict[str, object]", python).get("missingModule")
+    if not isinstance(module, str) or not module:
+        return None
+    return {"module": module, "package": suggest_package(module)}
 
 
 def _run_python_details(
@@ -614,6 +631,7 @@ def page_router(services: Services) -> APIRouter:
             scenario=scenario,
             default_base_url=scenario.browser.base_url if scenario else None,
             runs=services.list_runs(scenes=[scene_id], limit=_RECENT_RUNS),
+            packages=services.scene_packages(record),
             attachments=_scene_attachments(services, scene_id, record.latest_number, scenario),
             attachment_limits={"file": MAX_ATTACHMENT_BYTES, "total": MAX_ATTACHMENTS_BYTES},
             contract_data=_contract_data(scenario, files[SCENARIO_FILE])
@@ -851,6 +869,8 @@ def page_router(services: Services) -> APIRouter:
             result=result,
             files=files,
             python=_run_python_details(services, run_id, files, record.output),
+            packages=services.run_packages(record),
+            missing_module=_missing_module(result),
             preview_rows=_PREVIEW_ROWS,
             file_inputs=_run_file_inputs(services, record, scenario, result),
             handled=_handled_steps(result),
@@ -1142,6 +1162,37 @@ def page_router(services: Services) -> APIRouter:
             worker_port=port,
             api_url=api_url,
             fingerprint=services.workers.fingerprint,
+            package_states={item["id"]: item for item in package_devices(services)},
+        )
+
+    @router.get("/python-packages", include_in_schema=False)
+    def python_packages_page() -> HTMLResponse:
+        """RPA Python 運行環境的套件（ADR 0027）：清單、找套件、增刪、檢查與發布、歷史、設定。"""
+        packages = services.packages
+        current = packages.current()
+        draft = packages.draft()
+        view = draft or current
+        return page(
+            "python_packages.html",
+            page="python_packages",
+            title=t("nav.python_packages"),
+            current=current,
+            draft=draft,
+            view=view,
+            rows=package_rows(current, view),
+            dependencies=dependencies(view),
+            progress=packages.status().get("progress"),
+            history=packages.history(),
+            settings=packages.settings(),
+            speed=packages.speed_results(),
+            devices=package_devices(services),
+            missing=packages.missing_modules(),
+            common=COMMON,
+            categories=COMMON_CATEGORIES,
+            presets=[source.id for source in PRESETS],
+            families=PLATFORM_FAMILIES,
+            platforms=PLATFORMS,
+            describe=describe,
         )
 
     @router.get("/agents", include_in_schema=False)

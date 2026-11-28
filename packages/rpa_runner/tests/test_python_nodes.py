@@ -6,13 +6,15 @@ CI 建好真的運行環境後（python-runtime.yml）以 ``RPA_TEST_PYTHON_RUNT
 （含 Windows）用真的再跑一次，另外加上用到運行環境套件的測試。不需要瀏覽器。
 """
 
+import hashlib
 import json
 import os
 import subprocess
 import sys
 import threading
 import time
-from collections.abc import Iterator
+import zipfile
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import cast
 
@@ -20,6 +22,7 @@ import pytest
 
 from rpa_core.i18n import use_locale
 from rpa_runner.files import FACTS, OUTPUT, RESULT, STEPS
+from rpa_runner.pypackages import PackageFile, PackageRequest, PackageSet
 from rpa_runner.pyruntime import ENV_RUNTIME, MANIFEST, platform_tag, read_manifest
 from rpa_runner.run import RunResult, execute
 
@@ -589,3 +592,81 @@ def test_cancel_stops_the_script_and_its_children(tmp_path: Path) -> None:
     before = beat.read_text(encoding="utf-8")
     time.sleep(0.6)
     assert beat.read_text(encoding="utf-8") == before  # 子程序也結束了
+
+
+def _wheel(folder: Path, name: str, version: str, files: dict[str, bytes]) -> PackageFile:
+    """一個純 Python 的 wheel（伺服器管理的套件，ADR 0027）。"""
+    folder.mkdir(parents=True, exist_ok=True)
+    stem = f"{name.replace('-', '_')}-{version}"
+    path = folder / f"{stem}-py3-none-any.whl"
+    meta = f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n"
+    content = {
+        **files,
+        f"{stem}.dist-info/METADATA": meta.encode(),
+        f"{stem}.dist-info/WHEEL": b"Wheel-Version: 1.0\nRoot-Is-Purelib: true\n",
+        f"{stem}.dist-info/RECORD": b"",
+    }
+    with zipfile.ZipFile(path, "w") as archive:
+        for key, data in content.items():
+            archive.writestr(key, data)
+    data = path.read_bytes()
+    return PackageFile(name, version, path.name, hashlib.sha256(data).hexdigest(), len(data))
+
+
+def _copy_from(folder: Path) -> Callable[[PackageFile, Path, Callable[[int], None]], None]:
+    def fetch(item: PackageFile, target: Path, progress: Callable[[int], None]) -> None:
+        data = (folder / item.filename).read_bytes()
+        target.write_bytes(data)
+        progress(len(data))
+
+    return fetch
+
+
+def test_server_packages_run_in_their_own_environment(tmp_path: Path) -> None:
+    wheels = tmp_path / "wheels"
+    item = _wheel(
+        wheels, "fake-tab", "0.1", {"fake_tab/__init__.py": b"def table():\n    return 'ok'\n"}
+    )
+    packages = PackageSet(2, "c" * 64, platform_tag(), (item,), direct=("fake-tab",))
+    automation = (
+        "import sys\nfrom rpa_script import Run, automation\nimport fake_tab\n\n\n"
+        "@automation\ndef main(run: Run) -> None:\n"
+        "    run.facts.update(table=fake_tab.table(), venv=sys.prefix != sys.base_prefix)\n"
+    )
+    path = node(tmp_path / "scene", automation)
+    request = PackageRequest(packages, _copy_from(wheels))
+    result = execute(path, {}, out_root=tmp_path / "runs", python_packages=request)
+    assert result.status == "passed", result.error
+    facts = cast("dict[str, object]", read(result, FACTS))
+    assert facts == {"table": "ok", "venv": True}
+    assert result.python is not None
+    details = cast("dict[str, object]", result.python["packages"])
+    assert details["revision"] == 2
+    assert details["bundled"] is False
+    assert details["downloaded"] == 1
+    assert "套件 #2" in str(result.stage("runtime").message)
+    # 同一版第二次：沿用
+    again = execute(path, {}, out_root=tmp_path / "runs", python_packages=request)
+    assert again.status == "passed"
+    assert again.python is not None
+    assert cast("dict[str, object]", again.python["packages"])["reused"] is True
+
+
+def test_missing_module_is_reported(tmp_path: Path) -> None:
+    path = node(tmp_path / "scene", "import not_installed_pkg.sub\n")
+    result = execute(path, {}, out_root=tmp_path / "runs")
+    assert result.status == "failed"
+    assert result.python is not None
+    assert result.python["missingModule"] == "not_installed_pkg"
+
+
+def test_package_environment_failure_stops_before_the_script(tmp_path: Path) -> None:
+    item = PackageFile("gone", "1.0", "gone-1.0-py3-none-any.whl", "d" * 64, 10)
+    packages = PackageSet(3, "e" * 64, platform_tag(), (item,))
+    path = node(tmp_path / "scene", "raise SystemExit('should not run')\n")
+    request = PackageRequest(packages, _copy_from(tmp_path / "empty"))
+    result = execute(path, {}, out_root=tmp_path / "runs", python_packages=request)
+    assert result.status == "failed"
+    assert result.stage("runtime").status == "failed"
+    assert "套件 #3 的環境準備失敗" in str(result.error)
+    assert result.stage("automation").status == "skipped"

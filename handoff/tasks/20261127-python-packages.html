@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>管理後台管理 Python 運行環境的套件 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body>
+<main id="main">
+  <nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+  <div class="heading"><div><h1>管理後台管理 Python 運行環境的套件</h1><p>伺服器管理後台新增、移除 RPA Python 運行環境的固定套件，新增時考慮下載速度；預設就是現在的套件。先設計，使用者確認後才開發。</p></div></div>
+  <div class="stack">
+    <section class="panel" id="identity">
+      <div class="panel-header"><h2>任務與責任</h2></div>
+      <div class="panel-body"><dl class="spec-list">
+        <dt>任務 ID／更新時間</dt><dd>20261127-python-packages；2026-11-27 05:40 America/Los_Angeles（PST，UTC−08:00）</dd>
+        <dt>需求來源／驗收條件</dt><dd>使用者 2026-11-27 03:02 America/Los_Angeles（PST，UTC−08:00）在 Claude 專案對話（原文）：「對的，現在要對獨立環境python環境提一個需求，伺服器管理後臺支持管理固定套件、支持新增、移除功能。設計一下方案，在新增固定套件時候要考慮下載速度，默認的固定套件就是現狀這些。先設計方案，方案沒問題后再動手開發。」設計：<a href="../../docs/adr/0027-python-packages.html">ADR 0027</a>，使用者 04:02 回覆「按照建議實作開始。」，D1～D8 照建議、D9 暫不做，ADR 改成已接受。開發（第一期）的驗收條件見 ADR 0027「分期與驗證」。</dd>
+        <dt>範圍／不包含</dt><dd>設計文件（ADR 0027 三種語言、ADR 索引、導航）與第一期的實作：rpa-runner 的套件環境、伺服器的套件管理（資料表、uv、解析、下載、管理頁、稽核）、Worker API 與 Worker 的取得、派工與報告、文件。不包含第二期（離線上傳 wheel、匯出匯入鎖定檔、指定裝置試用、OSV 漏洞查詢）與 D9（編輯者看套件、申請）。</dd>
+        <dt>主責／審閱／接收方</dt><dd>設計：Claude（Claude 專案對話的雲端 session）。審閱與決定：使用者。接收方：未指定。</dd>
+        <dt>修改檔案／整合者</dt><dd>設計：docs/adr/0027-python-packages.html（三種語言）、ADR 索引、docs/assets/nav.js。實作：<code>packages/rpa_runner/src/rpa_runner/pypackages.py</code>（新）、<code>pyruntime.py</code>、<code>run.py</code>；<code>apps/server/src/rpa_server/pypackages/</code>（新）、<code>models.py</code> 與遷移、<code>dispatch.py</code>、<code>jobs.py</code>、<code>worker_api.py</code>、<code>services.py</code>、<code>batches.py</code>、<code>workflows.py</code>、<code>pages.py</code>、<code>render.py</code>、<code>gate.py</code>、<code>app.py</code>、<code>domain.py</code>、樣板（<code>python_packages.html</code> 新、<code>run.html</code>、<code>scene.html</code>、<code>workers.html</code>、<code>_macros.html</code>）、<code>static/portal.js</code>、三種語言的訊息；<code>apps/worker/src/rpa_worker/</code>（<code>remote.py</code>、<code>protocol.py</code>、<code>worker.py</code>、<code>environment.py</code>）；<code>tools/build_python_runtime.py</code>；測試（伺服器、Worker、Runner）；文件（<code>docs/design/portal.html</code>、<code>dsl.html</code>、<code>desktop.html</code>、<code>tech-stack.html</code>、<code>docs/index.html</code>，英文版，簡中產生）、本頁與任務索引。ADR 編號 0027：開工時沒有開著的 PR，最新的是 0026。</dd>
+        <dt>狀態</dt><dd>第一期已實作，待使用者審閱、人工驗收與合併（ADR 0027 已接受）。</dd>
+        <dt>分支／PR／base SHA</dt><dd>claude/project-thread-70yx5u（雲端 session 指定的分支名稱），從 origin/main c6958b1（#41）開；<a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/42">PR #42</a>（草稿，base main）。</dd>
+        <dt>交接版本／同步狀態</dt><dd>已推送；設計 b4df6d5～82bdd55，實作 f297265（Runner）、25ab0dd（伺服器）、5363ab7（Worker）、22f1627（管理頁與運行報告），之後是文件與本頁；最新 SHA 以 PR 為準。</dd>
+        <dt>工作區／環境</dt><dd>Claude 雲端環境（Linux x86_64、uv 0.11.32；這次連得到 PyPI，<code>uv sync --locked</code> 成功）。</dd>
+      </dl></div>
+    </section>
+    <section class="panel" id="progress">
+      <div class="panel-header"><h2>進度、決定與下一步</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li><strong>已完成：</strong>讀現有實作（<code>packages/rpa_runner/src/rpa_runner/pyruntime.py</code>、<code>tools/build_python_runtime.py</code>、<code>tools/build_desktop.py</code>、<code>tools/build_server.py</code>、<code>runtimes/python/</code>、派工的 <code>runs_on</code>、ADR 0018／0020、<code>scripts/setup-linux.sh</code> 的鏡像測速）；查證（2026-11-27）：預設套件每個平台的 wheel 合計約 30～36 MB、scikit-learn 每個平台多約 23～45 MB（PyPI JSON API）；uv 0.11.32 的 <code>uv pip compile --universal</code> 能輸出含 wheel 網址、大小、上架時間與 sha256 的 pylock.toml，新增套件時保留既有的版本，<code>--exclude-newer</code> 可用；沒有平台條件的 pywin32 會被鎖進所有平台（所以要另外確認每個平台有 wheel）；python-build-standalone 3.13.14 的 Windows 版有 <code>Lib/venv/scripts/nt/venvlauncher.exe</code>（只確認檔案存在，沒有在 Windows 上執行）。寫成 ADR 0027。</li>
+        <li><strong>第一期已完成：</strong>Runner 的套件環境（venv、從內附運行環境複製、下載的 wheel、import 檢查、保留 3 版）；伺服器的套件版本（#1 是內附的、草稿、uv 解析與每個平台的 wheel、來源測速與續傳下載、雜湊另向 pypi.org 核對、冷卻期、在伺服器 import、發布、回到某一版、wheel 庫與清理）；派工（執行排入時固定套件版本，批次與組合運行整次同一版；舊的 App 只拿 #1 與和 #1 相同的版本）；Worker API 下載 wheel（Range、同時下載的台數上限、503 加 Retry-After）與回報準備狀態，Worker 閒置時先準備；管理頁 <code>/python-packages</code>（系統管理員）與 API；運行報告與場景頁的「套件 #N」、驗證時不同時的差異（D6）、缺模組的建議；裝置頁的準備狀態；文件。和設計不同或還沒做的地方記在 <a href="../../docs/adr/0027-python-packages.html#implementation">ADR 0027「第一期的實作」</a>。</li>
+        <li><strong>未完成／阻礙：</strong>沒有阻礙。待使用者審閱、人工驗收（ADR 0027「分期與驗證」：在管理頁新增 tabulate 與 scikit-learn、移除一個、回到前一版；Windows Worker 與 Linux 伺服器各執行一次用到它們的 Python 節點）與合併。</li>
+        <li><strong>決定：</strong>D9（編輯者看套件、申請加入）使用者 2026-11-27 04:00 America/Los_Angeles（PST，UTC−08:00）決定暫不做；D1～D8 使用者 04:02 決定照建議（已確認），見 <a href="../../docs/adr/0027-python-packages.html#open-questions">ADR 0027 決定事項</a>與<a href="../decisions.html#decisions">決定紀錄</a>。</li>
+        <li><strong>下一個具體動作：</strong>看 PR #42 的 CI（特別是 RPA Python 運行環境工作在 Windows 用真的運行環境組套件環境）；使用者人工驗收與合併。第二期另開任務。</li>
+        <li><strong>未提交／stash／ignored 產物：</strong>無。查證與瀏覽器試用的暫存檔（本機伺服器的資料夾、截圖）在 session 的 scratchpad，不屬於倉庫。</li>
+      </ul></div>
+    </section>
+    <section class="panel" id="validation">
+      <div class="panel-header"><h2>驗證與審閱</h2></div>
+      <div class="table-scroll"><table class="wrap">
+        <thead><tr><th>版本／環境</th><th>命令或步驟</th><th>結果／證據</th><th>未覆蓋範圍</th></tr></thead>
+        <tbody><tr><td>c6958b1＋本任務的文件差異／Claude 雲端環境</td><td><code>uv run python tools/i18n.py stamp</code>、<code>sync</code>、<code>check</code>；<code>uv run pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code></td><td>b4df6d5：i18n check 通過；tests/docs、tests/i18n 432 通過；git diff --check 通過；ADR 與本頁的相對連結、錨點以腳本檢查通過；Chromium 開繁中、英文頁沒有橫向捲動</td><td>handoff/ 的連結另外人工確認；只有文件，沒有程式測試</td></tr>
+          <tr><td>5363ab7／Claude 雲端環境（Linux x86_64）</td><td><code>uv run ruff check .</code>、<code>ruff format --check .</code>、<code>pyright</code>、<code>uv run pytest -m "not browser" -n 8</code></td><td>全部通過：2616 passed、7 skipped（跑在管理頁的提交之前的工作區）</td><td>瀏覽器測試（<code>-m browser</code>）沒跑；Windows、macOS 只在 CI</td></tr>
+          <tr><td>5247438（程式與文件）／同上</td><td>同上；<code>tests/docs tests/i18n</code>；<code>tools/i18n.py check</code></td><td>全部 2617 passed、7 skipped；文件與訊息 432 passed；ruff、ruff format、pyright 0 錯誤；i18n check、git diff --check 通過</td><td>同上</td></tr>
+          <tr><td>同上／本機起一台伺服器（不用登入），Playwright 的 Chromium，連真的 PyPI</td><td>打開 <code>/python-packages</code>；修改 requests 的條件、移除 pandas、查詢 PIL、從常用套件查詢並加入 python-pptx、檢查、發布 #2、回到 #1 並檢查、存設定、測速、放棄草稿；手機寬度</td><td>每一步都照預期，頁面沒有 JavaScript 錯誤；檢查約 6 秒通過（解析、四個平台的 wheel、下載 2 個檔案、雜湊與冷卻期；伺服器沒有運行環境，import 略過並提醒）；差異列出新增 pillow、python-pptx 與移除 numpy、pandas；回到 #1 不重新解析、要另外下載 0 B；測速只有 PyPI 連得到（國內鏡像被這個環境的代理擋下）；390 px 寬沒有橫向捲動</td><td>沒有真的 Worker（Windows、macOS）下載與執行；沒有登入的權限（由 test_gate 與頁面測試涵蓋）</td></tr></tbody>
+      </table></div>
+      <div class="panel-body"><p>CI：見 PR #42；人工驗收：待使用者（步驟見 ADR 0027「分期與驗證」）；審閱：使用者未審閱。</p></div>
+    </section>
+    <section class="panel" id="receipt">
+      <div class="panel-header"><h2>接收確認</h2></div>
+      <div class="panel-body"><p>未接收。</p></div>
+    </section>
+    <section class="panel" id="log">
+      <div class="panel-header"><h2>追加紀錄</h2></div>
+      <div class="panel-body"><ul class="points">
+        <li>2026-11-27 03:03～03:45 America/Los_Angeles（PST，UTC−08:00），Claude：建立本頁，查證並寫 ADR 0027（提議中）。</li>
+        <li>2026-11-27 約 03:50 America/Los_Angeles（PST，UTC−08:00），Claude：推送 b4df6d5，開草稿 PR #42；把 PR 指派給使用者與請求審閱都被 GitHub 拒絕（帳號不是倉庫的協作者），不影響 PR。</li>
+        <li>2026-11-27 03:49 America/Los_Angeles（PST，UTC−08:00），使用者在 Claude 專案對話問（原文）：「那我想找我需要的套件現在怎麽處理的。」Claude 確認 PyPI 沒有給程式用的搜尋（XML-RPC search 回錯誤），在 ADR 0027 補上「找到需要的套件」（名稱查詢、用 import 名稱找、常用套件清單、從場景找缺的、執行時缺模組的提示、到 PyPI 網站搜尋、編輯者申請）與待確認事項 D9。</li>
+        <li>2026-11-27 04:00 America/Los_Angeles（PST，UTC−08:00），使用者在 Claude 專案對話回覆（原文）：「D9暂不做。另外“目前沒辦法自己加套件”是什麽意思，我這次想做的不就是自建管理包含添加python套件嗎，不能添加那不相當於功能白做嗎。」Claude：ADR 0027 的 D9 標成暫不做，拿掉編輯者申請的設計；說明「沒辦法自己加」指的是目前已發布的版本，本設計就是要讓系統管理員在管理後台加。</li>
+        <li>2026-11-27 04:02 America/Los_Angeles（PST，UTC−08:00），使用者在 Claude 專案對話回覆（原文）：「按照建議實作開始。」Claude：D1～D8 照建議寫進 ADR 0027（改成已接受）與決定紀錄，開始第一期。</li>
+        <li>2026-11-27 04:10～05:40 America/Los_Angeles（PST，UTC−08:00），Claude：實作第一期並推送（f297265 Runner、25ab0dd 伺服器、5363ab7 Worker、22f1627 管理頁與運行報告，之後是裝置頁的準備狀態、和 #1 相同的版本給舊的 App、文件與本頁）。25ab0dd 的 CI 靜態檢查因 <code>models.py</code> 一行過長失敗，5363ab7 修正。</li>
+      </ul></div>
+    </section>
+  </div>
+</main>
+</body>
+</html>

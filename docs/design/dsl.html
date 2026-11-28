@@ -150,7 +150,7 @@ verify:
         <div class="table-scroll"><table class="wrap">
           <thead><tr><th></th><th>相容模式（沒寫 <code>runtime</code>）</th><th>運行環境模式（<code>runtime: "1"</code>）</th></tr></thead>
           <tbody>
-            <tr><td>直譯器</td><td>執行那台的 Python（打包後是 App 內的 Python，只有標準函式庫與 App 內附的套件）</td><td>RPA Python 運行環境：固定的 Python 3.13 與套件（Excel、pandas、Word、PDF、requests…），隨 Worker App 與 Linux 分發包附帶，第一次用到時解壓、之後沿用</td></tr>
+            <tr><td>直譯器</td><td>執行那台的 Python（打包後是 App 內的 Python，只有標準函式庫與 App 內附的套件）</td><td>RPA Python 運行環境：固定的 Python 3.13，隨 Worker App 與 Linux 分發包附帶，第一次用到時解壓、之後沿用；能 import 的套件由系統管理員在「管理後台 › Python 套件」管理（預設是 Excel、pandas、Word、PDF、requests…，<a href="../adr/0027-python-packages.html">ADR 0027</a>），每次執行用排入時的「套件 #N」</td></tr>
             <tr><td>瀏覽器</td><td>腳本可以自己用 Playwright 開（例如 <code>scenarios/demo/ba-001-script/</code>）</td><td>不開；不能寫 <code>browser</code>、<code>login</code>；交給沒有瀏覽器、不能顯示視窗的 Worker 也能執行</td></tr>
             <tr><td>獨立斷言</td><td><code>assertion</code> 必要，不能寫 <code>verify</code></td><td><code>assertion</code> 或 <code>verify</code> 二擇一（沒有出參時都可以不寫）</td></tr>
             <tr><td>出參</td><td>由 assertion.py 寫出，不寫 <code>from</code></td><td>用 assertion.py 時同左；用 verify 時每個出參寫 <code>from</code>，取自事實</td></tr>

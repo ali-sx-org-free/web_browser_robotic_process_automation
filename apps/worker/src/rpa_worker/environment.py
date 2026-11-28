@@ -40,11 +40,14 @@ __all__ = [
 PROTOCOL: Final = 1
 """Worker API 的協定版本；管理 Portal 與 worker 不同時拒絕連線。"""
 
-CAPABILITIES: Final[frozenset[str]] = frozenset({"debugInlineLoad", "debugSnapshot", "loginPick"})
+CAPABILITIES: Final[frozenset[str]] = frozenset(
+    {"debugInlineLoad", "debugSnapshot", "loginPick", "pythonPackages"}
+)
 """這份程式支援、但不屬於 DSL 的功能（M14）：``debugSnapshot`` 是調試子程序的讀頁面結構
 （``rpa_runner.debug`` 的 ``snapshot`` 命令）；``debugInlineLoad`` 是調試時換版本的 ``load``
 命令直接帶場景內容與入參（v0.6.3；之前的命令帶伺服器上的路徑，錄製端讀不到）；``loginPick``
-是登入角色引導用的點選元素（``rpa_runner.login pick``，2026-11-10）。管理 Portal
+是登入角色引導用的點選元素（``rpa_runner.login pick``，2026-11-10）；``pythonPackages`` 是
+伺服器管理的套件版本（ADR 0027：任務帶著套件清單，Worker 組成套件環境）。管理 Portal
 要用之前比對，舊的 App 缺少時說明要更新。"""
 
 FINGERPRINT_PACKAGES: Final = ("rpa_core", "rpa_runner", "rpa_worker")

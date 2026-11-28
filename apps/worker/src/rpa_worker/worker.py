@@ -7,7 +7,7 @@
   一開始就取消（領取與開始執行之間的空檔不會漏掉）。
 - 任務來源拋出的例外只記錄、不中斷迴圈；worker 一直跑到 :meth:`Worker.stop`。
 - 檔案入參（M7c）：任務帶著上傳檔在這台的位置、允許的資料夾與上限（:class:`FileOptions`），
-  只在有設定時才交給執行器（舊的執行器不必認得這些參數）。
+  只在有設定時才交給執行器（舊的執行器不必認得這些參數）。套件版本（ADR 0027）也一樣。
 """
 
 import logging
@@ -19,6 +19,7 @@ from typing import Final, Protocol, TypedDict
 
 from rpa_core.i18n import Locale, use_locale
 from rpa_runner.login import LoginSettings
+from rpa_runner.pypackages import PackageRequest
 from rpa_runner.run import RunResult, StageName, execute
 
 __all__ = ["Executor", "FileOptions", "Job", "JobSource", "Worker"]
@@ -40,6 +41,8 @@ class FileOptions(TypedDict, total=False):
     max_run_bytes: int
     workspace: Path
     """組合運行的共用工作資料夾（同一次組合運行的節點共用）。"""
+    python_packages: PackageRequest
+    """伺服器管理的套件版本（ADR 0027）：清單與取得 wheel 的方法。"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,6 +74,8 @@ class Job:
     max_run_bytes: int | None = None
     workspace: Path | None = None
     """組合運行的共用工作資料夾（ADR 0020）；單獨執行時是 None。"""
+    python_packages: PackageRequest | None = None
+    """運行環境模式的套件版本（ADR 0027）；None 時用內附的運行環境。"""
 
     def file_options(self) -> FileOptions:
         """有設定的檔案選項（沒有的不放，執行器用自己的預設）。"""
@@ -85,6 +90,8 @@ class Job:
             options["max_run_bytes"] = self.max_run_bytes
         if self.workspace is not None:
             options["workspace"] = self.workspace
+        if self.python_packages is not None:
+            options["python_packages"] = self.python_packages
         return options
 
 
@@ -132,6 +139,7 @@ class Executor(Protocol):
         max_file_bytes: int = ...,
         max_run_bytes: int = ...,
         workspace: Path | None = None,
+        python_packages: PackageRequest | None = None,
     ) -> RunResult: ...
 
 

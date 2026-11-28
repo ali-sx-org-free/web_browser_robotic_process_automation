@@ -16,6 +16,8 @@
   準備 RPA Python 運行環境（見 pyruntime.py；準備的時間不算進總期限）。腳本由
   ``python -E -s -X utf8 -m rpa_script`` 啟動，工作目錄是共用工作資料夾（``workspace``，組合運行
   的節點共用；單獨執行時是執行目錄旁邊的暫存資料夾，結束就刪），產出檔案在執行目錄的 outputs/。
+  伺服器管理的套件版本（``python_packages``，ADR 0027）：同一個階段再準備這個版本的套件環境
+  （見 pypackages.py），腳本用環境裡的直譯器執行；沒給時照舊用內附運行環境的套件。
 - 檔案入參（M7c）：入參階段把檔案準備在執行目錄旁邊的暫存資料夾（見 inputfiles.py），
   input.json 只有名稱、大小與 sha256；結束時刪掉暫存資料夾。場景附件不複製進執行目錄的快照，
   雜湊照場景資料夾裡的原檔計算。
@@ -24,6 +26,7 @@
 import contextlib
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -83,6 +86,7 @@ from rpa_runner.installed import missing_browser_hint
 from rpa_runner.login import ENV_LOGIN, EXIT_NEEDS_LOGIN, LoginSettings
 from rpa_runner.outputfiles import FILE_CHANGES, changes, publish_file_outputs, scan
 from rpa_runner.proctree import descendants, terminate, wait_exit
+from rpa_runner.pypackages import PackageRequest, PackagesUnavailableError, prepare_packages
 from rpa_runner.pyruntime import (
     PreparedRuntime,
     RuntimeUnavailableError,
@@ -508,6 +512,7 @@ def execute(
     max_file_bytes: int = MAX_FILE_BYTES,
     max_run_bytes: int = MAX_RUN_BYTES,
     workspace: Path | None = None,
+    python_packages: PackageRequest | None = None,
 ) -> RunResult:
     """執行場景檔，回傳結果；場景本身沒通過校驗時拋出 ScenarioInvalidError。
 
@@ -523,6 +528,8 @@ def execute(
     - ``workspace``：組合運行的共用工作資料夾（ADR 0020）；沒給時用執行目錄旁邊的暫存資料夾
       （Python 節點的工作目錄、download 步驟存檔），結束就刪除。``type: file`` 的出參複製進
       執行目錄的 ``outputs/``；自動化前後的檔案變化寫在 ``files.json``。
+    - ``python_packages``：運行環境模式的 Python 節點用伺服器管理的這個套件版本（ADR 0027）；
+      不是運行環境模式的場景不用它。
     """
     validated = validate_file(path)
     if validated.scenario is None:
@@ -611,7 +618,9 @@ def execute(
             )
         if uses_runtime:
             enter("runtime")
-            node, deadline = _runtime_stage(scenario, result, deadline, work, folder, staging)
+            node, deadline = _runtime_stage(
+                scenario, result, deadline, work, folder, staging, python_packages
+            )
         enter("automation")
         if tracked:
             before = scan(work, folder / OUTPUTS_DIR)
@@ -803,11 +812,13 @@ class _PythonNode:
     workspace: Path
     outputs: Path
     input_files: Path | None
+    python: Path
+    """執行腳本的直譯器：套件環境的（ADR 0027），或內附運行環境的。"""
 
     def command(self, script: Path, args: Sequence[str], *, launcher: bool) -> list[str]:
         """運行環境的 Python 執行腳本：自動化經由 rpa_script 的啟動器，斷言直接執行。"""
         # -E -s：不讀 PYTHON* 環境變數與使用者的 site-packages；-B：不在快照裡寫 __pycache__
-        base = [str(self.runtime.python), "-E", "-s", "-B", "-X", "utf8"]
+        base = [str(self.python), "-E", "-s", "-B", "-X", "utf8"]
         if launcher:
             return [*base, "-c", _LAUNCHER, str(self.library), str(script), *args]
         return [*base, str(script), *args]
@@ -850,8 +861,10 @@ def _runtime_stage(
     workspace: Path,
     folder: Path,
     staging: Path,
+    request: PackageRequest | None = None,
 ) -> tuple[_PythonNode, Deadline]:
-    """準備 RPA Python 運行環境（ADR 0020）。準備的時間不算進總期限：回傳順延後的期限。"""
+    """準備 RPA Python 運行環境（ADR 0020）與套件環境（ADR 0027）。準備的時間不算進總期限：
+    回傳順延後的期限。"""
     started = time.monotonic()
     stage = result.stage("runtime")
     script = scenario.script
@@ -871,17 +884,58 @@ def _runtime_stage(
             raise _StageFailedError(
                 "failed", t("run.runtime_failed", major=script.runtime, detail=str(error))
             ) from error
+        result.python = {"mode": "runtime", **runtime.to_json()}
+        key = "run.runtime_reused" if runtime.reused else "run.runtime_prepared"
+        messages = [t(key, version=runtime.version, ms=runtime.prepared_ms)]
+        python = runtime.python
+        if request is not None:
+            try:
+                env = prepare_packages(
+                    runtime,
+                    request.packages,
+                    fetch=request.fetch,
+                    on_progress=request.on_progress,
+                )
+            except PackagesUnavailableError as error:
+                raise _StageFailedError(
+                    "failed",
+                    t(
+                        "run.packages_failed",
+                        revision=request.packages.revision,
+                        detail=str(error),
+                    ),
+                ) from error
+            result.python["packages"] = env.to_json()
+            python = env.python
+            if env.bundled:
+                messages.append(t("run.packages_bundled", revision=env.revision))
+            elif env.reused:
+                messages.append(t("run.packages_reused", revision=env.revision))
+            else:
+                messages.append(
+                    t(
+                        "run.packages_prepared",
+                        revision=env.revision,
+                        copied=env.copied,
+                        downloaded=env.downloaded,
+                        ms=env.prepared_ms,
+                    )
+                )
     finally:
         _timed(stage, started)
-    result.python = {"mode": "runtime", **runtime.to_json()}
-    key = "run.runtime_reused" if runtime.reused else "run.runtime_prepared"
-    stage.message = t(key, version=runtime.version, ms=runtime.prepared_ms)
+    stage.message = (
+        t("run.runtime_and_packages", runtime=messages[0], packages=messages[1])
+        if len(messages) > 1
+        else messages[0]
+    )
     stage.status = "passed"
     workspace.mkdir(parents=True, exist_ok=True)
     outputs = folder / OUTPUTS_DIR
     outputs.mkdir(exist_ok=True)
     paths = staging / PATHS_FILE
-    node = _PythonNode(runtime, library, workspace, outputs, paths if paths.is_file() else None)
+    node = _PythonNode(
+        runtime, library, workspace, outputs, paths if paths.is_file() else None, python
+    )
     spent = time.monotonic() - started
     return node, Deadline(deadline.expires_at + spent)
 
@@ -958,7 +1012,12 @@ def _automation_stage(
     except _StageFailedError as failure:
         # 瀏覽器還沒下載：DSL 場景與 Python 腳本場景都會把 Playwright 的錯誤印進日誌
         if failure.status == "failed":
-            hint = missing_browser_hint(_log_tail(folder / AUTOMATION_LOG))
+            tail = _log_tail(folder / AUTOMATION_LOG)
+            hint = missing_browser_hint(tail)
+            missing = _MISSING_MODULE.findall(tail) if node is not None else []
+            if missing and result.python is not None:
+                # 目前的套件沒有這個模組（ADR 0027）：管理 Portal 的運行報告附上建議的套件
+                result.python["missingModule"] = missing[-1].split(".", 1)[0]
         if hint is None:
             raise
     finally:
@@ -978,6 +1037,9 @@ def _automation_stage(
     if not (folder / FACTS).exists():
         raise _StageFailedError("failed", t("run.facts_missing"))
     stage.status = "passed"
+
+
+_MISSING_MODULE: Final = re.compile(r"ModuleNotFoundError: No module named '([A-Za-z0-9_.]+)'")
 
 
 def _failed_step(folder: Path, secrets: Mapping[str, str]) -> str | None:

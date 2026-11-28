@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="translation-source" content="sha256:98eec46b85ff5e3f">
+<meta name="translation-source" content="sha256:0ea70566ca2bc4a4">
 <title>Scenario DSL · Browser RPA Engineering Docs</title>
 <link rel="stylesheet" href="../../design-system/assets/portal.css">
 <link rel="stylesheet" href="../../assets/docs.css">
@@ -151,7 +151,7 @@ verify:
         <div class="table-scroll"><table class="wrap">
           <thead><tr><th></th><th>Compatible mode (no <code>runtime</code>)</th><th>Runtime mode (<code>runtime: "1"</code>)</th></tr></thead>
           <tbody>
-            <tr><td>Interpreter</td><td>The Python of the computer that runs it (in a packaged app, the app's own Python with only the standard library and the bundled packages)</td><td>The RPA Python runtime: a fixed Python 3.13 with packages (Excel, pandas, Word, PDF, requests…), shipped with the Worker app and the Linux package, extracted on first use and reused afterwards</td></tr>
+            <tr><td>Interpreter</td><td>The Python of the computer that runs it (in a packaged app, the app's own Python with only the standard library and the bundled packages)</td><td>The RPA Python runtime: a fixed Python 3.13, shipped with the Worker app and the Linux package, extracted on first use and reused afterwards; system administrators manage the packages it can import under "Admin › Python packages" (by default Excel, pandas, Word, PDF, requests…, <a href="../adr/0027-python-packages.html">ADR 0027</a>), and each run uses the "packages #N" current when it was queued</td></tr>
             <tr><td>Browser</td><td>The script may open one itself with Playwright (for example <code>scenarios/demo/ba-001-script/</code>)</td><td>None; <code>browser</code> and <code>login</code> are not allowed; Workers without browsers or a display can run it</td></tr>
             <tr><td>Independent assertion</td><td><code>assertion</code> is required; no <code>verify</code></td><td>Either <code>assertion</code> or <code>verify</code> (neither when there are no outputs)</td></tr>
             <tr><td>Outputs</td><td>Written by assertion.py; no <code>from</code></td><td>As on the left with assertion.py; with verify every output has a <code>from</code> that reads the facts</td></tr>

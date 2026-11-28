@@ -15,8 +15,13 @@ worker 機器只需要連得到管理 Portal 的 Worker API（HTTP＋權杖）�
 - 回報結果時連不上就一直重試（最多 10 分鐘，心跳照常，租約不會過期）；
   管理 Portal 回 409（例如已經判定 worker 失聯）就放棄這次的回報。
 - Secrets 只在記憶體；登入狀態暫存檔只有本人能讀寫，執行完刪除。
+- 套件版本（ADR 0027）：任務帶著套件清單時，runner 組成套件環境，缺的 wheel 從管理 Portal 的
+  ``/python-packages/files/<sha256>`` 下載（斷線續傳；管理 Portal 忙時照 ``Retry-After`` 再來）。
+  閒置時管理 Portal 在領取的回應裡附上目前的套件版本（``pythonPackages``），worker 在背景先準備好，
+  回報 ``/python-packages/status``。
 """
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -31,6 +36,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import IO, Final, cast
 
+from rpa_runner.pypackages import (
+    PackageFile,
+    PackageRequest,
+    PackageSet,
+    PackagesUnavailableError,
+    prepare_packages,
+)
+from rpa_runner.pyruntime import RuntimeUnavailableError
+from rpa_runner.pyruntime import prepare as prepare_runtime
 from rpa_runner.run import RunResult, ScenarioInvalidError, StageName
 from rpa_worker.environment import WorkerInfo
 from rpa_worker.protocol import (
@@ -60,6 +74,9 @@ WORKSPACE_MAX_AGE: Final = 24 * 3600.0
 """超過這麼久沒動的工作資料夾，上線時刪掉。"""
 DELIVERY_SECONDS: Final = 600.0
 """回報結果最多重試這麼久。"""
+PACKAGE_WAIT_SECONDS: Final = 900.0
+"""下載一個套件檔最多等這麼久（管理 Portal 忙、斷線續傳）。"""
+PACKAGE_MAX_BYTES: Final = 2 << 30
 
 Notify = Callable[[str, Mapping[str, object]], None]
 """通知命令列（顯示給人看）：事件名稱與內容。事件見 :class:`RemoteJobSource`。"""
@@ -68,11 +85,15 @@ Notify = Callable[[str, Mapping[str, object]], None]
 class WorkerApiError(Exception):
     """管理 Portal 回應錯誤（HTTP 4xx、5xx）。"""
 
-    def __init__(self, status: int, code: str, message: str) -> None:
+    def __init__(
+        self, status: int, code: str, message: str, retry_after: float | None = None
+    ) -> None:
         super().__init__(f"{status} {code}: {message}")
         self.status = status
         self.code = code
         self.message = message
+        self.retry_after = retry_after
+        """503 時管理 Portal 說多久之後再來（秒）。"""
 
 
 class ConnectionLostError(Exception):
@@ -140,36 +161,61 @@ class WorkerClient:
         return cast("dict[str, object]", data_out) if isinstance(data_out, dict) else {}
 
     def download(
-        self, path: str, destination: Path, *, limit: int, timeout: float | None = None
+        self,
+        path: str,
+        destination: Path,
+        *,
+        limit: int,
+        timeout: float | None = None,
+        resume: bool = False,
+        progress: Callable[[int], None] | None = None,
     ) -> int:
         """GET 一個檔案，一段一段寫到 ``destination``；超過 ``limit`` 位元組就停。回傳大小。
 
-        寫到一半失敗時刪掉 ``destination``。錯誤和 :meth:`call` 相同。
+        寫到一半失敗時刪掉 ``destination``。``resume`` 時保留寫到一半的部分，下一次用 HTTP Range
+        從斷點接著下載（伺服器不支援時重新下載）。錯誤和 :meth:`call` 相同。
         """
         headers = {"Accept": "application/octet-stream"}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
+        have = destination.stat().st_size if resume and destination.is_file() else 0
+        if have:
+            headers["Range"] = f"bytes={have}-"
         request = urllib.request.Request(self.base + path, headers=headers, method="GET")
         size = 0
         try:
-            with (
-                self._opener.open(request, timeout=timeout or self.timeout) as response,
-                destination.open("wb") as output,
-            ):
-                while chunk := response.read(1024 * 1024):
-                    size += len(chunk)
-                    if size > limit:
-                        raise ConnectionLostError(f"larger than {limit} bytes")
-                    output.write(chunk)
+            with self._opener.open(request, timeout=timeout or self.timeout) as response:
+                append = bool(have) and response.status == 206
+                size = have if append else 0
+                if have and not append and progress is not None:
+                    progress(-have)
+                length = response.headers.get("Content-Length")
+                expected = size + int(length) if length and length.isdigit() else None
+                with destination.open("ab" if append else "wb") as output:
+                    while chunk := response.read(1024 * 1024):
+                        size += len(chunk)
+                        if size > limit:
+                            raise ConnectionLostError(f"larger than {limit} bytes")
+                        output.write(chunk)
+                        if progress is not None:
+                            progress(len(chunk))
+            if expected is not None and size < expected:
+                # 讀 n 個位元組時連線提早斷掉不會拋出錯誤
+                raise ConnectionLostError(f"incomplete: {size} of {expected} bytes")
         except urllib.error.HTTPError as error:
-            destination.unlink(missing_ok=True)
+            if not resume:
+                destination.unlink(missing_ok=True)
+            if error.code == 416 and have:  # 已經下載完了：交給呼叫的一方核對
+                return have
             raise _api_error(error) from None
         except (urllib.error.URLError, OSError, TimeoutError) as error:
-            destination.unlink(missing_ok=True)
+            if not resume:
+                destination.unlink(missing_ok=True)
             reason = getattr(error, "reason", None) or error
             raise ConnectionLostError(str(reason)) from None
         except ConnectionLostError:
-            destination.unlink(missing_ok=True)
+            if not resume or size > limit:
+                destination.unlink(missing_ok=True)
             raise
         return size
 
@@ -186,7 +232,9 @@ def _api_error(error: urllib.error.HTTPError) -> WorkerApiError:
             message = str(values.get("message") or message)
     except (ValueError, OSError):
         pass
-    return WorkerApiError(error.code, code, str(message))
+    retry = error.headers.get("Retry-After")
+    retry_after = float(retry) if retry and retry.isdigit() else None
+    return WorkerApiError(error.code, code, str(message), retry_after)
 
 
 @dataclass(slots=True)
@@ -270,6 +318,8 @@ class RemoteJobSource:
         self._offline_reported = False
         self._backoff = 1.0
         self._closing = threading.Event()
+        self._preparing: threading.Thread | None = None
+        """背景準備套件環境的執行緒（ADR 0027）。"""
 
     # ------------------------------------------------------------ 位置
 
@@ -394,7 +444,8 @@ class RemoteJobSource:
         if not reply:
             return None
         self.cleanup_workspaces(reply.get("cleanup"))
-        if "runId" not in reply:  # 只有要刪的共用工作資料夾，沒有任務
+        if "runId" not in reply:  # 只有要刪的共用工作資料夾或先準備的套件版本，沒有任務
+            self.prefetch(reply.get("pythonPackages"))
             return None
         return self._accept(reply)
 
@@ -445,6 +496,9 @@ class RemoteJobSource:
             max_file_bytes=payload.max_file_bytes,
             max_run_bytes=payload.max_run_bytes,
             workspace=workspace,
+            python_packages=PackageRequest(payload.python_packages, self.fetch_package)
+            if payload.python_packages is not None
+            else None,
         )
         active = _Active(job, folder, state_path, _digest(state_path))
         active.thread = threading.Thread(
@@ -479,6 +533,93 @@ class RemoteJobSource:
             if size != item.size or digest.hexdigest() != item.sha256:
                 target.unlink(missing_ok=True)
                 raise ValueError(f"file {item.id} does not match its sha256")
+
+    # ------------------------------------------------------------ 套件版本（ADR 0027）
+
+    def fetch_package(
+        self, item: PackageFile, target: Path, progress: Callable[[int], None]
+    ) -> None:
+        """套件環境缺的 wheel：從管理 Portal 下載到 target（核對 sha256 由 runner 做）。
+
+        斷線時從斷點續傳；管理 Portal 同時下載的 worker 太多（503）時照 ``Retry-After`` 等一下。
+        """
+        deadline = time.monotonic() + PACKAGE_WAIT_SECONDS
+        failures = 0
+        while True:
+            before = target.stat().st_size if target.is_file() else 0
+            try:
+                self.client.download(
+                    f"/python-packages/files/{item.sha256}",
+                    target,
+                    limit=item.size or PACKAGE_MAX_BYTES,
+                    timeout=120,
+                    resume=True,
+                    progress=progress,
+                )
+                return
+            except WorkerApiError as error:
+                if error.status != 503 or time.monotonic() > deadline:
+                    raise
+                wait = error.retry_after if error.retry_after is not None else 5.0
+            except ConnectionLostError:
+                grew = target.is_file() and target.stat().st_size > before
+                failures = 0 if grew else failures + 1  # 有進度就馬上接著下載
+                if failures > 5 or time.monotonic() > deadline:
+                    raise
+                wait = 0.2 if grew else min(2.0**failures, 30.0)
+            if self._closing.wait(min(wait, 30.0)):
+                raise ConnectionLostError("worker is stopping")
+
+    def prefetch(self, hint: object) -> None:
+        """管理 Portal 叫閒置的 worker 先準備目前的套件版本：在背景組成套件環境，回報狀態。"""
+        if not isinstance(hint, dict):
+            return
+        values = cast("dict[str, object]", hint)
+        runtime, raw = values.get("runtime"), values.get("packages")
+        if not isinstance(runtime, str) or not isinstance(raw, dict):
+            return
+        try:
+            packages = PackageSet.from_json(cast("dict[str, object]", raw))
+        except PackagesUnavailableError as error:
+            logger.warning("套件版本的格式不正確：%s", error)
+            return
+        with self._lock:
+            if self._preparing is not None and self._preparing.is_alive():
+                return
+            thread = threading.Thread(
+                target=self._prepare_packages,
+                args=(runtime, packages),
+                name="python-packages",
+                daemon=True,
+            )
+            self._preparing = thread
+        thread.start()
+
+    def _prepare_packages(self, runtime: str, packages: PackageSet) -> None:
+        self.report_packages(packages.revision, "preparing")
+        try:
+            prepared = prepare_packages(
+                prepare_runtime(runtime), packages, fetch=self.fetch_package
+            )
+        except (RuntimeUnavailableError, PackagesUnavailableError) as error:
+            self.report_packages(packages.revision, "failed", str(error))
+            self.notify("packages_failed", {"revision": packages.revision, "error": str(error)})
+            return
+        except Exception as error:  # 準備失敗不影響領取任務
+            logger.exception("準備套件 #%s 失敗", packages.revision)
+            self.report_packages(packages.revision, "failed", f"{type(error).__name__}: {error}")
+            return
+        self.report_packages(packages.revision, "ready")
+        self.notify("packages_ready", {"revision": packages.revision, "reused": prepared.reused})
+
+    def report_packages(self, revision: int, state: str, error: str = "") -> None:
+        """回報套件環境的準備狀態；連不上就算了（下一次領取時管理 Portal 會再叫）。"""
+        with contextlib.suppress(ConnectionLostError, WorkerApiError):
+            self.client.call(
+                "POST",
+                "/python-packages/status",
+                {"revision": revision, "state": state, "error": error[:2000]},
+            )
 
     def progress(self, job: Job, stage: StageName) -> None:
         active = self._get(job.run_id)
