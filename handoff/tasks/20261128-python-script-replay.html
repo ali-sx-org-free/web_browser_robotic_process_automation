@@ -30,9 +30,9 @@
       <div class="panel-header"><h2>進度、決定與下一步</h2></div>
       <div class="panel-body"><ul class="points">
         <li><strong>已完成：</strong>錄影開著時，相容模式的 automation.py 改由 <code>python -m rpa_runner.scripthost --video 執行目錄 automation.py …</code> 啟動（打包後是 <code>rpa-child --rpa-module rpa_runner.scripthost …</code>）；啟動器替 Playwright 公開 API（同步與 async 的 <code>Browser.new_context</code>／<code>new_page</code>／<code>close</code>、<code>BrowserType.launch_persistent_context</code>、離開 <code>sync_playwright()</code>／<code>async_playwright()</code>）加上錄影，再以 <code>runpy</code> 照原樣執行腳本：<code>sys.argv</code>、<code>sys.path[0]</code>、<code>__name__</code>、<code>__file__</code>、結束碼與例外和直接執行相同。影片大小跟著腳本的 viewport（同 DSL 場景）；腳本自己設了 <code>record_video_dir</code> 就不動。腳本只關 Browser 或忘了關時，先關掉有錄影的 context，影片才完整（這個 Playwright 版本直接關 Browser 會得到 0 位元組或只有第一格的影片）。之後沿用 DSL 場景的 <code>finalize</code>：多分頁有 video-page-N.webm 與 video.json v2 的 clips。相容模式也設 <code>RPA_STEPS</code>，<code>run.step()</code> 的步驟寫進 steps.json；伺服器把步驟的開始、結束換成相對影片的毫秒，所在分頁取那時最晚開始、還在錄的分頁。腳本沒有開瀏覽器時 video.json 記 <code>no_browser</code>，回看頁說明（入參沒通過、腳本沒執行時不記）。沒有錄影時命令和以前完全相同。文件：ADR 0016 新增「Python 腳本」一節與修訂紀錄，ADR 0020、DSL、管理 Portal、路線圖同步。</li>
-        <li><strong>未完成／阻礙：</strong>PR #46 的 CI、使用者審閱與合併。Windows（Worker App 打包後的 <code>rpa-child</code>）、macOS、有頭模式、Firefox 與 WebKit 只能由 CI 與人工驗收涵蓋。</li>
+        <li><strong>未完成／阻礙：</strong>PR #46 的使用者審閱與合併（CI 已通過）。Windows（Worker App 打包後的 <code>rpa-child</code>）、macOS、有頭模式、Firefox 與 WebKit 只能由 CI 與人工驗收涵蓋。</li>
         <li><strong>決定：</strong>D1～D3 使用者 2026-11-28 00:12 America/Los_Angeles（PST，UTC−08:00）決定照建議（已確認）：D1 跟著伺服器的錄影設定自動錄，場景不用另外開；D2 沒有 <code>run.step()</code> 的腳本先只有影片與一整段「自動化」，自動產生步驟之後再做；D3 縮圖從影片取，每一步的截圖之後再做。版本號：00:07 使用者說下一個大版本是 v0.14.0；00:45 澄清（原文）：「那就把計劃改成小版本，我的意思是假設你要做大版本下一個大版本號碼是0.14.0。要是你不做大版本就按照現有版本號碼繼續。」所以收入小版本 v0.12.1。見 <a href="../../docs/adr/0016-run-replay.html#python-scripts">ADR 0016 › Python 腳本</a>與<a href="../decisions.html#decisions">決定紀錄</a>。實作選擇（Claude）：只用 Playwright 的公開 API 掛鉤（簽章穩定，Playwright 改版由 <code>test_video_browser.py</code> 的真實瀏覽器測試發現）；步驟對應分頁在伺服器推算。</li>
-        <li><strong>下一個具體動作：</strong>看 PR #46 最新 head 的 CI；使用者審閱、合併後收入小版本 v0.12.1（版本 PR 另開）。人工驗收：Windows Worker 有頭、無頭各執行一次 <code>scenarios/demo/ba-001-script</code>（相容模式、自己開瀏覽器、沒有 <code>run.step()</code>：只有影片與一整段「自動化」），回看頁能播放、拖曳；再執行一次加上 <code>run.step()</code> 的腳本（寫法見 <a href="../../docs/design/dsl.html#python">DSL › Python 節點</a>的範例），點步驟跳到影片上的位置；一次開新分頁的腳本；一次組合運行裡接在瀏覽器節點後面。</li>
+        <li><strong>下一個具體動作：</strong>使用者審閱、合併 PR #46，合併後通知 PM 討論串（附合併後 main 的提交）；收入小版本 v0.12.1（版本 PR 另開）。人工驗收：Windows Worker 有頭、無頭各執行一次 <code>scenarios/demo/ba-001-script</code>（相容模式、自己開瀏覽器、沒有 <code>run.step()</code>：只有影片與一整段「自動化」），回看頁能播放、拖曳；再執行一次加上 <code>run.step()</code> 的腳本（寫法見 <a href="../../docs/design/dsl.html#python">DSL › Python 節點</a>的範例），點步驟跳到影片上的位置；一次開新分頁的腳本；一次組合運行裡接在瀏覽器節點後面。</li>
         <li><strong>未提交／stash／ignored 產物：</strong>無。scratchpad 裡的瀏覽器資料夾（指向內附 Chromium 與系統 ffmpeg 的連結）與試驗腳本不屬於倉庫。</li>
       </ul></div>
     </section>
@@ -44,7 +44,7 @@
           <tr><td>同上，<code>PLAYWRIGHT_BROWSERS_PATH</code> 指向 scratchpad 的瀏覽器資料夾（無頭 Chromium）</td><td><code>uv run pytest packages/rpa_runner/tests/test_scripthost.py packages/rpa_runner/tests/test_video_browser.py apps/server/tests/test_composite_replay.py</code></td><td>通過：啟動器和直接執行的輸出相同（有沒有錄影）、結束碼與例外照原樣；範例 ba-001 的腳本有 1280×800 的影片；<code>run.step()</code> 的步驟落在影片時間內；腳本只關 Browser、不關也有完整影片；開新分頁有 page-1、page-2 兩段；asyncio 的腳本有第一格的時間；沒有開瀏覽器記 no_browser；組合回看在相容模式節點有錄影時是影片段</td><td>有頭模式、Firefox、WebKit；打包後的 <code>rpa-child</code></td></tr>
           <tr><td>同上（文件）</td><td><code>uv run python tools/i18n.py stamp</code>、<code>sync</code>、<code>check</code>；<code>uv run pytest -q tests/docs tests/i18n</code>；<code>git diff --check</code></td><td>i18n check 通過；tests/docs、tests/i18n 432 passed；git diff --check 通過；本頁、索引、決定紀錄與 ADR 0016 的相對連結與錨點以腳本檢查通過</td><td>handoff/ 的連結另外人工確認</td></tr></tbody>
       </table></div>
-      <div class="panel-body"><p>CI：待 PR #46 的最新 head；人工驗收：未執行；審閱：未審閱。</p></div>
+      <div class="panel-body"><p>CI：PR #46 的 <span class="mono">5ea9e12</span>（最後一個改程式的 head 之後）與 <span class="mono">b57ce0e</span>（只改文件）的檢查全部通過或依輸入指紋略過；伺服器分發包（x64）的運行環境代號仍是 <span class="mono">7f0262edff709b01</span>，和 v0.12.0 相同，只要更新檔。之後只追加這份紀錄的提交，以 PR 最新 head 的 CI 為準。人工驗收：未執行；審閱：未審閱。</p></div>
     </section>
     <section class="panel" id="receipt">
       <div class="panel-header"><h2>接收確認</h2></div>
@@ -58,6 +58,7 @@
         <li>2026-11-28 00:12～00:35 America/Los_Angeles（PST，UTC−08:00），Claude：實作 Runner 與伺服器、測試、文件，建立本頁。試驗中發現這個 Playwright 版本只關 Browser 時影片是 0 位元組，改成先關有錄影的 context。</li>
         <li>2026-11-28 約 00:37 America/Los_Angeles（PST，UTC−08:00），Claude：推送 c5bef92～3a20493，開 PR #46（base main）；把 PR 指派給使用者與請求審閱都被 GitHub 拒絕（帳號不是倉庫的協作者），不影響 PR。</li>
         <li>2026-11-28 00:45 America/Los_Angeles（PST，UTC−08:00），使用者澄清版本號：不升大版本就照現有的版本號繼續，改成小版本。Claude：路線圖、本頁、任務索引、決定紀錄與 PR 說明從 v0.14.0 改成 v0.12.1。</li>
+        <li>2026-11-28 00:50 America/Los_Angeles（PST，UTC−08:00），Claude：PR #46 的 CI 在 5ea9e12 與 b57ce0e 全部通過；PM 討論串要求開發 PR 不改版本號（版本 PR 由 PM 在合併後開），環境代號沒變（x64 7f0262edff709b01）所以只用更新檔，已回覆。</li>
       </ul></div>
     </section>
   </div>
