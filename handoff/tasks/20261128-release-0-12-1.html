@@ -20,8 +20,8 @@
         <dt>範圍／不包含</dt><dd>範圍：版本號（<code>tools/release_version.py bump 0.12.1</code>）、本紀錄、任務索引；回填 <a href="20261128-python-script-replay.html">python-script-replay</a> 與 <a href="20261127-release-0-12-0.html">release-0-12-0</a> 的狀態；決定紀錄加上運維派工的做法。不包含：功能修改；文檔站對齊 v0.12.1。</dd>
         <dt>主責／審閱／接收方</dt><dd>Claude（PM 討論串，agent-pm 的 PM 身分 <code>rpa_new_pm</code>）準備版本差異與本紀錄、開版本 PR，並在 agent-pm hub 派工與 review。使用者合併版本 PR、驗收草稿並按「發布」、批准打標籤的任務。worker <code>devpos-chatgpt-rpa--worker</code> 推標籤、更新正式伺服器（Claude 的雲端環境推不了標籤）。本任務合併不代表線上環境已升級。</dd>
         <dt>修改檔案／整合者</dt><dd>九個套件的 <code>pyproject.toml</code>、<code>uv.lock</code>（只有工作區套件的版本）；本紀錄、任務索引、python-script-replay 與 release-0-12-0 任務紀錄、<code>handoff/decisions.html</code>。Claude 整合。</dd>
-        <dt>狀態</dt><dd>版本 PR 待開；合併後打開 agent-pm 項目的派工。</dd>
-        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-opq37t</code>（雲端 session 指定的分支名稱），從 origin/main <span class="mono">742afa5</span>（#46）開；PR 待開。</dd>
+        <dt>狀態</dt><dd>版本 PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/47">#47</a> 等 CI 與使用者合併；合併後打開 agent-pm 項目的派工。</dd>
+        <dt>分支／PR／base SHA</dt><dd><code>claude/project-thread-opq37t</code>（雲端 session 指定的分支名稱），從 origin/main <span class="mono">742afa5</span>（#46）開；PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/47">#47</a>。</dd>
         <dt>交接版本／同步狀態</dt><dd>以分支最新 head 為準。</dd>
         <dt>工作區／環境</dt><dd>Linux 雲端容器，Python 3.13、uv 0.11.32。跨平台安裝包由 GitHub Actions 建置。</dd>
       </dl></div>
@@ -72,7 +72,7 @@
     </section>
     <section class="panel" id="log">
       <div class="panel-header"><h2>追加紀錄</h2></div>
-      <div class="panel-body"><ul class="points"><li>2026-11-28 00:13～00:16 America/Los_Angeles（PST，UTC−08:00），Claude：照使用者給的步驟註冊成 agent-pm 的 PM（<code>apm setup --no-permissions</code>、<code>apm doctor</code> 除「Claude Code 權限」外都通過），hub 沒有進行中的項目。</li><li>2026-11-28 00:48 America/Los_Angeles（PST，UTC−08:00），Claude：使用者批准 v0.12.1 的計劃後，用 <code>apm project create</code> 建項目 #8 與任務 #9、#10，並行數 0。</li><li>2026-11-28 01:05 America/Los_Angeles（PST，UTC−08:00），Claude：PR #46 合併（main <span class="mono">742afa5</span>）後在本分支 bump 0.12.1，寫本紀錄，回填 python-script-replay 與 release-0-12-0，決定紀錄加上運維派工。</li></ul></div>
+      <div class="panel-body"><ul class="points"><li>2026-11-28 00:13～00:16 America/Los_Angeles（PST，UTC−08:00），Claude：照使用者給的步驟註冊成 agent-pm 的 PM（<code>apm setup --no-permissions</code>、<code>apm doctor</code> 除「Claude Code 權限」外都通過），hub 沒有進行中的項目。</li><li>2026-11-28 00:48 America/Los_Angeles（PST，UTC−08:00），Claude：使用者批准 v0.12.1 的計劃後，用 <code>apm project create</code> 建項目 #8 與任務 #9、#10，並行數 0。</li><li>2026-11-28 01:05 America/Los_Angeles（PST，UTC−08:00），Claude：PR #46 合併（main <span class="mono">742afa5</span>）後在本分支 bump 0.12.1，寫本紀錄，回填 python-script-replay 與 release-0-12-0，決定紀錄加上運維派工。</li><li>2026-11-28 01:08 America/Los_Angeles（PST，UTC−08:00），Claude：推送 <span class="mono">3a15b24</span>、<span class="mono">f4db0f0</span>，開 PR <a href="https://github.com/ali-sx-org-free/web_browser_robotic_process_automation/pull/47">#47</a>；把 PR 指派給使用者與請求審閱都被 GitHub 拒絕（帳號不是倉庫的協作者），不影響 PR。等 CI 與使用者合併。</li></ul></div>
     </section>
   </div>
 </main>
