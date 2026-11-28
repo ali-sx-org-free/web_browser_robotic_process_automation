@@ -1,0 +1,4 @@
+interface:
+  display_name: "WebRPA 無人值守升級"
+  short_description: "Upgrade WebRPA with verified backups and recovery"
+  default_prompt: "Use $webrpa-upgrade to upgrade the configured server to the version I specify."

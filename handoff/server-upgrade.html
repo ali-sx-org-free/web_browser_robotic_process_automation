@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>伺服器無人值守升級 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="handoff.css">
+</head>
+<body><main id="main">
+<nav class="handoff-nav" aria-label="交接材料"><a href="index.html">交接總入口</a><a href="collaboration.html">共用流程</a><a href="tasks/20261127-server-upgrade-0-11-0.html">實作與驗證紀錄</a></nav>
+<div class="heading"><div><h1>伺服器無人值守升級</h1><p>使用者指定版本後，依已批准的主機設定自動完成完整包升級；只有無法安全繼續時才請人類協助。</p></div></div>
+<div class="stack">
+<section class="panel" id="entry"><div class="panel-header"><h2>後續會話入口</h2></div><div class="panel-body">
+<p>流程與腳本的版本化來源是 <a href="../ops/skills/webrpa-upgrade/SKILL.md">webrpa-upgrade 技能</a>。Codex 的個人技能安裝在 <code>~/.codex/skills/webrpa-upgrade/</code>；Claude 或其他工具可直接閱讀倉庫版本並執行同一份腳本。</p>
+<p>個人主機設定放在 <code>~/.codex/webrpa-upgrade/profile.json</code>，不入庫；SSH 金鑰仍由現有 SSH config 管理。首次移到其他電腦時，經使用者授權安全取得設定及 SSH 連線，不將金鑰複製進技能或 Git。</p>
+<p>使用者於 2026-11-27 America/Los_Angeles（PST，UTC−08:00）在本次任務要求後續無人值守升級，必要時申請人類幫助。已配置主機的一般升級不逐步重問確認；沒有指定升級需求時不自行追蹤或安裝新版本，也沒有建立排程。</p>
+</div></section>
+<section class="panel" id="operation"><div class="panel-header"><h2>操作方式</h2></div><div class="panel-body">
+<p>先閱讀指定正式版本的發布說明。一般流程可執行：</p>
+<pre class="source">python -X utf8 ops/skills/webrpa-upgrade/scripts/upgrade.py --version 0.12.0 --apply</pre>
+<p>版本號只是範例，應換成使用者實際要求的已發布版本。省略 <code>--apply</code> 只做準備與檢查，不停止服務。同版本會回傳 <code>already_current</code>。下載固定使用 profile 的代理，使用 x64 完整包並驗證官方與遠端雜湊。</p>
+<p>保存輸出的 <code>Job record</code>。斷線或派送結果不確定時，使用 <code>--status &lt;job.json&gt;</code> 追蹤原交易，不能再次提交。主機交易由獨立 systemd 工作執行，能在 SSH 斷線後繼續。</p>
+<p>腳本依次核對真實執行程序與設定、閒置狀態及磁碟空間，停機備份全部資料和安裝目錄，再安裝完整包。新版先只監聽本機，檢查成功後恢復既有對外監聽。保留備份及失敗現場，不自動刪除歷史備份。</p>
+</div></section>
+<section class="panel" id="exceptions"><div class="panel-header"><h2>人工接手條件</h2></div><div class="panel-body"><ul class="points">
+<li>版本、架構、主機身分、實際資料路徑或配置指紋不符；新版需要人工遷移或不同部署方式。</li>
+<li>工作尚未完成，錄製端在線而無法確認調試／人工登入已結束，或磁碟不足。此時停機前退出。</li>
+<li>下載或上傳經有限重試仍失敗、校驗不一致、SSH 憑證或主機金鑰不符。</li>
+<li>對外開放前驗證失敗會自動回退；回退失敗或交易異常中斷，需要人工接手。已對外開放後不自動還原舊資料，避免覆蓋新寫入。</li>
+</ul><p>完整狀態與恢復規則見 <a href="../ops/skills/webrpa-upgrade/references/recovery.md">人工接手說明</a>。不得把「檢查通過」「部署完成」與「業務人工驗收」混為一談。</p></div></section>
+<section class="panel" id="maintenance"><div class="panel-header"><h2>維護與驗證</h2></div><div class="panel-body"><p>維護倉庫技能後，跑標準函式庫測試及技能驗證，再同步已安裝的個人技能副本。既有 CI 的 pytest 入口也執行隔離交易測試；測試不操作正式服務。實際主機上的回退故障注入、重開機及未發布的未來版本沒有驗收，不能由模擬測試推定。</p></div></section>
+</div></main></body></html>

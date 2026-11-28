@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>20261127-server-upgrade-0-11-0 · 瀏覽器 RPA</title>
+<link rel="stylesheet" href="../../docs/design-system/assets/portal.css">
+<link rel="stylesheet" href="../handoff.css">
+</head>
+<body><main id="main">
+<nav class="handoff-nav" aria-label="任務紀錄"><a href="../index.html">交接總入口</a><a href="../collaboration.html">共用協作流程</a><a href="index.html">任務索引</a></nav>
+<div class="heading"><div><h1>20261127-server-upgrade-0-11-0：既有伺服器完整包升級</h1><p>將實際執行的 v0.10.0 升級為 v0.11.0，保留資料、監聽方式及回退能力。</p></div></div>
+<div class="stack">
+<section class="panel" id="identity"><div class="panel-header"><h2>任務與責任</h2></div><div class="panel-body"><dl class="spec-list">
+<dt>時間</dt><dd>2026-11-27 20:27 America/Los_Angeles（PST，UTC−08:00）</dd>
+<dt>需求與授權</dt><dd>使用者於本次對話審閱完整安裝、停機備份、systemd 與回退方案後，明確要求執行升級。</dd>
+<dt>主責</dt><dd>Codex；使用者審閱方案；未指定接收方。</dd>
+<dt>範圍</dt><dd>既有 Linux 伺服器部署；依使用者後續要求，擴充為可重複的無人值守升級技能、維運腳本、隔離測試及 CI 接入；本紀錄、任務索引及協作入口。沒有產品程式碼變更。相關版本發布見 <a href="20261127-release-0-11-0.html">v0.11.0 發布紀錄</a>。</dd>
+<dt>分支／基準／同步</dt><dd>chore/server-upgrade-0.11.0；origin/main c6958b1；本次提交包含升級紀錄與流程沉澱，PR 準備中。</dd>
+<dt>狀態</dt><dd>伺服器完整包升級完成；無人值守流程已實作，本地與 Linux 隔離驗證通過，個人技能已同步，準備提交審閱。實際 Worker 執行及錄製端驗收另待使用者操作。</dd>
+</dl></div></section>
+<section class="panel" id="progress"><div class="panel-header"><h2>決定與進度</h2></div><div class="panel-body"><ul class="points">
+<li>使用已發布的 RPA-Server-0.11.0-linux-x64.tar.gz，提交 25bb2a8，環境代號 7f0262edff709b01；SHA-256 de5c2b74c9578a56c007e303d4a99404d7a98fd94d5142d9b1c1ebf9fa0ff48f。</li>
+<li>實際執行的是解壓目錄內的 v0.10.0；實際資料目錄與安裝設定不同。以程序實際參數為準，備份完整資料及舊安裝，再修正設定，避免建立空白環境。</li>
+<li>沿用既有 root 執行身分、8080／8081／8765 監聽與禁用本機 Worker 的方式；改由 systemd 管理並開機啟動。安裝腳本預設僅監聽本機管理埠，因此另設服務覆寫以保留已確認的既有監聽方式。</li>
+<li>伺服器位置、資料路徑、備份及操作腳本留在主機的受限目錄；透過既有 SSH 設定取得，不將業務資料、憑證或登入狀態寫入倉庫。</li>
+<li>已完成停機前複核、停止舊程序、完整備份與檢查、安裝新版、修正設定及 systemd 服務覆寫。舊版本與執行環境保留，備份包含舊啟動參數及環境（僅保存在主機 root 私有目錄）。</li>
+<li>備份識別：20261127-195128-PST；檔案 data.tar.gz、installation.tar.gz 與 SHA256SUMS.txt。目錄權限 700、備份檔案 600；由既有 SSH 連線在 root 的 rpa-backups 目錄取得。完整操作結果在同目錄 result.json，安裝輸出在 install.log。</li>
+<li>下一步：使用者以現有登入方式驗收業務操作；Worker 與錄製端仍須依 v0.11.0 發布說明使用完整安裝包升級。本次未操作遠端桌面裝置。</li>
+</ul></div></section>
+<section class="panel" id="validation"><div class="panel-header"><h2>驗證</h2></div><div class="panel-body"><ul class="points">
+<li>被測版本：v0.11.0／25bb2a8；Rocky Linux 9.5 x86_64、glibc 2.34、包內 Python 3.13.18。sha256sum、gzip -t、tar -tzf：正式完整包與兩份備份檢查通過。</li>
+<li>部署命令：包內 bash install.sh --prefix &lt;既有安裝目錄&gt; --skip-system-packages --keep 10；systemd-analyze verify 通過，systemctl enable/start 成功。既有 git 與 libstdc++ 已齊備，未安裝系統套件。</li>
+<li>bin/rpa --version 回報 rpa 0.11.0、rpa-core 0.11.0；current 指向 releases/0.11.0-25bb2a8。systemctl show：active/running、enabled、NRestarts=0、ExecMainStatus=0。</li>
+<li>SQLite PRAGMA integrity_check 升級前後均為 ok；升級前未發現執行中／排隊任務或已指派的 Worker 任務。使用者、領域、場景、版本、角色、裝置及執行紀錄筆數前後一致；186 個領域、角色與 Secrets 相關檔案 SHA-256 一致。比對清單僅保存在主機受限備份目錄。</li>
+<li>伺服器本機及 Windows 用戶端經公網檢查：8080/login 回應 200、8081 未帶憑證回應預期的 401、8765 回應 200。ss -lntp 確認原三個埠仍監聽 0.0.0.0，既有 28080 程序保留。</li>
+<li>觀察期間沒有意外重啟；systemd 警告／錯誤優先級日誌 0 行。服務記憶體約 108 MiB。未執行主機重開機、故障注入／實際回退、帳號登入及遠端 Worker／錄製端操作；不得視為這些項目已通過。</li>
+<li>CI：未執行，沒有程式碼變更。本機任務紀錄：git diff --check 與 HTML 相對連結檢查通過。</li>
+</ul></div></section>
+<section class="panel" id="unattended"><div class="panel-header"><h2>無人值守流程沉澱</h2></div><div class="panel-body"><ul class="points">
+<li>需求：使用者完成本次安裝後明確要求沉澱流程，下一次無人值守升級，必要時請人類協助。正常的指定版本升級可直接執行，沒有建立自動追蹤新版本或定期升級排程。</li>
+<li>入口：<a href="../server-upgrade.html">升級流程</a>、<a href="../../ops/skills/webrpa-upgrade/SKILL.md">技能來源</a>。AGENTS.md 加入導航；個人技能複本放在 ~/.codex/skills/webrpa-upgrade，主機 profile、快取及交易紀錄放在 ~/.codex/webrpa-upgrade，不入庫。</li>
+<li>主控端：明確正式版本、代理下載 x64 完整包、官方 SHA-256 與大小檢查、遠端雜湊、凍結本次腳本與 profile、唯一交易、SSH 嚴格金鑰核對；systemd 獨立工作確保 SSH 斷線不直接打斷交易。</li>
+<li>主機：flock、未完成交易檢查、配置指紋與實際程序參數核對、閒置與空間檢查、停機後完整備份、保留舊版、僅本機監聽的驗證階段、恢復公開監聽。驗證階段失敗自動回退，公開後失敗請人類處理，避免覆蓋新寫入。</li>
+<li>測試：Windows Python 3.12 執行 7 項可攜式檢查，17 項 Linux 交易測試明確跳過；Rocky Linux 9.5／Python 3.13.18 隔離目錄執行 24 項全數通過（2026-11-27 20:17 America/Los_Angeles（PST，UTC−08:00））。模擬 systemd／安裝器，真正執行 SQLite、tar 備份、校驗及恢復；覆蓋資料改變、安裝／備份／健康失敗、回退失敗、並發鎖、未完成交易及公開後保護。</li>
+<li>實機：2026-11-27 20:18 America/Los_Angeles（PST，UTC−08:00），主控端對現有 v0.11.0 完整執行同版本入口，獨立 systemd 工作回傳 already_current；沒有重裝；後續確認主程序 PID、啟動時間及 NRestarts 均未改變。初次測試在修訂期間遇到來源腳本與上傳版本不同，雜湊檢查於派送前阻止執行，已修正為凍結交易副本。</li>
+<li>Ruff 0.17.6 的本次技能目錄 lint／format、skill-creator quick_validate 通過；既有 CI 透過 tests/ops/test_unattended_upgrade.py 執行 unittest 隔離測試。沒有在正式服務故障注入，也沒有宣稱未發布的下一版已驗收。</li>
+</ul></div></section>
+<section class="panel" id="receipt"><div class="panel-header"><h2>接收確認</h2></div><div class="panel-body"><p>未接收；來源、測試及紀錄正在準備同步。沒有代填人工驗收。</p></div></section>
+<section class="panel" id="log"><div class="panel-header"><h2>追加紀錄</h2></div><div class="panel-body"><ul class="points"><li>2026-11-27 19:48 America/Los_Angeles（PST，UTC−08:00），Codex：確認授權、fetch 與乾淨 main；建立任務分支及本紀錄，開始部署。</li><li>2026-11-27 19:51:34 America/Los_Angeles（PST，UTC−08:00），Codex：停止舊程序；19:52:02 完成備份驗證；19:52:10 新版端點與資料比對通過；19:52:30 完成初步穩定性檢查。停機約 36 秒。</li><li>2026-11-27 19:53 America/Los_Angeles（PST，UTC−08:00），Codex：公網端點與備份 SHA-256 複核通過，回填本機紀錄；部署已完成，文件尚未推送。</li></ul></div></section>
+</div></main></body></html>

@@ -26,6 +26,7 @@
 ## 快速定位
 
 - [任務範本](handoff/tasks/_template.html)：交接欄位、驗證紀錄、接收確認。
+- [伺服器無人值守升級](handoff/server-upgrade.html)：指定版本後的完整包下載、備份、部署、驗證、回退與人工接手；升級任務先讀此流程。
 - [Claude 先前的操作歷史](handoff/workflow.html)：解釋 bootstrap、rebase 與環境限制，不作為新的環境豁免。
 - [原始材料索引](handoff/materials.html)：保留歷史原文；新的決定與工作紀錄直接進倉庫。
 
