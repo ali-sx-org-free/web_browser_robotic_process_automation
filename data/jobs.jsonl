@@ -2028,3 +2028,5 @@
 {"attempt": 1, "conclusion": "success", "duration_s": 1976.0, "job": "專案內執行（macos-latest）", "os": "macos", "queue_s": 4.0, "run_id": 46100551790, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "success", "duration_s": 384.0, "job": "從零開始（ubuntu-latest）", "os": "linux", "queue_s": 3.0, "run_id": 46100551790, "workflow": "一鍵安裝腳本"}
 {"attempt": 1, "conclusion": "success", "duration_s": 7.0, "job": "失敗時開 issue", "os": "linux", "queue_s": 2.0, "run_id": 46100551790, "workflow": "一鍵安裝腳本"}
+{"attempt": 1, "conclusion": "success", "duration_s": 7.0, "job": "執行範圍", "os": "linux", "queue_s": 2.0, "run_id": 46105262637, "workflow": "伺服器分發包"}
+{"attempt": 1, "conclusion": "skipped", "duration_s": 0, "job": "分發包（${{ matrix.label }}）", "os": "linux", "queue_s": 0.0, "run_id": 46105262637, "workflow": "伺服器分發包"}
